@@ -11,7 +11,6 @@
     <script src="https://unpkg.com/@babel/standalone@7.21.0/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <!-- Firebase Compat V10 -->
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
@@ -89,7 +88,10 @@
             // Filtros de Fichas
             const [recipeSearch, setRecipeSearch] = useState('');
             const [recipeCatFilter, setRecipeCatFilter] = useState('');
+            
+            // Estados de Recolher/Expandir Categorias
             const [recipeCollapsed, setRecipeCollapsed] = useState({});
+            const [ingCollapsed, setIngCollapsed] = useState({});
 
             const fileInputRef = useRef(null);
 
@@ -249,6 +251,25 @@
                 setIsIngModalOpen(true);
             };
 
+            const toggleIngCat = (cat) => {
+                setIngCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }));
+            };
+
+            // Agrupamento de Insumos
+            const groupedIngredients = useMemo(() => {
+                return ingredients.reduce((acc, ing) => {
+                    const cat = ing.category || 'Outros';
+                    if (!acc[cat]) acc[cat] = [];
+                    acc[cat].push(ing);
+                    return acc;
+                }, {});
+            }, [ingredients]);
+
+            const sortedIngCategories = useMemo(() => {
+                return Object.keys(groupedIngredients).sort();
+            }, [groupedIngredients]);
+
+
             // ================= LÓGICA DE FICHAS TÉCNICAS (RECEITAS) =================
             const handleSaveRecipe = async (e) => {
                 e.preventDefault();
@@ -341,7 +362,7 @@
                 setRecipeCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }));
             };
 
-            // Filtragem e Agrupamento
+            // Filtragem e Agrupamento de Fichas
             const filteredRecipes = useMemo(() => {
                 return recipes.filter(r => {
                     const matchesSearch = (r.name || '').toLowerCase().includes(recipeSearch.toLowerCase());
@@ -359,7 +380,7 @@
                 }, {});
             }, [filteredRecipes]);
 
-            const sortedCategories = useMemo(() => {
+            const sortedRecipeCategories = useMemo(() => {
                 return Object.keys(groupedRecipes).sort();
             }, [groupedRecipes]);
 
@@ -428,6 +449,7 @@
                             </div>
                         )}
 
+                        {/* ======================= ABA INSUMOS ======================= */}
                         {activeTab === 'insumos' && (
                             <div className="space-y-6 fade-in">
                                 <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-6 rounded-[2rem] border shadow-sm">
@@ -449,38 +471,61 @@
                                     </div>
                                 </div>
 
-                                <div className="glass-card rounded-[2.5rem] overflow-hidden border shadow-sm overflow-x-auto">
-                                    <table className="w-full text-left text-xs">
-                                        <thead className="bg-slate-100 border-b text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                            <tr>
-                                                <th className="p-4">Ingrediente</th>
-                                                <th className="p-4">Categoria</th>
-                                                <th className="p-4">Preço (Embalagem)</th>
-                                                <th className="p-4">Custo Unitário</th>
-                                                <th className="p-4 text-right">Ações</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                                            {ingredients.length === 0 ? (
-                                                <tr><td colSpan="5" className="p-12 text-center text-slate-400 uppercase font-black text-xs">Nenhum insumo cadastrado.</td></tr>
-                                            ) : ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(ing => {
-                                                const unitCost = ing.cost / ing.qty;
-                                                return (
-                                                    <tr key={ing.id} className="hover:bg-slate-50 transition-colors">
-                                                        <td className="p-4 font-black uppercase text-slate-900">{ing.name}</td>
-                                                        <td className="p-4"><span className="bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg text-[9px] uppercase font-black">{ing.category}</span></td>
-                                                        <td className="p-4">{formatMoney(ing.cost)} <span className="text-[9px] text-slate-400">/ {ing.qty}{ing.unit}</span></td>
-                                                        <td className="p-4 text-emerald-600 font-black">{formatMoney(unitCost)} <span className="text-[9px] text-slate-400">/ {ing.unit === 'kg' ? 'g' : (ing.unit === 'L' ? 'ml' : ing.unit)}</span></td>
-                                                        <td className="p-4 text-right">
-                                                            <button onClick={() => openIngModal(ing)} className="text-blue-500 hover:text-blue-700 p-2"><Icon name="edit-2" size={16}/></button>
-                                                            <button onClick={() => handleDeleteIngredient(ing.id)} className="text-red-400 hover:text-red-600 p-2"><Icon name="trash-2" size={16}/></button>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                {ingredients.length === 0 ? (
+                                    <div className="p-12 text-center text-slate-400 uppercase font-black text-xs glass-card rounded-[2.5rem] border-dashed">Nenhum insumo cadastrado.</div>
+                                ) : (
+                                    <div className="space-y-8">
+                                        {sortedIngCategories.map(category => {
+                                            const isCollapsed = ingCollapsed[category];
+                                            return (
+                                            <div key={category} className="space-y-4">
+                                                
+                                                {/* Cabeçalho da Categoria de Insumos com Toggle */}
+                                                <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => toggleIngCat(category)}>
+                                                    <div className="flex items-center gap-3 ml-2">
+                                                        <span className="text-emerald-600"><Icon name="box" size={20}/></span>
+                                                        <h3 className="font-black text-sm uppercase text-slate-800 tracking-widest">{category}</h3>
+                                                        <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[10px] uppercase font-black">{groupedIngredients[category].length}</span>
+                                                    </div>
+                                                    <Icon name={isCollapsed ? "chevron-down" : "chevron-up"} size={20} className="text-slate-400 mr-2"/>
+                                                </div>
+
+                                                {/* Tabela de Insumos da Categoria */}
+                                                {!isCollapsed && (
+                                                    <div className="glass-card rounded-[2rem] overflow-hidden border shadow-sm overflow-x-auto">
+                                                        <table className="w-full text-left text-xs">
+                                                            <thead className="bg-slate-100 border-b text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                                                <tr>
+                                                                    <th className="p-4">Ingrediente</th>
+                                                                    <th className="p-4">Preço (Embalagem)</th>
+                                                                    <th className="p-4">Custo Unitário</th>
+                                                                    <th className="p-4 text-right">Ações</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                                                                {groupedIngredients[category].sort((a,b)=>a.name.localeCompare(b.name)).map(ing => {
+                                                                    const unitCost = ing.cost / ing.qty;
+                                                                    return (
+                                                                        <tr key={ing.id} className="hover:bg-slate-50 transition-colors">
+                                                                            <td className="p-4 font-black uppercase text-slate-900">{ing.name}</td>
+                                                                            <td className="p-4">{formatMoney(ing.cost)} <span className="text-[9px] text-slate-400">/ {ing.qty}{ing.unit}</span></td>
+                                                                            <td className="p-4 text-emerald-600 font-black">{formatMoney(unitCost)} <span className="text-[9px] text-slate-400">/ {ing.unit === 'kg' ? 'g' : (ing.unit === 'L' ? 'ml' : ing.unit)}</span></td>
+                                                                            <td className="p-4 text-right">
+                                                                                <button onClick={() => openIngModal(ing)} className="text-blue-500 hover:text-blue-700 p-2"><Icon name="edit-2" size={16}/></button>
+                                                                                <button onClick={() => handleDeleteIngredient(ing.id)} className="text-red-400 hover:text-red-600 p-2"><Icon name="trash-2" size={16}/></button>
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -513,7 +558,7 @@
                                     <div className="p-12 text-center text-slate-400 uppercase font-black text-xs glass-card rounded-[2.5rem] border-dashed">Nenhuma ficha técnica encontrada.</div>
                                 ) : (
                                     <div className="space-y-8">
-                                        {sortedCategories.map(category => {
+                                        {sortedRecipeCategories.map(category => {
                                             const isCollapsed = recipeCollapsed[category];
                                             return (
                                             <div key={category} className="space-y-4">
