@@ -304,6 +304,20 @@
                 setRecipeForm(prev => ({ ...prev, ingredients: newIngredients }));
             };
 
+            // Função para agrupar receitas por categoria
+            const groupedRecipes = useMemo(() => {
+                return recipes.reduce((acc, recipe) => {
+                    const cat = recipe.category || 'Outros';
+                    if (!acc[cat]) acc[cat] = [];
+                    acc[cat].push(recipe);
+                    return acc;
+                }, {});
+            }, [recipes]);
+
+            const sortedCategories = useMemo(() => {
+                return Object.keys(groupedRecipes).sort();
+            }, [groupedRecipes]);
+
             // Renderização da Tela
             if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase tracking-widest">Iniciando ERP Cantinho...</div>;
 
@@ -425,7 +439,7 @@
                             </div>
                         )}
 
-                        {/* ======================= ABA FICHAS TÉCNICAS ======================= */}
+                        {/* ======================= ABA FICHAS TÉCNICAS (AGRUPADA) ======================= */}
                         {activeTab === 'fichas' && (
                             <div className="space-y-6 fade-in">
                                 <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-6 rounded-[2rem] border shadow-sm">
@@ -438,57 +452,73 @@
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {recipes.length === 0 ? (
-                                        <div className="col-span-full p-12 text-center text-slate-400 uppercase font-black text-xs glass-card rounded-[2.5rem]">Nenhuma ficha técnica cadastrada.</div>
-                                    ) : recipes.sort((a,b)=>a.name.localeCompare(b.name)).map(recipe => {
-                                        const foodCost = calculateItemCost(recipe.ingredients);
-                                        const sellingPrice = parseFloat(recipe.sellingPrice || 0);
-                                        const cmv = sellingPrice > 0 ? ((foodCost / sellingPrice) * 100).toFixed(1) : 0;
-                                        
-                                        return (
-                                            <div key={recipe.id} className="glass-card rounded-[2.5rem] p-6 shadow-lg border-t-8 border-slate-800 flex flex-col justify-between">
-                                                <div>
-                                                    <div className="flex justify-between items-start mb-4">
-                                                        <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[9px] uppercase font-black tracking-widest">{recipe.category}</span>
-                                                        <div className="flex gap-1">
-                                                            <button onClick={() => openRecipeModal(recipe)} className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded-lg"><Icon name="edit-2" size={14}/></button>
-                                                            <button onClick={() => handleDeleteRecipe(recipe.id)} className="text-red-400 hover:text-red-600 bg-red-50 p-2 rounded-lg"><Icon name="trash-2" size={14}/></button>
-                                                        </div>
-                                                    </div>
-                                                    <h3 className="font-black text-lg uppercase text-slate-900 leading-tight mb-4">{recipe.name}</h3>
-                                                    
-                                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2 mb-4">
-                                                        <p className="text-[9px] font-black uppercase text-slate-400">Ingredientes Principais</p>
-                                                        <div className="space-y-1 text-xs font-bold text-slate-700">
-                                                            {recipe.ingredients.slice(0, 4).map((ing, idx) => {
-                                                                const iData = ingredients.find(i => i.id === ing.ingredientId);
-                                                                return <div key={idx} className="truncate">• {iData ? iData.name : 'Insumo removido'}</div>;
-                                                            })}
-                                                            {recipe.ingredients.length > 4 && <div className="text-slate-400 italic text-[10px]">+ {recipe.ingredients.length - 4} ingredientes</div>}
-                                                            {recipe.ingredients.length === 0 && <div className="text-slate-400 italic text-[10px]">Sem ingredientes</div>}
-                                                        </div>
-                                                    </div>
+                                {recipes.length === 0 ? (
+                                    <div className="p-12 text-center text-slate-400 uppercase font-black text-xs glass-card rounded-[2.5rem]">Nenhuma ficha técnica cadastrada.</div>
+                                ) : (
+                                    <div className="space-y-10">
+                                        {sortedCategories.map(category => (
+                                            <div key={category} className="space-y-4">
+                                                
+                                                {/* Cabeçalho da Categoria */}
+                                                <div className="flex items-center gap-3 border-b-2 border-slate-200 pb-2 ml-2">
+                                                    <span className="bg-[#F27A18] text-black p-2 rounded-xl"><Icon name="layers" size={16}/></span>
+                                                    <h3 className="font-black text-lg uppercase text-slate-800 tracking-widest">{category}</h3>
+                                                    <span className="bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg text-[10px] uppercase font-black">{groupedRecipes[category].length}</span>
                                                 </div>
 
-                                                <div className="grid grid-cols-2 gap-3 mt-auto">
-                                                    <div className="bg-slate-100 p-3 rounded-2xl text-center">
-                                                        <span className="text-[9px] font-black uppercase text-slate-500 block mb-1">Custo Insumos</span>
-                                                        <span className="font-black text-slate-800 text-sm">{formatMoney(foodCost)}</span>
-                                                    </div>
-                                                    <div className={"p-3 rounded-2xl text-center border " + (cmv > 35 ? 'bg-red-50 border-red-100 text-red-600' : 'bg-green-50 border-green-100 text-green-700')}>
-                                                        <span className="text-[9px] font-black uppercase block mb-1">CMV Real (%)</span>
-                                                        <span className="font-black text-sm">{cmv}%</span>
-                                                    </div>
-                                                    <div className="col-span-2 flex justify-between items-center px-4 py-2 border-t mt-2">
-                                                        <span className="text-[10px] font-black uppercase text-slate-500">Preço de Venda:</span>
-                                                        <span className="font-black text-slate-900 text-lg">{formatMoney(sellingPrice)}</span>
-                                                    </div>
+                                                {/* Grid de Fichas da Categoria */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                                    {groupedRecipes[category].sort((a,b)=>a.name.localeCompare(b.name)).map(recipe => {
+                                                        const foodCost = calculateItemCost(recipe.ingredients);
+                                                        const sellingPrice = parseFloat(recipe.sellingPrice || 0);
+                                                        const cmv = sellingPrice > 0 ? ((foodCost / sellingPrice) * 100).toFixed(1) : 0;
+                                                        
+                                                        return (
+                                                            <div key={recipe.id} className="glass-card rounded-[2.5rem] p-6 shadow-lg border-t-8 border-slate-800 flex flex-col justify-between">
+                                                                <div>
+                                                                    <div className="flex justify-end items-start mb-4">
+                                                                        <div className="flex gap-1">
+                                                                            <button onClick={() => openRecipeModal(recipe)} className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded-lg"><Icon name="edit-2" size={14}/></button>
+                                                                            <button onClick={() => handleDeleteRecipe(recipe.id)} className="text-red-400 hover:text-red-600 bg-red-50 p-2 rounded-lg"><Icon name="trash-2" size={14}/></button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <h3 className="font-black text-lg uppercase text-slate-900 leading-tight mb-4">{recipe.name}</h3>
+                                                                    
+                                                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2 mb-4">
+                                                                        <p className="text-[9px] font-black uppercase text-slate-400">Ingredientes Principais</p>
+                                                                        <div className="space-y-1 text-xs font-bold text-slate-700">
+                                                                            {recipe.ingredients.slice(0, 4).map((ing, idx) => {
+                                                                                const iData = ingredients.find(i => i.id === ing.ingredientId);
+                                                                                return <div key={idx} className="truncate">• {iData ? iData.name : 'Insumo removido'}</div>;
+                                                                            })}
+                                                                            {recipe.ingredients.length > 4 && <div className="text-slate-400 italic text-[10px]">+ {recipe.ingredients.length - 4} ingredientes</div>}
+                                                                            {recipe.ingredients.length === 0 && <div className="text-slate-400 italic text-[10px]">Sem ingredientes</div>}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-2 gap-3 mt-auto">
+                                                                    <div className="bg-slate-100 p-3 rounded-2xl text-center">
+                                                                        <span className="text-[9px] font-black uppercase text-slate-500 block mb-1">Custo Insumos</span>
+                                                                        <span className="font-black text-slate-800 text-sm">{formatMoney(foodCost)}</span>
+                                                                    </div>
+                                                                    <div className={"p-3 rounded-2xl text-center border " + (cmv > 35 ? 'bg-red-50 border-red-100 text-red-600' : 'bg-green-50 border-green-100 text-green-700')}>
+                                                                        <span className="text-[9px] font-black uppercase block mb-1">CMV Real (%)</span>
+                                                                        <span className="font-black text-sm">{cmv}%</span>
+                                                                    </div>
+                                                                    <div className="col-span-2 flex justify-between items-center px-4 py-2 border-t mt-2">
+                                                                        <span className="text-[10px] font-black uppercase text-slate-500">Preço de Venda:</span>
+                                                                        <span className="font-black text-slate-900 text-lg">{formatMoney(sellingPrice)}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
-                                        );
-                                    })}
-                                </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
 
