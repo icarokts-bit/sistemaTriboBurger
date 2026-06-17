@@ -19,6 +19,8 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;600;800&display=swap');
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #FDFCF9; color: #1A202C; overflow-x: hidden; }
+        body, input:not([type="password"]), select, button, textarea, option, span, p, h1, h2, h3, h4, th, td { text-transform: uppercase !important; }
+        input::placeholder, textarea::placeholder { text-transform: uppercase !important; }
         .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(226, 232, 240, 0.6); }
         .tab-active { background-color: #D97757; color: #FFF; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -29,6 +31,13 @@
         .btn-primary:active { transform: scale(0.95); }
         .btn-accent { background-color: #F27A18; color: #000; font-weight: 900; text-transform: uppercase; transition: all 0.2s; }
         .btn-accent:active { transform: scale(0.95); }
+        
+        /* Estilos do Financeiro */
+        .table-input { width: 100%; height: 100%; text-align: center; background: transparent; border: none; font-weight: 800; font-size: 11px; outline: none; padding: 4px; }
+        .table-input:focus { background-color: rgba(211, 226, 152, 0.2); }
+        .header-black { background-color: #000; color: #FFF; font-weight: 800; text-transform: uppercase; font-size: 10px; border: 1px solid #333; }
+        .stat-banner { background: #1A202C; border-bottom: 6px solid #D97757; color: white; padding: 2rem; border-radius: 2.5rem; text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+        .status-badge { font-size: 7px; font-weight: 900; padding: 2px 6px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
     </style>
 </head>
 <body class="antialiased">
@@ -37,7 +46,6 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // Configuração do Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyCL0o0TQYbPXoo7Yo_qJpc1oa7jib8KBcc",
             authDomain: "tribo-burger-app.firebaseapp.com",
@@ -66,11 +74,37 @@
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('fin_dashboard');
+            const fileInputRef = useRef(null);
             
+            // ================= ESTADOS DO FINANCEIRO =================
             const [transactions, setTransactions] = useState([]);
+            const [dailyRecords, setDailyRecords] = useState({});
             const [accounts, setAccounts] = useState([]);
-            
-            // Dados CMV
+            const [categories, setCategories] = useState([]);
+            const [suppliers, setSuppliers] = useState([]);
+            const [metaVendas, setMetaVendas] = useState(0);
+
+            const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
+            const [searchQuery, setSearchQuery] = useState('');
+            const [typeFilter, setTypeFilter] = useState('todos');
+            const [accFilter, setAccFilter] = useState('');
+            const [catFilter, setCatFilter] = useState('');
+
+            // Formulário de Lançamento Financeiro
+            const [desc, setDesc] = useState('');
+            const [val, setVal] = useState('');
+            const [type, setType] = useState('saida');
+            const [account, setAccount] = useState('');
+            const [destAcc, setDestAcc] = useState('');
+            const [cat, setCat] = useState('');
+            const [sup, setSup] = useState('');
+            const [status, setStatus] = useState('pago');
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            const [clearance, setClearance] = useState(new Date().toISOString().split('T')[0]);
+            const [editingId, setEditingId] = useState(null);
+            const [newDayDate, setNewDayDate] = useState(new Date().toISOString().split('T')[0]);
+
+            // ================= ESTADOS DO CMV =================
             const [ingredients, setIngredients] = useState([]);
             const [recipes, setRecipes] = useState([]);
             const [complements, setComplements] = useState([]);
@@ -82,39 +116,19 @@
             const [complementCategories, setComplementCategories] = useState(['Extras', 'Molhos', 'Outros']);
             const [comboCategories, setComboCategories] = useState(['Promocionais', 'Família', 'Outros']);
 
-            // Estados - Insumos
+            // Modais CMV
             const [isIngModalOpen, setIsIngModalOpen] = useState(false);
             const [ingForm, setIngForm] = useState({ id: '', name: '', category: 'Outros', cost: '', unit: 'g', qty: '' });
             const [ingCollapsed, setIngCollapsed] = useState({});
 
-            // Estados - Fichas Técnicas
             const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
             const [recipeForm, setRecipeForm] = useState({ id: '', name: '', category: 'Hambúrgueres', sellingPrice: '', ingredients: [], ignoreCMV: false });
             const [recipeSearch, setRecipeSearch] = useState('');
             const [recipeCatFilter, setRecipeCatFilter] = useState('');
             const [recipeCollapsed, setRecipeCollapsed] = useState({});
 
-            // Estados - Complementos
-            const [isCompModalOpen, setIsCompModalOpen] = useState(false);
-            const [compForm, setCompForm] = useState({ id: '', name: '', category: 'Extras', sellingPrice: '', ingredients: [], ignoreCMV: false });
-            const [compSearch, setCompSearch] = useState('');
-            const [compCatFilter, setCompCatFilter] = useState('');
-            const [compCollapsed, setCompCollapsed] = useState({});
-
-            // Estados - Combos
-            const [isComboModalOpen, setIsComboModalOpen] = useState(false);
-            const [comboForm, setComboForm] = useState({ id: '', name: '', category: 'Promocionais', sellingPrice: '', items: [], ignoreCMV: false });
-            const [comboSearch, setComboSearch] = useState('');
-            const [comboCatFilter, setComboCatFilter] = useState('');
-            const [comboCollapsed, setComboCollapsed] = useState({});
-
-            const fileInputRef = useRef(null);
-
             useEffect(() => {
-                const unsubscribe = auth.onAuthStateChanged(u => { 
-                    setUser(u); 
-                    setLoading(false); 
-                });
+                const unsubscribe = auth.onAuthStateChanged(u => { setUser(u); setLoading(false); });
                 return () => unsubscribe();
             }, []);
 
@@ -122,10 +136,17 @@
                 if (!user || user.isAnonymous) return;
                 
                 const pathFin = "artifacts/tribo-burger-financeiro/users/" + user.uid;
+                
+                // Listeners Financeiros
                 const unsubTx = db.collection(pathFin + "/transactions").onSnapshot(s => setTransactions(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
+                const unsubDaily = db.collection(pathFin + "/dailyRecords").onSnapshot(s => { const r = {}; s.docs.forEach(d => { if (d.exists) r[d.id] = d.data(); }); setDailyRecords(r); });
                 const unsubAcc = db.collection(pathFin + "/accounts").onSnapshot(s => setAccounts(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
+                const unsubCat = db.collection(pathFin + "/categories").onSnapshot(s => setCategories(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
+                const unsubSup = db.collection(pathFin + "/suppliers").onSnapshot(s => setSuppliers(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
+                const unsubMeta = db.doc(pathFin + "/settings/config").onSnapshot(s => { if(s.exists) setMetaVendas(s.data().meta || 0); });
 
-                const pathCmv = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/cmv_data/state";
+                // Listeners CMV
+                const pathCmv = pathFin + "/cmv_data/state";
                 const unsubCmv = db.doc(pathCmv).onSnapshot(s => {
                     if(s.exists) {
                         const data = s.data();
@@ -134,7 +155,6 @@
                         setComplements(data.complements || []);
                         setCombos(data.combos || []);
                         setCmvSettings(data.settings || { targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12 });
-                        
                         if(data.ingredientCategories) setIngredientCategories(data.ingredientCategories);
                         if(data.recipeCategories) setRecipeCategories(data.recipeCategories);
                         if(data.complementCategories) setComplementCategories(data.complementCategories);
@@ -142,68 +162,129 @@
                     }
                 });
 
-                return () => { unsubTx(); unsubAcc(); unsubCmv(); };
+                return () => { unsubTx(); unsubDaily(); unsubAcc(); unsubCat(); unsubSup(); unsubMeta(); unsubCmv(); };
             }, [user]);
 
+            const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-            // ================= IMPORTAÇÃO DE DADOS =================
-            const handlePasteImport = async () => {
-                const text = prompt("Cole aqui todo o texto do backup que você copiou no sistema antigo:");
-                if (!text || text.trim() === "") return;
+            // ================= LÓGICA FINANCEIRA =================
+            const uniqueDescriptions = useMemo(() => [...new Set(transactions.map(t => t.description).filter(Boolean))].sort(), [transactions]);
+            const sortedCategoriesFin = useMemo(() => [...categories].sort((a, b) => (a.name || "").localeCompare(b.name || "")), [categories]);
 
-                let data;
-                try {
-                    data = JSON.parse(text);
-                    if (!data.ingredients && !data.recipes) {
-                        alert("❌ Formato inválido! Certifique-se de que copiou o texto inteiro.");
-                        return;
+            const filteredDashboard = useMemo(() => {
+                return transactions.filter(t => {
+                    if (!t) return false;
+                    const isMonth = (t.date?.startsWith(filterMonth) || t.clearanceDate?.startsWith(filterMonth) || t.billingMonth === filterMonth);
+                    const matchSearch = (t.description || "").toLowerCase().includes(searchQuery.toLowerCase()) || (t.category || "").toLowerCase().includes(searchQuery.toLowerCase());
+                    const matchType = typeFilter === 'todos' || t.type === typeFilter;
+                    const matchAcc = accFilter === '' || t.account === accFilter;
+                    const matchCat = catFilter === '' || t.category === catFilter;
+                    return isMonth && matchSearch && matchType && matchAcc && matchCat;
+                }).sort((a,b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
+            }, [transactions, filterMonth, searchQuery, typeFilter, accFilter, catFilter]);
+
+            const filteredSummary = useMemo(() => {
+                let entradas = 0; let saidas = 0; let transfs = 0;
+                filteredDashboard.forEach(t => {
+                    const v = p(t.amount);
+                    if (t.type === 'entrada') entradas += v;
+                    else if (t.type === 'saida') saidas += v;
+                    else if (t.type === 'transferencia') transfs += v;
+                });
+                return { entradas, saidas, transfs, saldo: entradas - saidas };
+            }, [filteredDashboard]);
+
+            const accountBalances = useMemo(() => {
+                const bal = {}; 
+                if (accounts) accounts.forEach(a => { if(a.name) bal[a.name] = 0; });
+                transactions.forEach(t => {
+                    if (t.status === 'pago') {
+                        const amt = p(t.amount);
+                        if (t.type === 'entrada') bal[t.account] = (bal[t.account] || 0) + amt;
+                        else if (t.type === 'saida') bal[t.account] = (bal[t.account] || 0) - amt;
+                        else if (t.type === 'transferencia') { 
+                            bal[t.account] = (bal[t.account] || 0) - amt; 
+                            bal[t.destinationAccount] = (bal[t.destinationAccount] || 0) + amt; 
+                        }
                     }
-                } catch (err) {
-                    alert("❌ Erro ao ler o texto copiado: " + err.message);
-                    return;
-                }
+                });
+                return bal;
+            }, [transactions, accounts]);
 
-                try {
-                    const pathCmv = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/cmv_data/state";
-                    await db.doc(pathCmv).set(data, { merge: true });
-                    alert("✅ Yess! Os dados do Cantinho foram colados e migrados com sucesso!");
-                    window.location.reload();
-                } catch (err) {
-                    alert("❌ Erro no Firebase: " + err.message);
-                }
+            const totalPatrimony = useMemo(() => accounts.filter(a => a.type === 'corrente').reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0), [accounts, accountBalances]);
+
+            const columnTotals = useMemo(() => {
+                const days = Object.keys(dailyRecords).filter(d => d.startsWith(filterMonth));
+                const totals = { totalDia: 0, pedidos: 0, pix: 0, pixOnline: 0, fiado: 0, dinheiro: 0, ifood: 0, debito: 0, credito: 0, vr: 0, ticket: 0, alelo: 0, taxaEntrega: 0, motoboy: 0 };
+                days.forEach(d => {
+                    const r = dailyRecords[d] || {};
+                    totals.totalDia += ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
+                    totals.pedidos += p(r.qtdPedidos);
+                    ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].forEach(f => { totals[f] += p(r[f]); });
+                    totals.taxaEntrega += p(r.taxaEntrega); totals.motoboy += p(r.motoboy);
+                });
+                totals.ticketMedio = totals.pedidos > 0 ? totals.totalDia / totals.pedidos : 0;
+                return totals;
+            }, [dailyRecords, filterMonth]);
+
+            const stats = useMemo(() => {
+                let rb = 0; let custos = 0; let catCosts = {}; let diasAtivos = 0; let entradas = 0; let contasPagas = 0;
+
+                Object.keys(dailyRecords).forEach(d => {
+                    const r = dailyRecords[d];
+                    const totalDia = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((s,f)=>s+p(r[f]), 0);
+                    if (d.startsWith(filterMonth)) {
+                        if (totalDia > 0) diasAtivos++;
+                        rb += totalDia;
+                        custos += p(r.motoboy) + p(r.taxaEntrega);
+                    }
+                });
+
+                transactions.forEach(t => {
+                    if (t.status === 'pago' && (t.date?.startsWith(filterMonth) || t.clearanceDate?.startsWith(filterMonth))) {
+                        if (t.type === 'saida') {
+                            catCosts[t.category] = (catCosts[t.category] || 0) + p(t.amount);
+                            contasPagas += p(t.amount);
+                        } else if (t.type === 'entrada') {
+                            entradas += p(t.amount);
+                        }
+                    }
+                });
+
+                const operCosts = Object.values(catCosts).reduce((a,b)=>a+b, 0);
+                const lucroDRE = rb - (operCosts + custos);
+                const lucroCaixa = entradas - contasPagas;
+                
+                return { rb, totalCosts: operCosts + custos, lucro: lucroDRE, catCosts, diasAtivos, entradas, contasPagas, lucroCaixa, margemDRE: rb > 0 ? (lucroDRE / rb) * 100 : 0 };
+            }, [dailyRecords, transactions, filterMonth]);
+
+            const handleSaveTx = async (e) => {
+                e.preventDefault();
+                if (!user || !val) return;
+                const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/transactions";
+                const payload = { description: desc, amount: p(val), type, status, date, clearanceDate: clearance, billingMonth: date.slice(0, 7), account, destinationAccount: destAcc, category: type === 'transferencia' ? 'Transferência' : (cat || 'Geral'), supplier: sup, timestamp: new Date().toISOString() };
+                if (editingId) await db.collection(path).doc(editingId).update(payload);
+                else await db.collection(path).add(payload);
+                setEditingId(null); setDesc(''); setVal(''); setType('saida'); setAccount(''); setDestAcc(''); setCat(''); setSup('');
             };
 
-            const handleFileImport = (event) => {
-                const file = event.target.files[0];
-                if (!file) return;
-
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    let data;
-                    try {
-                        let text = e.target.result;
-                        if (!text || text.trim() === '') throw new Error("O arquivo parece estar vazio.");
-                        data = JSON.parse(text);
-                    } catch (err) {
-                        alert("❌ Erro ao interpretar o arquivo JSON.\nMotivo: " + err.message);
-                        return;
-                    }
-
-                    try {
-                        const pathCmv = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/cmv_data/state";
-                        await db.doc(pathCmv).set(data, { merge: true });
-                        alert("✅ Yess! Dados migrados com sucesso!");
-                        window.location.reload();
-                    } catch (err) {
-                        alert("❌ Erro de permissão do Firebase ao salvar.\nMotivo: " + err.message);
-                    }
-                };
-                reader.readAsText(file);
-                event.target.value = null;
+            const executeDeleteTx = async (id) => {
+                if(window.confirm("Apagar transação?")) await db.collection('artifacts/tribo-burger-financeiro/users/' + user.uid + '/transactions').doc(id).delete();
             };
 
-            // ================= CÁLCULO GERAL DE CUSTOS =================
+            const startEdit = (t) => { setEditingId(t.id); setDesc(t.description || ''); setVal(t.amount ? t.amount.toString() : ''); setType(t.type || 'saida'); setAccount(t.account || ''); setDestAcc(t.destinationAccount || ''); setCat(t.category || ''); setSup(t.supplier || ''); setDate(t.date || new Date().toISOString().split('T')[0]); setClearance(t.clearanceDate || new Date().toISOString().split('T')[0]); setStatus(t.status || 'pago'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+
+            const handleOpenNewDay = async () => {
+                if (!user) return;
+                await db.collection('artifacts/tribo-burger-financeiro/users/' + user.uid + '/dailyRecords').doc(newDayDate).set({ initialized: true }, { merge: true });
+            };
+
+            const updateDaily = async (d, field, value) => {
+                await db.collection('artifacts/tribo-burger-financeiro/users/' + user.uid + '/dailyRecords').doc(d).set({ [field]: value.replace(',','.') }, { merge: true });
+            };
+
+            // ================= LÓGICA CMV =================
             const getIngredientUnitCost = (ingId, qty) => {
                 const ing = ingredients.find(i => i.id === ingId);
                 if (!ing || !ing.cost || !ing.qty) return 0;
@@ -217,146 +298,7 @@
                 return itemIngredients.reduce((total, req) => total + getIngredientUnitCost(req.ingredientId, req.qty), 0);
             };
 
-            const calculateComboCost = (comboItems) => {
-                if (!comboItems || !Array.isArray(comboItems)) return 0;
-                return comboItems.reduce((total, item) => {
-                    if (!item.itemId || !item.qty) return total;
-                    const qty = parseFloat(item.qty);
-                    if (item.type === 'recipe') {
-                        const rec = recipes.find(r => r.id === item.itemId);
-                        return total + (rec ? calculateItemCost(rec.ingredients) * qty : 0);
-                    } else if (item.type === 'complement') {
-                        const comp = complements.find(c => c.id === item.itemId);
-                        return total + (comp ? calculateItemCost(comp.ingredients) * qty : 0);
-                    } else {
-                        return total + getIngredientUnitCost(item.itemId, qty);
-                    }
-                }, 0);
-            };
-
-            const getRecipeCategoryStyle = (cat) => {
-                switch(cat) {
-                    case 'Hambúrgueres': return 'bg-orange-100 text-orange-700 border-orange-200';
-                    case 'Acompanhamentos': return 'bg-blue-100 text-blue-700 border-blue-200';
-                    case 'Bebidas': return 'bg-cyan-100 text-cyan-700 border-cyan-200';
-                    case 'Sobremesas': return 'bg-pink-100 text-pink-700 border-pink-200';
-                    case 'Molhos Caseiros': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-                    case 'Smash': return 'bg-purple-100 text-purple-700 border-purple-200';
-                    case 'Promocionais': return 'bg-amber-100 text-amber-700 border-amber-200';
-                    case 'Família': return 'bg-red-100 text-red-700 border-red-200';
-                    case 'Extras': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
-                    case 'Molhos': return 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200';
-                    default: return 'bg-slate-100 text-slate-700 border-slate-200';
-                }
-            };
-
-            // ================= LÓGICA GERAL CRUD =================
-            const saveToFirebase = async (collectionName, list) => {
-                const pathCmv = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/cmv_data/state";
-                await db.doc(pathCmv).set({ [collectionName]: list }, { merge: true });
-            };
-
-            const handleDuplicate = async (collectionName, item, list) => {
-                if (!user) return;
-                const newItem = { ...item, id: crypto.randomUUID(), name: `${item.name} (Cópia)` };
-                await saveToFirebase(collectionName, [...list, newItem]);
-                alert("Cópia criada com sucesso!");
-            };
-
-            const handleDelete = async (collectionName, id, list) => {
-                if(window.confirm("Tem a certeza que deseja eliminar este item?")) {
-                    await saveToFirebase(collectionName, list.filter(i => i.id !== id));
-                }
-            };
-
-            // ================= INSUMOS =================
-            const handleSaveIngredient = async (e) => {
-                e.preventDefault();
-                const targetId = ingForm.id || crypto.randomUUID();
-                const list = [...ingredients];
-                const index = list.findIndex(i => i.id === targetId);
-                const record = { id: targetId, name: ingForm.name, category: ingForm.category, cost: parseFloat(ingForm.cost), unit: ingForm.unit, qty: parseFloat(ingForm.qty) };
-                if (index > -1) list[index] = record; else list.push(record);
-                await saveToFirebase('ingredients', list);
-                setIsIngModalOpen(false);
-            };
-
-            const openIngModal = (ing = null) => {
-                setIngForm(ing ? { ...ing } : { id: '', name: '', category: ingredientCategories[0] || 'Outros', cost: '', unit: 'g', qty: '' });
-                setIsIngModalOpen(true);
-            };
-
-            // ================= FICHAS TÉCNICAS =================
-            const handleSaveRecipe = async (e) => {
-                e.preventDefault();
-                const targetId = recipeForm.id || crypto.randomUUID();
-                const list = [...recipes];
-                const index = list.findIndex(r => r.id === targetId);
-                const record = { ...recipeForm, id: targetId, sellingPrice: parseFloat(recipeForm.sellingPrice), ingredients: recipeForm.ingredients.filter(i => i.ingredientId && parseFloat(i.qty) > 0) };
-                if (index > -1) list[index] = record; else list.push(record);
-                await saveToFirebase('recipes', list);
-                setIsRecipeModalOpen(false);
-            };
-
-            const openRecipeModal = (recipe = null) => {
-                setRecipeForm(recipe ? { ...recipe, ingredients: [...(recipe.ingredients || [])] } : { id: '', name: '', category: recipeCategories[0] || 'Hambúrgueres', sellingPrice: '', ingredients: [], ignoreCMV: false });
-                setIsRecipeModalOpen(true);
-            };
-
-            // ================= COMPLEMENTOS =================
-            const handleSaveComplement = async (e) => {
-                e.preventDefault();
-                const targetId = compForm.id || crypto.randomUUID();
-                const list = [...complements];
-                const index = list.findIndex(r => r.id === targetId);
-                const record = { ...compForm, id: targetId, sellingPrice: parseFloat(compForm.sellingPrice), ingredients: compForm.ingredients.filter(i => i.ingredientId && parseFloat(i.qty) > 0) };
-                if (index > -1) list[index] = record; else list.push(record);
-                await saveToFirebase('complements', list);
-                setIsCompModalOpen(false);
-            };
-
-            const openCompModal = (comp = null) => {
-                setCompForm(comp ? { ...comp, ingredients: [...(comp.ingredients || [])] } : { id: '', name: '', category: complementCategories[0] || 'Extras', sellingPrice: '', ingredients: [], ignoreCMV: false });
-                setIsCompModalOpen(true);
-            };
-
-            // ================= COMBOS =================
-            const handleSaveCombo = async (e) => {
-                e.preventDefault();
-                const targetId = comboForm.id || crypto.randomUUID();
-                const list = [...combos];
-                const index = list.findIndex(r => r.id === targetId);
-                const record = { ...comboForm, id: targetId, sellingPrice: parseFloat(comboForm.sellingPrice), items: comboForm.items.filter(i => i.itemId && parseFloat(i.qty) > 0) };
-                if (index > -1) list[index] = record; else list.push(record);
-                await saveToFirebase('combos', list);
-                setIsComboModalOpen(false);
-            };
-
-            const openComboModal = (combo = null) => {
-                setComboForm(combo ? { ...combo, items: [...(combo.items || [])] } : { id: '', name: '', category: comboCategories[0] || 'Promocionais', sellingPrice: '', items: [], ignoreCMV: false });
-                setIsComboModalOpen(true);
-            };
-
-            const updateComboItem = (index, field, value) => {
-                const newItems = [...comboForm.items];
-                newItems[index][field] = value;
-                if (field === 'type') newItems[index].itemId = ''; // Reset ID if type changes
-                setComboForm(prev => ({ ...prev, items: newItems }));
-            };
-
-            // ================= AGRUPADORES =================
-            const groupedIngredients = useMemo(() => ingredients.reduce((acc, ing) => { const cat = ing.category || 'Outros'; if (!acc[cat]) acc[cat] = []; acc[cat].push(ing); return acc; }, {}), [ingredients]);
-            
-            const filteredRecipes = useMemo(() => recipes.filter(r => (r.name || '').toLowerCase().includes(recipeSearch.toLowerCase()) && (recipeCatFilter === '' || (r.category || 'Outros') === recipeCatFilter)), [recipes, recipeSearch, recipeCatFilter]);
-            const groupedRecipes = useMemo(() => filteredRecipes.reduce((acc, recipe) => { const cat = recipe.category || 'Outros'; if (!acc[cat]) acc[cat] = []; acc[cat].push(recipe); return acc; }, {}), [filteredRecipes]);
-            
-            const filteredComplements = useMemo(() => complements.filter(c => (c.name || '').toLowerCase().includes(compSearch.toLowerCase()) && (compCatFilter === '' || (c.category || 'Outros') === compCatFilter)), [complements, compSearch, compCatFilter]);
-            const groupedComplements = useMemo(() => filteredComplements.reduce((acc, comp) => { const cat = comp.category || 'Outros'; if (!acc[cat]) acc[cat] = []; acc[cat].push(comp); return acc; }, {}), [filteredComplements]);
-
-            const filteredCombos = useMemo(() => combos.filter(c => (c.name || '').toLowerCase().includes(comboSearch.toLowerCase()) && (comboCatFilter === '' || (c.category || 'Outros') === comboCatFilter)), [combos, comboSearch, comboCatFilter]);
-            const groupedCombos = useMemo(() => filteredCombos.reduce((acc, combo) => { const cat = combo.category || 'Outros'; if (!acc[cat]) acc[cat] = []; acc[cat].push(combo); return acc; }, {}), [filteredCombos]);
-
-            // Renderização
+            // ================= RENDERIZAÇÃO =================
             if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase tracking-widest">Iniciando ERP Cantinho...</div>;
 
             if (!user || user.isAnonymous) {
@@ -401,7 +343,7 @@
 
                                 <div className="flex gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/10 shrink-0">
                                     <span className="flex items-center px-3 text-[9px] font-black uppercase text-[#F27A18] border-r border-white/10"><Icon name="pie-chart" size={12} className="mr-1"/> Custos & CMV</span>
-                                    {['cmv_dashboard', 'insumos', 'fichas', 'complementos', 'combos'].map(t => (
+                                    {['insumos', 'fichas'].map(t => (
                                         <button key={t} onClick={()=>setActiveTab(t)} className={"px-4 py-2 text-[10px] font-black uppercase whitespace-nowrap transition-all " + (activeTab === t ? "bg-[#F27A18] text-black rounded-xl shadow" : "text-slate-400 hover:text-white")}>
                                             {t.replace('cmv_', '')}
                                         </button>
@@ -413,641 +355,258 @@
 
                     <main className="p-4 max-w-7xl mx-auto w-full flex-1 space-y-6">
                         
-                        {/* ======================= ABA INSUMOS ======================= */}
-                        {activeTab === 'insumos' && (
-                            <div className="space-y-6 fade-in">
+                        {/* ======================= FILTRO GLOBAL DE MÊS ======================= */}
+                        {['fin_dashboard', 'vendas', 'dre'].includes(activeTab) && (
+                            <div className="flex justify-center print:hidden fade-in">
+                                <div className="glass-card px-6 py-2 rounded-full flex items-center gap-4 border shadow-sm">
+                                    <span className="text-[9px] font-black uppercase text-slate-400">Mês Base:</span>
+                                    <input type="month" value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} className="bg-transparent border-0 outline-none font-black text-[#D97757] text-sm cursor-pointer" />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ======================= ABA: DASHBOARD FINANCEIRO ======================= */}
+                        {activeTab === 'fin_dashboard' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 fade-in">
+                                <form onSubmit={handleSaveTx} className="lg:col-span-1 glass-card p-8 rounded-[3rem] shadow-sm space-y-4 border-t-4 border-black h-fit relative">
+                                    {editingId && <div className="absolute -top-4 right-8 bg-blue-600 text-white text-[8px] font-black px-3 py-1 rounded-full uppercase">Editando Lançamento</div>}
+                                    <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl">
+                                        {['entrada','saida','transferencia'].map(t=>(
+                                            <button key={t} type="button" onClick={()=>setType(t)} className={"flex-1 py-3 rounded-xl font-black text-[9px] uppercase transition-all " + (type===t ? 'bg-white shadow-sm text-black' : 'text-slate-400')}>{t}</button>
+                                        ))}
+                                    </div>
+                                    <div className="relative">
+                                        <input list="history-descriptions" type="text" placeholder="Descrição" required className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-sm outline-none focus:border-black" value={desc} onChange={e=>setDesc(e.target.value)} />
+                                        <datalist id="history-descriptions">{uniqueDescriptions.map((d, i) => <option key={i} value={d} />)}</datalist>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-400 ml-1">Valor Total</label>
+                                            <input type="text" placeholder="0,00" required className="w-full p-3.5 bg-slate-50 border rounded-2xl font-black text-sm outline-none" value={val} onChange={e=>setVal(e.target.value)} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-400 ml-1">Conta</label>
+                                            <select className="w-full p-3.5 bg-white border rounded-2xl font-black text-[10px] outline-none" value={account} onChange={e=>setAccount(e.target.value)}>
+                                                <option value="">Conta...</option>
+                                                {accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {type === 'transferencia' ? (
+                                            <div className="space-y-1">
+                                                <label className="text-[8px] font-black uppercase text-[#D97757] ml-1">Conta Destino</label>
+                                                <select className="w-full p-3.5 bg-white border border-[#D97757] rounded-2xl font-black text-[10px] outline-none focus:border-black" value={destAcc} onChange={e=>setDestAcc(e.target.value)} required>
+                                                    <option value="">Destino...</option>
+                                                    {accounts.filter(a => a.name !== account).map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+                                                </select>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-1">
+                                                <label className="text-[8px] font-black uppercase text-slate-400 ml-1">Categoria</label>
+                                                <select className="w-full p-3.5 bg-white border rounded-2xl font-black text-[10px] outline-none" value={cat} onChange={e=>setCat(e.target.value)}>
+                                                    <option value="">Categoria...</option>
+                                                    {sortedCategoriesFin.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-400 ml-1">Fornecedor</label>
+                                            <select className="w-full p-3.5 bg-white border rounded-2xl font-black text-[10px] outline-none" value={sup} onChange={e=>setSup(e.target.value)} disabled={type === 'transferencia'}>
+                                                <option value="">Fornecedor...</option>
+                                                {suppliers.map(s=><option key={s.id} value={s.name}>{s.name}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1"><label className="text-[8px] font-black uppercase text-slate-400 ml-2">Data Lanç.</label><input type="date" className="w-full p-3 border rounded-xl text-[10px] font-bold" value={date} onChange={e=>setDate(e.target.value)} /></div>
+                                        <div className="space-y-1"><label className="text-[8px] font-black uppercase text-slate-400 ml-2">Venc./Comp.</label><input type="date" className="w-full p-3 border rounded-xl text-[10px] font-bold" value={clearance} onChange={e=>setClearance(e.target.value)} /></div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button type="button" onClick={()=>setStatus('pago')} className={"flex-1 p-3 rounded-xl border font-black text-[10px] " + (status==='pago'?'bg-green-500 text-white':'bg-white text-slate-400')}>PAGO</button>
+                                        <button type="button" onClick={()=>setStatus('pendente')} className={"flex-1 p-3 rounded-xl border font-black text-[10px] " + (status==='pendente'?'bg-orange-500 text-white':'bg-white text-slate-400')}>PENDENTE</button>
+                                    </div>
+                                    <button className="w-full bg-black text-[#F8CC82] p-5 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">{editingId ? 'Atualizar' : 'Gravar'}</button>
+                                </form>
+
+                                <div className="lg:col-span-2 glass-card rounded-[2.5rem] shadow-sm h-[700px] flex flex-col border overflow-hidden">
+                                    <div className="p-4 bg-slate-50 border-b space-y-4">
+                                        <div className="flex flex-wrap justify-between items-center bg-white p-3 rounded-2xl border shadow-sm gap-2">
+                                            <span className="text-[9px] font-black uppercase text-slate-400 flex items-center gap-1"><Icon name="search" size={12} /> Lançamentos do Mês ({filteredDashboard.length})</span>
+                                            <div className="flex gap-3 text-[11px] font-black items-center">
+                                                {typeFilter !== 'saida' && typeFilter !== 'transferencia' && filteredSummary.entradas > 0 && (<span className="text-green-600 px-2 py-1 bg-green-50 rounded-lg">IN: + {formatMoney(filteredSummary.entradas)}</span>)}
+                                                {typeFilter !== 'entrada' && typeFilter !== 'transferencia' && filteredSummary.saidas > 0 && (<span className="text-red-500 px-2 py-1 bg-red-50 rounded-lg">OUT: - {formatMoney(filteredSummary.saidas)}</span>)}
+                                                {typeFilter === 'todos' && (<span className={"px-3 py-1 rounded-lg " + (filteredSummary.saldo >= 0 ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600")}>SALDO: {formatMoney(filteredSummary.saldo)}</span>)}
+                                            </div>
+                                        </div>
+
+                                        <div className="relative"><Icon name="search" size={16} className="absolute left-4 top-3.5 text-slate-300" /><input type="text" placeholder="Pesquisar histórico..." className="w-full pl-12 pr-4 py-3 bg-white border rounded-2xl text-xs font-bold outline-none focus:border-black shadow-inner" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} /></div>
+                                        <div className="flex flex-wrap gap-2 items-center">
+                                            <select className="p-2 border rounded-xl text-[9px] font-black uppercase" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}>
+                                                <option value="todos">Todos os Fluxos</option>
+                                                <option value="entrada">Entradas</option>
+                                                <option value="saida">Saídas</option>
+                                                <option value="transferencia">Transferências</option>
+                                            </select>
+                                            <select className="p-2 border rounded-xl text-[9px] font-black uppercase" value={accFilter} onChange={e=>setAccFilter(e.target.value)}>
+                                                <option value="">Todas as Contas</option>
+                                                {accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto no-scrollbar divide-y">
+                                        {filteredDashboard.length === 0 ? (
+                                            <div className="p-16 text-center text-slate-300 font-bold uppercase text-xs">Nenhum lançamento encontrado neste mês com estes filtros</div>
+                                        ) : filteredDashboard.map(t => (
+                                            <div key={t.id} className="p-4 flex justify-between items-center hover:bg-slate-50 transition-all group">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={"w-8 h-8 rounded-lg flex items-center justify-center font-black text-[8px] " + (t.type === 'transferencia' ? 'bg-blue-100 text-blue-700' : (t.type === 'entrada' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'))}>{t.type === 'transferencia' ? 'TR' : (t.type === 'entrada' ? 'IN' : 'OUT')}</div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="font-black text-sm uppercase leading-none">{t.description}</p>
+                                                            <span className={"status-badge " + (t.status==='pago'?'bg-green-100 text-green-700':'bg-orange-100 text-orange-700')}>{t.status==='pago' ? 'Pago' : 'Pendente'}</span>
+                                                        </div>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">{t.type === 'transferencia' ? t.account + " ➔ " + t.destinationAccount : t.account + " • " + t.category}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4">
+                                                    <p className={"font-black text-sm " + (t.type==='entrada'?'text-green-600':'text-slate-800')}>{formatMoney(t.amount)}</p>
+                                                    <div className="flex gap-1">
+                                                        <button type="button" onClick={()=>startEdit(t)} className="text-blue-400 p-2"><Icon name="edit-2" size={14}/></button>
+                                                        <button type="button" onClick={() => executeDeleteTx(t.id)} className="text-red-400 hover:text-red-600 p-2"><Icon name="trash-2" size={14}/></button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ======================= ABA: SALDOS ======================= */}
+                        {activeTab === 'saldos' && (
+                            <div className="space-y-12 animate-in fade-in">
+                                <div className="stat-banner !border-black !bg-[#D97757]">
+                                    <p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-80 mb-2">Patrimônio Líquido Disponível</p>
+                                    <h3 className="text-5xl font-black drop-shadow-xl">{formatMoney(totalPatrimony)}</h3>
+                                </div>
+                                {['operacional','reserva','outros'].map(grp => {
+                                    const grpAccs = accounts.filter(a => a.type === 'corrente' && (a.group === grp || (!a.group && grp === 'operacional'))).sort((a,b)=>parseInt(a.pos||0)-parseInt(b.pos||0));
+                                    if (grpAccs.length === 0) return null;
+                                    return (
+                                        <div key={grp} className="space-y-4">
+                                            <h2 className="text-[10px] font-black uppercase text-slate-400 border-l-4 border-slate-400 pl-3 ml-2">{grp}</h2>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                                                {grpAccs.map(acc => (
+                                                    <div key={acc.id} className={"glass-card p-8 rounded-[3.5rem] shadow-xl border-t-8 border-[#1A202C] text-center transition-all"}>
+                                                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">{acc.name}</p>
+                                                        <h3 className={"text-3xl font-black " + (accountBalances[acc.name]>=0?'text-slate-900':'text-red-500')}>{formatMoney(accountBalances[acc.name]||0)}</h3>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* ======================= ABA: VENDAS DIÁRIAS ======================= */}
+                        {activeTab === 'vendas' && (
+                            <div className="space-y-6 animate-in fade-in">
+                                <div className="stat-banner !border-black !bg-[#D97757]">
+                                    <p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-80 mb-2">Faturamento Total do Mês</p>
+                                    <h3 className="text-5xl font-black drop-shadow-xl">{formatMoney(stats.rb)}</h3>
+                                </div>
                                 <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-6 rounded-[2rem] border shadow-sm">
-                                    <div>
-                                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Gestão de Insumos</h2>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Matéria-prima cadastrada: {ingredients.length} itens</p>
-                                    </div>
-                                    <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1">
-                                        <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleFileImport} />
-                                        <button onClick={() => fileInputRef.current.click()} className="shrink-0 bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl flex items-center justify-center gap-2 text-[9px] font-black uppercase transition-all">
-                                            <Icon name="upload" size={14}/> Arquivo .JSON
-                                        </button>
-                                        <button onClick={handlePasteImport} className="shrink-0 bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-3 rounded-xl flex items-center justify-center gap-2 text-[9px] font-black uppercase transition-all border border-blue-200">
-                                            <Icon name="copy" size={14}/> Colar Dados
-                                        </button>
-                                        <button onClick={() => openIngModal()} className="shrink-0 btn-accent px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px]">
-                                            <Icon name="plus" size={14}/> Novo Insumo
-                                        </button>
+                                    <div className="flex items-center gap-3"><Icon name="calendar-days" className="text-slate-400" /><h2 className="text-[10px] font-black uppercase tracking-widest">Controle de Vendas Diárias</h2></div>
+                                    <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border">
+                                        <div className="flex flex-col"><label className="text-[7px] font-black uppercase text-slate-400 ml-1">Data para Abrir</label><input type="date" className="text-xs font-bold bg-transparent outline-none border-0" value={newDayDate} onChange={e=>setNewDayDate(e.target.value)} /></div>
+                                        <div className="w-px h-6 bg-slate-200"></div>
+                                        <button type="button" onClick={handleOpenNewDay} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl text-[9px] font-black uppercase flex items-center gap-2 hover:bg-slate-800 transition-all"><Icon name="plus-circle" size={14}/> Abrir Novo Dia</button>
                                     </div>
                                 </div>
-
-                                {ingredients.length === 0 ? (
-                                    <div className="p-12 text-center text-slate-400 uppercase font-black text-xs glass-card rounded-[2.5rem] border-dashed">Nenhum insumo cadastrado.</div>
-                                ) : (
-                                    <div className="space-y-8">
-                                        {Object.keys(groupedIngredients).sort().map(category => {
-                                            const isCollapsed = ingCollapsed[category];
-                                            return (
-                                            <div key={category} className="space-y-4">
-                                                <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => setIngCollapsed(prev => ({ ...prev, [category]: !prev[category] }))}>
-                                                    <div className="flex items-center gap-3 ml-2">
-                                                        <span className="text-emerald-600"><Icon name="box" size={20}/></span>
-                                                        <h3 className="font-black text-sm uppercase text-slate-800 tracking-widest">{category}</h3>
-                                                        <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[10px] uppercase font-black">{groupedIngredients[category].length}</span>
-                                                    </div>
-                                                    <Icon name={isCollapsed ? "chevron-down" : "chevron-up"} size={20} className="text-slate-400 mr-2"/>
-                                                </div>
-
-                                                {!isCollapsed && (
-                                                    <div className="glass-card rounded-[2rem] overflow-hidden border shadow-sm overflow-x-auto">
-                                                        <table className="w-full text-left text-xs">
-                                                            <thead className="bg-slate-100 border-b text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                                                <tr>
-                                                                    <th className="p-4">Ingrediente</th>
-                                                                    <th className="p-4">Preço (Embalagem)</th>
-                                                                    <th className="p-4">Custo Unitário</th>
-                                                                    <th className="p-4 text-right">Ações</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                                                                {groupedIngredients[category].sort((a,b)=>a.name.localeCompare(b.name)).map(ing => {
-                                                                    const unitCost = ing.cost / ing.qty;
-                                                                    return (
-                                                                        <tr key={ing.id} className="hover:bg-slate-50 transition-colors">
-                                                                            <td className="p-4 font-black uppercase text-slate-900">{ing.name}</td>
-                                                                            <td className="p-4">{formatMoney(ing.cost)} <span className="text-[9px] text-slate-400">/ {ing.qty}{ing.unit}</span></td>
-                                                                            <td className="p-4 text-emerald-600 font-black">{formatMoney(unitCost)} <span className="text-[9px] text-slate-400">/ {ing.unit === 'kg' ? 'g' : (ing.unit === 'L' ? 'ml' : ing.unit)}</span></td>
-                                                                            <td className="p-4 text-right">
-                                                                                <button onClick={() => openIngModal(ing)} className="text-blue-500 hover:text-blue-700 p-2"><Icon name="edit-2" size={16}/></button>
-                                                                                <button onClick={() => handleDelete('ingredients', ing.id, ingredients)} className="text-red-400 hover:text-red-600 p-2"><Icon name="trash-2" size={16}/></button>
-                                                                            </td>
-                                                                        </tr>
-                                                                    );
-                                                                })}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* ======================= ABA FICHAS TÉCNICAS ======================= */}
-                        {activeTab === 'fichas' && (
-                            <div className="space-y-6 fade-in">
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-[2rem] border shadow-sm">
-                                    <div>
-                                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Fichas Técnicas (Produtos)</h2>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Precifique os burgers e porções principais.</p>
-                                    </div>
-                                    <button onClick={() => openRecipeModal()} className="w-full md:w-auto btn-accent px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px]">
-                                        <Icon name="plus" size={14}/> Criar Ficha
-                                    </button>
-                                </div>
-
-                                <div className="bg-white p-4 rounded-[1.5rem] border shadow-sm flex flex-col md:flex-row gap-3">
-                                    <div className="relative flex-1">
-                                        <Icon name="search" size={16} className="absolute left-4 top-3 text-slate-400" />
-                                        <input type="text" placeholder="Procurar receitas..." className="w-full pl-12 pr-4 py-2.5 bg-slate-50 border rounded-xl text-xs font-bold outline-none focus:border-[#F27A18]" value={recipeSearch} onChange={e=>setRecipeSearch(e.target.value)} />
-                                    </div>
-                                    <select className="p-2.5 bg-slate-50 border rounded-xl font-bold text-xs outline-none focus:border-[#F27A18]" value={recipeCatFilter} onChange={e=>setRecipeCatFilter(e.target.value)}>
-                                        <option value="">Todas as Categorias</option>
-                                        {recipeCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                </div>
-
-                                {filteredRecipes.length === 0 ? (
-                                    <div className="p-12 text-center text-slate-400 uppercase font-black text-xs glass-card rounded-[2.5rem] border-dashed">Nenhuma ficha técnica encontrada.</div>
-                                ) : (
-                                    <div className="space-y-8">
-                                        {Object.keys(groupedRecipes).sort().map(category => {
-                                            const isCollapsed = recipeCollapsed[category];
-                                            return (
-                                            <div key={category} className="space-y-4">
-                                                <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => setRecipeCollapsed(prev => ({ ...prev, [category]: !prev[category] }))}>
-                                                    <div className="flex items-center gap-3 ml-2">
-                                                        <span className="text-[#F27A18]"><Icon name="layers" size={20}/></span>
-                                                        <h3 className="font-black text-sm uppercase text-slate-800 tracking-widest">{category}</h3>
-                                                        <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[10px] uppercase font-black">{groupedRecipes[category].length}</span>
-                                                    </div>
-                                                    <Icon name={isCollapsed ? "chevron-down" : "chevron-up"} size={20} className="text-slate-400 mr-2"/>
-                                                </div>
-
-                                                {!isCollapsed && (
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                                                        {groupedRecipes[category].sort((a,b)=>a.name.localeCompare(b.name)).map(recipe => {
-                                                            const foodCost = calculateItemCost(recipe.ingredients);
-                                                            const sellingPrice = parseFloat(recipe.sellingPrice || 0);
-                                                            const cmv = sellingPrice > 0 ? ((foodCost / sellingPrice) * 100).toFixed(1) : 0;
-                                                            const targetCmvPercent = parseFloat(cmvSettings.targetCMV || 30);
-                                                            const totalTaxesVal = sellingPrice * ((parseFloat(cmvSettings.tax || 0) + parseFloat(cmvSettings.apps || 0) + parseFloat(cmvSettings.card || 0)) / 100);
-                                                            const marginValue = sellingPrice - foodCost - totalTaxesVal;
-                                                            
-                                                            return (
-                                                                <div key={recipe.id} className={"glass-card rounded-[2rem] p-6 shadow-xl flex flex-col justify-between border-t-4 transition-all hover:shadow-2xl " + (recipe.ignoreCMV ? "opacity-80 border-slate-400" : "border-[#1A202C]")}>
-                                                                    <div>
-                                                                        <div className="flex justify-between items-center mb-3">
-                                                                            <span className={"px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border " + getRecipeCategoryStyle(category)}>{category}</span>
-                                                                            <div className="flex gap-1.5">
-                                                                                <button onClick={() => handleDuplicate('recipes', recipe, recipes)} className="bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-800 p-1.5 rounded-lg transition-colors"><Icon name="copy" size={14}/></button>
-                                                                                <button onClick={() => openRecipeModal(recipe)} className="bg-slate-100 border border-slate-200 text-blue-500 hover:text-blue-700 p-1.5 rounded-lg transition-colors"><Icon name="edit-2" size={14}/></button>
-                                                                                <button onClick={() => handleDelete('recipes', recipe.id, recipes)} className="bg-slate-100 border border-slate-200 text-red-400 hover:text-red-600 p-1.5 rounded-lg transition-colors"><Icon name="trash-2" size={14}/></button>
-                                                                            </div>
-                                                                        </div>
-                                                                        <h4 className="font-black text-lg text-slate-900 leading-tight flex items-center flex-wrap gap-2">
-                                                                            {recipe.name} 
-                                                                            {recipe.ignoreCMV && <span className="px-2 py-0.5 rounded text-[8px] font-black bg-slate-200 text-slate-500 uppercase tracking-widest">Ignorado</span>}
-                                                                        </h4>
-                                                                    </div>
-
-                                                                    <div className="space-y-4 pt-4 mt-2">
-                                                                        <div className="grid grid-cols-2 gap-3 text-center">
-                                                                            <div className="bg-white border shadow-sm p-3 rounded-xl flex flex-col justify-center">
-                                                                                <span className="text-[8px] text-slate-400 uppercase font-black tracking-widest leading-tight">Custo Alimento</span>
-                                                                                <span className="text-base font-black text-slate-900 mt-1">{formatMoney(foodCost)}</span>
-                                                                            </div>
-                                                                            <div className={"border shadow-sm p-3 rounded-xl flex flex-col justify-center " + (recipe.ignoreCMV ? "bg-slate-50 border-slate-200" : (parseFloat(cmv) > targetCmvPercent ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"))}>
-                                                                                <span className="text-[8px] text-slate-400 uppercase font-black tracking-widest leading-tight">CMV Real (%)</span>
-                                                                                <span className={"text-lg font-black mt-1 " + (recipe.ignoreCMV ? "text-slate-500" : (parseFloat(cmv) > targetCmvPercent ? "text-red-600" : "text-green-600"))}>{cmv}%</span>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="space-y-1.5 text-xs border-t border-slate-200 pt-3">
-                                                                            <div className="flex justify-between items-center font-bold">
-                                                                                <span className="text-slate-600">Preço de Venda:</span>
-                                                                                <span className="font-black text-slate-900 text-sm">{formatMoney(sellingPrice)}</span>
-                                                                            </div>
-                                                                            <div className="flex justify-between items-center font-bold pt-1 border-t border-slate-100">
-                                                                                <span className="text-slate-600 text-[10px] uppercase tracking-widest">Lucro Op.:</span>
-                                                                                <span className={"text-sm font-black " + (marginValue > 0 ? 'text-green-600' : 'text-red-500')}>{formatMoney(marginValue)}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* ======================= ABA COMPLEMENTOS ======================= */}
-                        {activeTab === 'complementos' && (
-                            <div className="space-y-6 fade-in">
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-[2rem] border shadow-sm">
-                                    <div>
-                                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Complementos & Adicionais</h2>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Precifique os itens extras vendidos à parte.</p>
-                                    </div>
-                                    <button onClick={() => openCompModal()} className="w-full md:w-auto btn-accent px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px]">
-                                        <Icon name="plus" size={14}/> Criar Complemento
-                                    </button>
-                                </div>
-
-                                <div className="bg-white p-4 rounded-[1.5rem] border shadow-sm flex flex-col md:flex-row gap-3">
-                                    <div className="relative flex-1">
-                                        <Icon name="search" size={16} className="absolute left-4 top-3 text-slate-400" />
-                                        <input type="text" placeholder="Procurar complementos..." className="w-full pl-12 pr-4 py-2.5 bg-slate-50 border rounded-xl text-xs font-bold outline-none focus:border-[#F27A18]" value={compSearch} onChange={e=>setCompSearch(e.target.value)} />
-                                    </div>
-                                    <select className="p-2.5 bg-slate-50 border rounded-xl font-bold text-xs outline-none focus:border-[#F27A18]" value={compCatFilter} onChange={e=>setCompCatFilter(e.target.value)}>
-                                        <option value="">Todas as Categorias</option>
-                                        {complementCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                </div>
-
-                                {filteredComplements.length === 0 ? (
-                                    <div className="p-12 text-center text-slate-400 uppercase font-black text-xs glass-card rounded-[2.5rem] border-dashed">Nenhum complemento encontrado.</div>
-                                ) : (
-                                    <div className="space-y-8">
-                                        {Object.keys(groupedComplements).sort().map(category => {
-                                            const isCollapsed = compCollapsed[category];
-                                            return (
-                                            <div key={category} className="space-y-4">
-                                                <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => setCompCollapsed(prev => ({ ...prev, [category]: !prev[category] }))}>
-                                                    <div className="flex items-center gap-3 ml-2">
-                                                        <span className="text-indigo-600"><Icon name="layers" size={20}/></span>
-                                                        <h3 className="font-black text-sm uppercase text-slate-800 tracking-widest">{category}</h3>
-                                                        <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[10px] uppercase font-black">{groupedComplements[category].length}</span>
-                                                    </div>
-                                                    <Icon name={isCollapsed ? "chevron-down" : "chevron-up"} size={20} className="text-slate-400 mr-2"/>
-                                                </div>
-
-                                                {!isCollapsed && (
-                                                    <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
-                                                        {groupedComplements[category].sort((a,b)=>a.name.localeCompare(b.name)).map(comp => {
-                                                            const foodCost = calculateItemCost(comp.ingredients);
-                                                            const sellingPrice = parseFloat(comp.sellingPrice || 0);
-                                                            const cmv = sellingPrice > 0 ? ((foodCost / sellingPrice) * 100).toFixed(1) : 0;
-                                                            const targetCmvPercent = parseFloat(cmvSettings.targetCMV || 30);
-                                                            
-                                                            return (
-                                                                <div key={comp.id} className={"glass-card rounded-[2rem] p-5 shadow-lg flex flex-col justify-between border-t-4 transition-all " + (comp.ignoreCMV ? "opacity-80 border-slate-400" : "border-indigo-500")}>
-                                                                    <div>
-                                                                        <div className="flex justify-between items-center mb-2">
-                                                                            <span className={"px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border " + getRecipeCategoryStyle(category)}>{category}</span>
-                                                                            <div className="flex gap-1.5">
-                                                                                <button onClick={() => handleDuplicate('complements', comp, complements)} className="bg-slate-100 text-slate-500 p-1.5 rounded-lg"><Icon name="copy" size={14}/></button>
-                                                                                <button onClick={() => openCompModal(comp)} className="bg-blue-50 text-blue-500 p-1.5 rounded-lg"><Icon name="edit-2" size={14}/></button>
-                                                                                <button onClick={() => handleDelete('complements', comp.id, complements)} className="bg-red-50 text-red-500 p-1.5 rounded-lg"><Icon name="trash-2" size={14}/></button>
-                                                                            </div>
-                                                                        </div>
-                                                                        <h4 className="font-black text-md text-slate-900 leading-tight mb-2">{comp.name}</h4>
-                                                                    </div>
-                                                                    <div className="space-y-2 pt-2 border-t border-slate-100 mt-2 text-xs">
-                                                                        <div className="flex justify-between items-center"><span className="text-slate-500">Custo:</span><span className="font-black">{formatMoney(foodCost)}</span></div>
-                                                                        <div className="flex justify-between items-center"><span className="text-slate-500">Venda:</span><span className="font-black text-slate-900 text-sm">{formatMoney(sellingPrice)}</span></div>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* ======================= ABA COMBOS ======================= */}
-                        {activeTab === 'combos' && (
-                            <div className="space-y-6 fade-in">
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-[2rem] border shadow-sm">
-                                    <div>
-                                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Fichas de Combos</h2>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Reúna várias fichas, complementos e insumos em ofertas combinadas.</p>
-                                    </div>
-                                    <button onClick={() => openComboModal()} className="w-full md:w-auto btn-accent px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px]">
-                                        <Icon name="plus" size={14}/> Criar Combo
-                                    </button>
-                                </div>
-
-                                <div className="bg-white p-4 rounded-[1.5rem] border shadow-sm flex flex-col md:flex-row gap-3">
-                                    <div className="relative flex-1">
-                                        <Icon name="search" size={16} className="absolute left-4 top-3 text-slate-400" />
-                                        <input type="text" placeholder="Procurar combos..." className="w-full pl-12 pr-4 py-2.5 bg-slate-50 border rounded-xl text-xs font-bold outline-none focus:border-[#F27A18]" value={comboSearch} onChange={e=>setComboSearch(e.target.value)} />
-                                    </div>
-                                    <select className="p-2.5 bg-slate-50 border rounded-xl font-bold text-xs outline-none focus:border-[#F27A18]" value={comboCatFilter} onChange={e=>setComboCatFilter(e.target.value)}>
-                                        <option value="">Todas as Categorias</option>
-                                        {comboCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                </div>
-
-                                {filteredCombos.length === 0 ? (
-                                    <div className="p-12 text-center text-slate-400 uppercase font-black text-xs glass-card rounded-[2.5rem] border-dashed">Nenhum combo encontrado.</div>
-                                ) : (
-                                    <div className="space-y-8">
-                                        {Object.keys(groupedCombos).sort().map(category => {
-                                            const isCollapsed = comboCollapsed[category];
-                                            return (
-                                            <div key={category} className="space-y-4">
-                                                <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => setComboCollapsed(prev => ({ ...prev, [category]: !prev[category] }))}>
-                                                    <div className="flex items-center gap-3 ml-2">
-                                                        <span className="text-amber-500"><Icon name="layers" size={20}/></span>
-                                                        <h3 className="font-black text-sm uppercase text-slate-800 tracking-widest">{category}</h3>
-                                                        <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[10px] uppercase font-black">{groupedCombos[category].length}</span>
-                                                    </div>
-                                                    <Icon name={isCollapsed ? "chevron-down" : "chevron-up"} size={20} className="text-slate-400 mr-2"/>
-                                                </div>
-
-                                                {!isCollapsed && (
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                                                        {groupedCombos[category].sort((a,b)=>a.name.localeCompare(b.name)).map(combo => {
-                                                            const comboCost = calculateComboCost(combo.items);
-                                                            const sellingPrice = parseFloat(combo.sellingPrice || 0);
-                                                            const cmv = sellingPrice > 0 ? ((comboCost / sellingPrice) * 100).toFixed(1) : 0;
-                                                            const targetCmvPercent = parseFloat(cmvSettings.targetCMV || 30);
-                                                            const totalTaxesVal = sellingPrice * ((parseFloat(cmvSettings.tax || 0) + parseFloat(cmvSettings.apps || 0) + parseFloat(cmvSettings.card || 0)) / 100);
-                                                            const marginValue = sellingPrice - comboCost - totalTaxesVal;
-                                                            
-                                                            // Cálculo do Valor Original para Desconto
-                                                            let originalValue = 0;
-                                                            (combo.items || []).forEach(ci => {
-                                                                if (ci.type === 'recipe') {
-                                                                    const rec = recipes.find(r => r.id === ci.itemId);
-                                                                    if (rec) originalValue += parseFloat(rec.sellingPrice || 0) * parseFloat(ci.qty || 0);
-                                                                }
-                                                            });
-
-                                                            const temDesconto = originalValue > sellingPrice && sellingPrice > 0;
-                                                            const descontoPct = temDesconto ? ((originalValue - sellingPrice) / originalValue) * 100 : 0;
-
-                                                            return (
-                                                                <div key={combo.id} className={"glass-card rounded-[2rem] p-6 shadow-xl flex flex-col justify-between border-t-4 transition-all hover:shadow-2xl " + (combo.ignoreCMV ? "opacity-80 border-slate-400" : "border-amber-500")}>
-                                                                    <div>
-                                                                        <div className="flex justify-between items-center mb-3">
-                                                                            <span className={"px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border " + getRecipeCategoryStyle(category)}>{category}</span>
-                                                                            <div className="flex gap-1.5">
-                                                                                <button onClick={() => handleDuplicate('combos', combo, combos)} className="bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-800 p-1.5 rounded-lg"><Icon name="copy" size={14}/></button>
-                                                                                <button onClick={() => openComboModal(combo)} className="bg-slate-100 border border-slate-200 text-blue-500 hover:text-blue-700 p-1.5 rounded-lg"><Icon name="edit-2" size={14}/></button>
-                                                                                <button onClick={() => handleDelete('combos', combo.id, combos)} className="bg-slate-100 border border-slate-200 text-red-400 hover:text-red-600 p-1.5 rounded-lg"><Icon name="trash-2" size={14}/></button>
-                                                                            </div>
-                                                                        </div>
-                                                                        <h4 className="font-black text-lg text-slate-900 leading-tight mb-4">{combo.name}</h4>
-                                                                        
-                                                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2 mb-4 text-xs font-bold text-slate-700">
-                                                                            {combo.items.length === 0 ? <p className="text-slate-400 italic text-[10px]">Sem itens.</p> : combo.items.map((it, idx) => {
-                                                                                let name = 'Desconhecido';
-                                                                                if (it.type === 'recipe') { const r = recipes.find(x=>x.id===it.itemId); if(r) name = `🍔 ${r.name}`; }
-                                                                                if (it.type === 'complement') { const c = complements.find(x=>x.id===it.itemId); if(c) name = `🧩 ${c.name}`; }
-                                                                                if (it.type === 'ingredient') { const i = ingredients.find(x=>x.id===it.itemId); if(i) name = `📦 ${i.name}`; }
-                                                                                return <div key={idx} className="truncate">• {it.qty}x {name}</div>;
-                                                                            })}
-                                                                        </div>
-                                                                    </div>
-
-                                                                    <div className="space-y-4 pt-4 mt-auto">
-                                                                        <div className="grid grid-cols-2 gap-3 text-center">
-                                                                            <div className="bg-white border shadow-sm p-3 rounded-xl flex flex-col justify-center">
-                                                                                <span className="text-[8px] text-slate-400 uppercase font-black tracking-widest leading-tight">Custo Combo</span>
-                                                                                <span className="text-base font-black text-slate-900 mt-1">{formatMoney(comboCost)}</span>
-                                                                            </div>
-                                                                            <div className={"border shadow-sm p-3 rounded-xl flex flex-col justify-center " + (combo.ignoreCMV ? "bg-slate-50 border-slate-200" : (parseFloat(cmv) > targetCmvPercent ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"))}>
-                                                                                <span className="text-[8px] text-slate-400 uppercase font-black tracking-widest leading-tight">CMV Real (%)</span>
-                                                                                <span className={"text-lg font-black mt-1 " + (combo.ignoreCMV ? "text-slate-500" : (parseFloat(cmv) > targetCmvPercent ? "text-red-600" : "text-green-600"))}>{cmv}%</span>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="space-y-1.5 text-xs border-t border-slate-200 pt-3">
-                                                                            {temDesconto && (
-                                                                                <div className="flex justify-between items-center mb-1">
-                                                                                    <span className="text-slate-400 font-bold text-[10px]">Soma Original Fichas:</span>
-                                                                                    <span className="text-slate-400 line-through">{formatMoney(originalValue)}</span>
-                                                                                </div>
-                                                                            )}
-                                                                            <div className="flex justify-between items-center font-bold">
-                                                                                <span className="text-slate-600">Preço Atual Combo:</span>
-                                                                                <div className="text-right">
-                                                                                    <span className="font-black text-slate-900 text-sm">{formatMoney(sellingPrice)}</span>
-                                                                                    {temDesconto && <span className="block text-[9px] text-green-600 uppercase bg-green-50 px-1 py-0.5 rounded mt-0.5">-{descontoPct.toFixed(1)}% OFF</span>}
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* ======================= MODAL DA FICHA TÉCNICA (RECEITA) ======================= */}
-                        {isRecipeModalOpen && (
-                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                                <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-6 scale-up-center">
-                                    <div className="flex justify-between items-center border-b pb-3">
-                                        <h3 className="text-sm font-black uppercase text-slate-800">{recipeForm.id ? 'Editar Ficha Técnica' : 'Nova Ficha Técnica'}</h3>
-                                        <button onClick={()=>setIsRecipeModalOpen(false)} className="text-slate-400 hover:text-slate-800"><Icon name="x" size={20}/></button>
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome do Produto</label>
-                                            <input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-[#F27A18]" placeholder="Ex: Tribo Burger Clássico" value={recipeForm.name} onChange={e=>setRecipeForm({...recipeForm, name: e.target.value})} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço de Venda Praticado (R$)</label>
-                                            <input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-[#F27A18]" placeholder="Ex: 35.90" value={recipeForm.sellingPrice} onChange={e=>setRecipeForm({...recipeForm, sellingPrice: e.target.value})} />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria do Produto</label>
-                                        <select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={recipeForm.category} onChange={e=>setRecipeForm({...recipeForm, category: e.target.value})}>
-                                            {recipeCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-4 rounded-2xl cursor-pointer hover:bg-slate-100 transition-colors">
-                                            <input type="checkbox" className="w-4 h-4 accent-[#F27A18]" checked={recipeForm.ignoreCMV} onChange={e=>setRecipeForm({...recipeForm, ignoreCMV: e.target.checked})} />
-                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Não considerar para o cálculo de CMV Geral (Ignorar)</span>
-                                        </label>
-                                    </div>
-
-                                    <div className="border-t pt-4">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <label className="text-[10px] font-black uppercase text-slate-800">Composição (Ingredientes)</label>
-                                            <button type="button" onClick={() => setRecipeForm(p => ({...p, ingredients: [...p.ingredients, { ingredientId: '', qty: '' }]}))} className="text-[9px] font-black uppercase bg-[#1A202C] text-[#F8CC82] px-4 py-2 rounded-xl hover:bg-black flex items-center gap-1 shadow"><Icon name="plus" size={14}/> Adicionar Item</button>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            {recipeForm.ingredients.length === 0 && <p className="text-center text-[10px] uppercase font-bold text-slate-400 py-6 bg-slate-50 rounded-2xl border border-dashed">Nenhum ingrediente adicionado.</p>}
-                                            {recipeForm.ingredients.map((ingItem, idx) => (
-                                                <div key={idx} className="flex flex-col sm:flex-row items-center gap-2 bg-slate-50 p-2 rounded-xl border">
-                                                    <select className="w-full sm:flex-1 p-3 bg-white border rounded-lg font-bold text-[10px] outline-none" value={ingItem.ingredientId} onChange={e => { const newIngs = [...recipeForm.ingredients]; newIngs[idx].ingredientId = e.target.value; setRecipeForm({...recipeForm, ingredients: newIngs}); }}>
-                                                        <option value="">-- Selecione o Insumo --</option>
-                                                        {ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                                                    </select>
-                                                    <div className="flex w-full sm:w-auto gap-2">
-                                                        <input type="number" step="0.001" placeholder="Qtd" className="w-full sm:w-24 p-3 bg-white border rounded-lg font-bold text-[10px] text-center outline-none" value={ingItem.qty} onChange={e => { const newIngs = [...recipeForm.ingredients]; newIngs[idx].qty = e.target.value; setRecipeForm({...recipeForm, ingredients: newIngs}); }} />
-                                                        <button type="button" onClick={() => { const newIngs = [...recipeForm.ingredients]; newIngs.splice(idx, 1); setRecipeForm({...recipeForm, ingredients: newIngs}); }} className="p-3 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 border border-red-100 shrink-0"><Icon name="trash-2" size={14}/></button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-slate-800 text-white p-5 rounded-3xl flex justify-between items-center shadow-inner mt-2">
-                                        <div className="text-left">
-                                            <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Custo Total de Produção</span>
-                                            <span className="text-2xl font-black text-[#F8CC82]">{formatMoney(calculateItemCost(recipeForm.ingredients))}</span>
-                                        </div>
-                                        <div className="text-right">
-                                            <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">CMV Estimado</span>
-                                            <span className={"text-2xl font-black " + ((recipeForm.sellingPrice && (calculateItemCost(recipeForm.ingredients) / recipeForm.sellingPrice)*100 > parseFloat(cmvSettings.targetCMV||30)) ? "text-red-400" : "text-emerald-400")}>
-                                                {recipeForm.sellingPrice > 0 ? ((calculateItemCost(recipeForm.ingredients) / recipeForm.sellingPrice) * 100).toFixed(1) : 0}%
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex gap-2 mt-2 pt-4 border-t">
-                                        <button onClick={handleSaveRecipe} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Gravar Ficha Técnica</button>
-                                        <button onClick={()=>setIsRecipeModalOpen(false)} className="px-8 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button>
-                                    </div>
+                                <div className="glass-card rounded-[2.5rem] overflow-hidden border shadow-sm overflow-x-auto no-scrollbar">
+                                    <table className="w-full text-center text-[11px] min-w-[1700px]">
+                                        <thead>
+                                            <tr className="header-black text-white">
+                                                <th className="p-4 sticky left-0 z-20 bg-black">Data</th>
+                                                <th className="p-4 bg-yellow-500 text-black">Total Dia</th>
+                                                <th className="p-4 bg-blue-600 text-white">Pedidos</th>
+                                                <th className="p-4 bg-blue-800 text-white">Ticket Médio</th>
+                                                {['Pix','Pix Online','Fiado','Dinheiro','Ifood','Débito','Crédito','VR','Ticket','Alelo'].map(h=><th key={h} className="p-4">{h}</th>)}
+                                                <th className="p-4 text-orange-400 bg-orange-50/20">Taxa Entrega</th>
+                                                <th className="p-4 text-red-400 bg-red-50/20">Motoboy</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y font-bold">
+                                            {Object.keys(dailyRecords).filter(d=>d.startsWith(filterMonth)).sort((a,b)=>new Date(b)-new Date(a)).map(d => {
+                                                const r = dailyRecords[d] || {}; 
+                                                const total = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0); 
+                                                const pedidos = p(r.qtdPedidos); 
+                                                const ticketMedio = pedidos > 0 ? total / pedidos : 0;
+                                                return (
+                                                    <tr key={d} className="hover:bg-slate-50 h-12">
+                                                        <td className="p-0 sticky left-0 bg-white border-r min-w-[120px] font-black">{d.split('-').reverse().join('/')}</td>
+                                                        <td className="p-4 bg-yellow-50 font-black">{formatMoney(total)}</td>
+                                                        <td className="p-0 border-r bg-blue-50/30"><input className="table-input !text-blue-700" value={r.qtdPedidos||''} onChange={(e)=>updateDaily(d, 'qtdPedidos', e.target.value)} placeholder="0" /></td>
+                                                        <td className="p-4 bg-blue-50/50 font-black text-blue-900">{formatMoney(ticketMedio)}</td>
+                                                        {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => (
+                                                            <td key={f} className="p-0 border-r"><input className="table-input" value={r[f]||''} onChange={(e)=>updateDaily(d, f, e.target.value)} placeholder="0,00" /></td>
+                                                        ))}
+                                                        <td className="p-0 border-r bg-slate-50/50"><input className="table-input !text-orange-500" value={r.taxaEntrega||''} onChange={(e)=>updateDaily(d, 'taxaEntrega', e.target.value)} placeholder="0,00" /></td>
+                                                        <td className="p-0 border-r bg-slate-50/50"><input className="table-input !text-red-500" value={r.motoboy||''} onChange={(e)=>updateDaily(d, 'motoboy', e.target.value)} placeholder="0,00" /></td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                        <tfoot>
+                                            <tr className="bg-[#1A202C] text-white font-black uppercase text-[10px] border-t-4 border-[#D97757] h-12">
+                                                <td className="p-0 sticky left-0 bg-[#1A202C] z-10 text-center font-black text-amber-300">SOMA TOTAL</td>
+                                                <td className="p-4 bg-yellow-500 text-black font-black text-xs">{formatMoney(columnTotals.totalDia)}</td>
+                                                <td className="p-4 bg-blue-600 text-white font-black text-xs">{columnTotals.pedidos}</td>
+                                                <td className="p-4 bg-blue-800 text-[#F8CC82] font-black text-xs">{formatMoney(columnTotals.ticketMedio)}</td>
+                                                {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => ( <td key={f} className="p-4 border-r bg-slate-800 text-xs font-black">{formatMoney(columnTotals[f])}</td> ))}
+                                                <td className="p-4 border-r text-orange-400 bg-orange-950/25 text-xs font-black">{formatMoney(columnTotals.taxaEntrega)}</td>
+                                                <td className="p-4 border-r text-red-400 bg-red-950/25 text-xs font-black">{formatMoney(columnTotals.motoboy)}</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
                                 </div>
                             </div>
                         )}
 
-                        {/* ======================= MODAL DO COMPLEMENTO ======================= */}
-                        {isCompModalOpen && (
-                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                                <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-6 scale-up-center">
-                                    <div className="flex justify-between items-center border-b pb-3">
-                                        <h3 className="text-sm font-black uppercase text-slate-800">{compForm.id ? 'Editar Complemento' : 'Novo Complemento'}</h3>
-                                        <button onClick={()=>setIsCompModalOpen(false)} className="text-slate-400 hover:text-slate-800"><Icon name="x" size={20}/></button>
+                        {/* ======================= ABA: DRE ======================= */}
+                        {activeTab === 'dre' && (
+                            <div className="max-w-3xl mx-auto glass-card rounded-[3rem] p-10 shadow-2xl border-t-8 border-[#D97757] animate-in fade-in">
+                                <h2 className="text-xl font-black uppercase mb-8 border-b pb-4 text-center">DRE Operacional - {filterMonth}</h2>
+                                <div className="space-y-4">
+                                    <div className="flex justify-between p-4 bg-green-50 rounded-2xl font-black text-[10px] uppercase"><span>(+) Receita Bruta</span><span>{formatMoney(stats.rb)}</span></div>
+                                    <div className="py-4 border-b">
+                                        <h3 className="text-[10px] font-black uppercase text-slate-400 mb-2 px-4">Despesas por Categoria</h3>
+                                        {Object.entries(stats.catCosts).sort(([a],[b])=>a.localeCompare(b)).map(([c, v]) => (
+                                            <div key={c} className="flex justify-between px-4 py-2 text-[10px] font-bold text-slate-600 uppercase"><span>(-) {c}</span><span className="text-red-400 font-black">{formatMoney(v)}</span></div>
+                                        ))}
                                     </div>
-                                    
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome do Complemento</label>
-                                            <input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-[#F27A18]" placeholder="Ex: Bacon Extra" value={compForm.name} onChange={e=>setCompForm({...compForm, name: e.target.value})} />
+                                    <div className={"flex justify-between items-center p-8 rounded-[2.5rem] mt-6 shadow-xl " + (stats.lucro>=0?'bg-[#1A202C] text-[#F8CC82]':'bg-red-600 text-white')}>
+                                        <div>
+                                            <h3 className="text-xl font-black uppercase">Resultado Líquido</h3>
+                                            <p className="text-[9px] font-black uppercase opacity-70 mt-1">Margem Real: {stats.margemDRE.toFixed(1)}%</p>
                                         </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço de Venda Praticado (R$)</label>
-                                            <input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-[#F27A18]" placeholder="Ex: 4.50" value={compForm.sellingPrice} onChange={e=>setCompForm({...compForm, sellingPrice: e.target.value})} />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria do Produto</label>
-                                        <select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={compForm.category} onChange={e=>setCompForm({...compForm, category: e.target.value})}>
-                                            {complementCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-4 rounded-2xl cursor-pointer hover:bg-slate-100 transition-colors">
-                                            <input type="checkbox" className="w-4 h-4 accent-[#F27A18]" checked={compForm.ignoreCMV} onChange={e=>setCompForm({...compForm, ignoreCMV: e.target.checked})} />
-                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Não considerar para o cálculo de CMV Geral (Ignorar)</span>
-                                        </label>
-                                    </div>
-
-                                    <div className="border-t pt-4">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <label className="text-[10px] font-black uppercase text-slate-800">Composição (Ingredientes)</label>
-                                            <button type="button" onClick={() => setCompForm(p => ({...p, ingredients: [...p.ingredients, { ingredientId: '', qty: '' }]}))} className="text-[9px] font-black uppercase bg-[#1A202C] text-[#F8CC82] px-4 py-2 rounded-xl hover:bg-black flex items-center gap-1 shadow"><Icon name="plus" size={14}/> Adicionar Item</button>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            {compForm.ingredients.length === 0 && <p className="text-center text-[10px] uppercase font-bold text-slate-400 py-6 bg-slate-50 rounded-2xl border border-dashed">Nenhum ingrediente adicionado.</p>}
-                                            {compForm.ingredients.map((ingItem, idx) => (
-                                                <div key={idx} className="flex flex-col sm:flex-row items-center gap-2 bg-slate-50 p-2 rounded-xl border">
-                                                    <select className="w-full sm:flex-1 p-3 bg-white border rounded-lg font-bold text-[10px] outline-none" value={ingItem.ingredientId} onChange={e => { const newIngs = [...compForm.ingredients]; newIngs[idx].ingredientId = e.target.value; setCompForm({...compForm, ingredients: newIngs}); }}>
-                                                        <option value="">-- Selecione o Insumo --</option>
-                                                        {ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                                                    </select>
-                                                    <div className="flex w-full sm:w-auto gap-2">
-                                                        <input type="number" step="0.001" placeholder="Qtd" className="w-full sm:w-24 p-3 bg-white border rounded-lg font-bold text-[10px] text-center outline-none" value={ingItem.qty} onChange={e => { const newIngs = [...compForm.ingredients]; newIngs[idx].qty = e.target.value; setCompForm({...compForm, ingredients: newIngs}); }} />
-                                                        <button type="button" onClick={() => { const newIngs = [...compForm.ingredients]; newIngs.splice(idx, 1); setCompForm({...compForm, ingredients: newIngs}); }} className="p-3 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 border border-red-100 shrink-0"><Icon name="trash-2" size={14}/></button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-slate-800 text-white p-5 rounded-3xl flex justify-between items-center shadow-inner mt-2">
-                                        <div className="text-left">
-                                            <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Custo Total do Extra</span>
-                                            <span className="text-2xl font-black text-[#F8CC82]">{formatMoney(calculateItemCost(compForm.ingredients))}</span>
-                                        </div>
-                                        <div className="text-right">
-                                            <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">CMV Estimado</span>
-                                            <span className={"text-2xl font-black " + ((compForm.sellingPrice && (calculateItemCost(compForm.ingredients) / compForm.sellingPrice)*100 > parseFloat(cmvSettings.targetCMV||30)) ? "text-red-400" : "text-emerald-400")}>
-                                                {compForm.sellingPrice > 0 ? ((calculateItemCost(compForm.ingredients) / compForm.sellingPrice) * 100).toFixed(1) : 0}%
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex gap-2 mt-2 pt-4 border-t">
-                                        <button onClick={handleSaveComplement} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Gravar Complemento</button>
-                                        <button onClick={()=>setIsCompModalOpen(false)} className="px-8 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* ======================= MODAL DO COMBO ======================= */}
-                        {isComboModalOpen && (
-                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                                <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-6 scale-up-center">
-                                    <div className="flex justify-between items-center border-b pb-3">
-                                        <h3 className="text-sm font-black uppercase text-slate-800">{comboForm.id ? 'Editar Combo' : 'Novo Combo'}</h3>
-                                        <button onClick={()=>setIsComboModalOpen(false)} className="text-slate-400 hover:text-slate-800"><Icon name="x" size={20}/></button>
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome do Combo</label>
-                                            <input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-[#F27A18]" placeholder="Ex: Combo Família" value={comboForm.name} onChange={e=>setComboForm({...comboForm, name: e.target.value})} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço de Venda do Combo (R$)</label>
-                                            <input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-[#F27A18]" placeholder="Ex: 50.00" value={comboForm.sellingPrice} onChange={e=>setComboForm({...comboForm, sellingPrice: e.target.value})} />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria do Produto</label>
-                                        <select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={comboForm.category} onChange={e=>setComboForm({...comboForm, category: e.target.value})}>
-                                            {comboCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-4 rounded-2xl cursor-pointer hover:bg-slate-100 transition-colors">
-                                            <input type="checkbox" className="w-4 h-4 accent-[#F27A18]" checked={comboForm.ignoreCMV} onChange={e=>setComboForm({...comboForm, ignoreCMV: e.target.checked})} />
-                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Não considerar para o cálculo de CMV Geral (Ignorar)</span>
-                                        </label>
-                                    </div>
-
-                                    <div className="border-t pt-4">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <label className="text-[10px] font-black uppercase text-slate-800">Itens do Combo</label>
-                                            <button type="button" onClick={() => setComboForm(p => ({...p, items: [...p.items, { type: 'recipe', itemId: '', qty: '' }]}))} className="text-[9px] font-black uppercase bg-[#1A202C] text-[#F8CC82] px-4 py-2 rounded-xl hover:bg-black flex items-center gap-1 shadow"><Icon name="plus" size={14}/> Adicionar Item</button>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            {comboForm.items.length === 0 && <p className="text-center text-[10px] uppercase font-bold text-slate-400 py-6 bg-slate-50 rounded-2xl border border-dashed">Nenhum item adicionado.</p>}
-                                            {comboForm.items.map((comboItem, idx) => (
-                                                <div key={idx} className="flex flex-col md:flex-row items-center gap-2 bg-slate-50 p-2 rounded-xl border">
-                                                    <select className="w-full md:w-32 p-3 bg-white border rounded-lg font-bold text-[10px] outline-none" value={comboItem.type} onChange={e => { const newItems = [...comboForm.items]; newItems[idx].type = e.target.value; newItems[idx].itemId = ''; setComboForm({...comboForm, items: newItems}); }}>
-                                                        <option value="recipe">🍔 Ficha</option>
-                                                        <option value="complement">🧩 Comp.</option>
-                                                        <option value="ingredient">📦 Insumo</option>
-                                                    </select>
-                                                    <select className="w-full md:flex-1 p-3 bg-white border rounded-lg font-bold text-[10px] outline-none" value={comboItem.itemId} onChange={e => { const newItems = [...comboForm.items]; newItems[idx].itemId = e.target.value; setComboForm({...comboForm, items: newItems}); }}>
-                                                        <option value="">-- Escolher --</option>
-                                                        {comboItem.type === 'recipe' && recipes.sort((a,b)=>a.name.localeCompare(b.name)).map(i => <option key={i.id} value={i.id}>Ficha: {i.name}</option>)}
-                                                        {comboItem.type === 'complement' && complements.sort((a,b)=>a.name.localeCompare(b.name)).map(i => <option key={i.id} value={i.id}>Comp: {i.name}</option>)}
-                                                        {comboItem.type === 'ingredient' && ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(i => <option key={i.id} value={i.id}>Insumo: {i.name}</option>)}
-                                                    </select>
-                                                    <div className="flex w-full md:w-auto gap-2">
-                                                        <input type="number" step="0.001" placeholder="Qtd" className="w-full md:w-24 p-3 bg-white border rounded-lg font-bold text-[10px] text-center outline-none" value={comboItem.qty} onChange={e => { const newItems = [...comboForm.items]; newItems[idx].qty = e.target.value; setComboForm({...comboForm, items: newItems}); }} />
-                                                        <button type="button" onClick={() => { const newItems = [...comboForm.items]; newItems.splice(idx, 1); setComboForm({...comboForm, items: newItems}); }} className="p-3 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 border border-red-100 shrink-0"><Icon name="trash-2" size={14}/></button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-slate-800 text-white p-5 rounded-3xl flex justify-between items-center shadow-inner mt-2">
-                                        <div className="text-left">
-                                            <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Custo Somado do Combo</span>
-                                            <span className="text-2xl font-black text-[#F8CC82]">{formatMoney(calculateComboCost(comboForm.items))}</span>
-                                        </div>
-                                        <div className="text-right">
-                                            <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">CMV Estimado do Combo</span>
-                                            <span className={"text-2xl font-black " + ((comboForm.sellingPrice && (calculateComboCost(comboForm.items) / comboForm.sellingPrice)*100 > parseFloat(cmvSettings.targetCMV||30)) ? "text-red-400" : "text-emerald-400")}>
-                                                {comboForm.sellingPrice > 0 ? ((calculateComboCost(comboForm.items) / comboForm.sellingPrice) * 100).toFixed(1) : 0}%
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex gap-2 mt-2 pt-4 border-t">
-                                        <button onClick={handleSaveCombo} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Gravar Combo</button>
-                                        <button onClick={()=>setIsComboModalOpen(false)} className="px-8 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button>
+                                        <span className="text-4xl font-black">{formatMoney(stats.lucro)}</span>
                                     </div>
                                 </div>
                             </div>
                         )}
 
                         {/* ======================= ABAS EM CONSTRUÇÃO ======================= */}
-                        {['saldos', 'vendas', 'dre'].includes(activeTab) && (
+                        {['insumos', 'fichas'].includes(activeTab) && (
                             <div className="glass-card p-12 rounded-[3rem] text-center shadow-sm flex flex-col justify-center items-center gap-4">
-                                <Icon name="sprout" size={40} className="text-emerald-400" />
-                                <h2 className="text-xl font-black uppercase text-slate-800">Em Construção</h2>
-                                <p className="text-xs font-bold text-slate-500 uppercase">A aba <strong>{activeTab.toUpperCase()}</strong> será implementada na Etapa 4.</p>
+                                <Icon name="check-circle" size={40} className="text-emerald-400" />
+                                <h2 className="text-xl font-black uppercase text-slate-800">Cardápio Configurado!</h2>
+                                <p className="text-xs font-bold text-slate-500 uppercase">Aceda pelo menu superior.</p>
                             </div>
                         )}
 
