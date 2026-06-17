@@ -11,7 +11,7 @@
     <script src="https://unpkg.com/@babel/standalone@7.21.0/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <!-- Firebase Compat V10 (Para React via CDN) -->
+    <!-- Firebase Compat V10 -->
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
@@ -25,7 +25,6 @@
         .fade-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        /* Ajustes baseados na identidade do CMV e Financeiro */
         .btn-primary { background-color: #000; color: #F8CC82; font-weight: 900; text-transform: uppercase; transition: all 0.2s; }
         .btn-primary:active { transform: scale(0.95); }
         .btn-accent { background-color: #F27A18; color: #000; font-weight: 900; text-transform: uppercase; transition: all 0.2s; }
@@ -38,7 +37,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // Configuração do Firebase
+        // Configuração do Firebase Financeiro Principal
         const firebaseConfig = {
             apiKey: "AIzaSyCL0o0TQYbPXoo7Yo_qJpc1oa7jib8KBcc",
             authDomain: "tribo-burger-app.firebaseapp.com",
@@ -52,7 +51,6 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        // Icon Component
         const Icon = ({ name, size = 20, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
@@ -69,17 +67,14 @@
             const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('fin_dashboard');
             
-            // ================= ESTADOS DO FINANCEIRO =================
             const [transactions, setTransactions] = useState([]);
             const [accounts, setAccounts] = useState([]);
             
-            // ================= ESTADOS DO CMV =================
             const [ingredients, setIngredients] = useState([]);
             const [recipes, setRecipes] = useState([]);
             const [cmvSettings, setCmvSettings] = useState({});
             const [ingredientCategories, setIngredientCategories] = useState(['Proteínas', 'Pães', 'Queijos', 'Molhos', 'Vegetais/Hortifrúti', 'Embalagens', 'Outros']);
 
-            // Formulário de Insumos (CMV)
             const [isIngModalOpen, setIsIngModalOpen] = useState(false);
             const [ingForm, setIngForm] = useState({ id: '', name: '', category: 'Outros', cost: '', unit: 'g', qty: '' });
 
@@ -91,16 +86,13 @@
                 return () => unsubscribe();
             }, []);
 
-            // Carregamento Unificado de Dados
             useEffect(() => {
                 if (!user || user.isAnonymous) return;
                 
-                // 1. Ouvintes do Módulo Financeiro
                 const pathFin = "artifacts/tribo-burger-financeiro/users/" + user.uid;
                 const unsubTx = db.collection(pathFin + "/transactions").onSnapshot(s => setTransactions(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
                 const unsubAcc = db.collection(pathFin + "/accounts").onSnapshot(s => setAccounts(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
 
-                // 2. Ouvintes do Módulo de CMV/Custos
                 const pathCmv = "artifacts/tribo-burger-pricing-system/users/" + user.uid + "/user_data/state";
                 const unsubCmv = db.doc(pathCmv).onSnapshot(s => {
                     if(s.exists) {
@@ -115,10 +107,28 @@
                 return () => { unsubTx(); unsubAcc(); unsubCmv(); };
             }, [user]);
 
-            // Funções Auxiliares
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-            // ======== LÓGICA DE INSUMOS (CMV) ========
+            // ================= LÓGICA DE MIGRAÇÃO =================
+            const handleImportOldCmv = async () => {
+                const dataStr = prompt("Cole aqui o texto do backup (JSON) que você copiou do sistema antigo:");
+                if (!dataStr) return;
+                
+                try {
+                    const data = JSON.parse(dataStr);
+                    const pathCmv = "artifacts/tribo-burger-pricing-system/users/" + user.uid + "/user_data/state";
+                    
+                    // Salva o objeto inteiro copiado do localStorage no novo banco unificado
+                    await db.doc(pathCmv).set(data, { merge: true });
+                    
+                    alert("✅ Dados do Cantinho migrados com sucesso! A página será atualizada.");
+                    window.location.reload();
+                } catch (err) {
+                    alert("❌ Erro ao importar: Verifique se copiou todo o texto da caixinha corretamente. Erro técnico: " + err.message);
+                }
+            };
+
+            // ================= LÓGICA DE INSUMOS =================
             const handleSaveIngredient = async (e) => {
                 e.preventDefault();
                 if (!user) return;
@@ -138,7 +148,6 @@
                 if (index > -1) list[index] = record;
                 else list.push(record);
 
-                // Salva no banco de dados do CMV
                 const pathCmv = "artifacts/tribo-burger-pricing-system/users/" + user.uid + "/user_data/state";
                 await db.doc(pathCmv).set({ ingredients: list }, { merge: true });
                 
@@ -181,7 +190,6 @@
             return (
                 <div className="min-h-screen flex flex-col fade-in">
                     
-                    {/* MENU SUPERIOR UNIFICADO */}
                     <header className="bg-[#1A202C] text-white p-4 sticky top-0 z-50 shadow-xl">
                         <div className="max-w-7xl mx-auto flex flex-col gap-4">
                             <div className="flex items-center justify-between">
@@ -196,7 +204,6 @@
                             </div>
 
                             <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-                                {/* GRUPO FINANCEIRO */}
                                 <div className="flex gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/10 shrink-0">
                                     <span className="flex items-center px-3 text-[9px] font-black uppercase text-slate-400 border-r border-white/10"><Icon name="wallet" size={12} className="mr-1"/> Finanças</span>
                                     {['fin_dashboard', 'saldos', 'vendas', 'dre'].map(t => (
@@ -206,7 +213,6 @@
                                     ))}
                                 </div>
 
-                                {/* GRUPO CARDÁPIO E CMV */}
                                 <div className="flex gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/10 shrink-0">
                                     <span className="flex items-center px-3 text-[9px] font-black uppercase text-[#F27A18] border-r border-white/10"><Icon name="pie-chart" size={12} className="mr-1"/> Custos & CMV</span>
                                     {['cmv_dashboard', 'insumos', 'fichas', 'combos'].map(t => (
@@ -221,7 +227,6 @@
 
                     <main className="p-4 max-w-7xl mx-auto w-full flex-1 space-y-6">
                         
-                        {/* ======================= ABA FINANCEIRO (Exemplo) ======================= */}
                         {activeTab === 'fin_dashboard' && (
                             <div className="glass-card p-10 rounded-[3rem] text-center border-t-8 border-slate-800 fade-in shadow-xl">
                                 <Icon name="trending-up" size={48} className="mx-auto mb-4 text-slate-300"/>
@@ -231,7 +236,6 @@
                             </div>
                         )}
 
-                        {/* ======================= ABA INSUMOS (Módulo CMV Convertido) ======================= */}
                         {activeTab === 'insumos' && (
                             <div className="space-y-6 fade-in">
                                 <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-6 rounded-[2rem] border shadow-sm">
@@ -239,9 +243,14 @@
                                         <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Gestão de Insumos</h2>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Matéria-prima cadastrada: {ingredients.length} itens</p>
                                     </div>
-                                    <button onClick={() => openIngModal()} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]">
-                                        <Icon name="plus" size={14}/> Novo Insumo
-                                    </button>
+                                    <div className="flex gap-2 w-full md:w-auto">
+                                        <button onClick={handleImportOldCmv} className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase transition-all">
+                                            <Icon name="download" size={14}/> Importar Dados Antigos
+                                        </button>
+                                        <button onClick={() => openIngModal()} className="flex-1 md:flex-none btn-accent px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px]">
+                                            <Icon name="plus" size={14}/> Novo Insumo
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="glass-card rounded-[2.5rem] overflow-hidden border shadow-sm overflow-x-auto">
@@ -257,7 +266,7 @@
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
                                             {ingredients.length === 0 ? (
-                                                <tr><td colSpan="5" className="p-8 text-center text-slate-400 uppercase">Nenhum insumo cadastrado.</td></tr>
+                                                <tr><td colSpan="5" className="p-12 text-center text-slate-400 uppercase font-black text-xs">Nenhum insumo cadastrado.<br/><span className="text-[9px] font-bold">Use o botão "Importar Dados Antigos" se você já usava o sistema de CMV.</span></td></tr>
                                             ) : ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(ing => {
                                                 const unitCost = ing.cost / ing.qty;
                                                 return (
@@ -277,7 +286,6 @@
                                     </table>
                                 </div>
 
-                                {/* MODAL DE INSUMOS */}
                                 {isIngModalOpen && (
                                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                                         <form onSubmit={handleSaveIngredient} className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-4 scale-up-center">
@@ -323,7 +331,6 @@
                             </div>
                         )}
 
-                        {/* ======================= OUTRAS ABAS (Placeholders para as próximas etapas) ======================= */}
                         {['fichas', 'combos', 'saldos', 'vendas', 'dre'].includes(activeTab) && activeTab !== 'insumos' && activeTab !== 'fin_dashboard' && (
                             <div className="glass-card p-12 rounded-[3rem] text-center shadow-sm flex flex-col justify-center items-center gap-4">
                                 <Icon name="sprout" size={40} className="text-emerald-400" />
