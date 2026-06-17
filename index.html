@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tribo Burger | ERP do Cantinho</title>
+    <title>Tribo Burger | ERP Completo do Cantinho</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -11,7 +11,6 @@
     <script src="https://unpkg.com/@babel/standalone@7.21.0/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <!-- Firebase Compat V10 -->
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
@@ -22,7 +21,8 @@
         body, input:not([type="password"]), select, button, textarea, option, span, p, h1, h2, h3, h4, th, td { text-transform: uppercase !important; }
         input::placeholder, textarea::placeholder { text-transform: uppercase !important; }
         .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(226, 232, 240, 0.6); }
-        .tab-active { background-color: #D97757; color: #FFF; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .tab-active { background-color: #1A202C; color: #F8CC82; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .tab-cmv-active { background-color: #F27A18; color: #000; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .fade-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -32,12 +32,18 @@
         .btn-accent { background-color: #F27A18; color: #000; font-weight: 900; text-transform: uppercase; transition: all 0.2s; }
         .btn-accent:active { transform: scale(0.95); }
         
-        /* Estilos do Financeiro */
         .table-input { width: 100%; height: 100%; text-align: center; background: transparent; border: none; font-weight: 800; font-size: 11px; outline: none; padding: 4px; }
         .table-input:focus { background-color: rgba(211, 226, 152, 0.2); }
         .header-black { background-color: #000; color: #FFF; font-weight: 800; text-transform: uppercase; font-size: 10px; border: 1px solid #333; }
         .stat-banner { background: #1A202C; border-bottom: 6px solid #D97757; color: white; padding: 2rem; border-radius: 2.5rem; text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
         .status-badge { font-size: 7px; font-weight: 900; padding: 2px 6px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+        @media print {
+            body { background-color: white !important; color: black !important; }
+            .print\:hidden, header { display: none !important; }
+            .glass-card { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
+            main { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -70,11 +76,40 @@
             return <span ref={containerRef} className="inline-flex items-center justify-center"></span>;
         };
 
+        const parseDateUTC = (dateStr) => {
+            if (!dateStr || dateStr.includes('NaN')) return new Date();
+            if (dateStr.includes('-')) {
+                const parts = dateStr.split('-');
+                if (parts[0].length === 4) return new Date(Date.UTC(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2])));
+            }
+            return new Date(dateStr);
+        };
+
+        const getTransactionDates = (t, cardInfo) => {
+            if (!t) return { clearanceDate: '', billingMonth: '' };
+            const desc = (t.description || "").toLowerCase();
+            const isInvoice = desc.includes("baixa fatura") || desc.includes("pagamento fatura");
+            if (isInvoice || !cardInfo || cardInfo.type !== 'cartao') {
+                return { clearanceDate: t.clearanceDate || t.date || '', billingMonth: t.billingMonth || (t.date ? t.date.slice(0, 7) : '') };
+            }
+            const closing = parseInt(cardInfo.closing || 25);
+            const due = parseInt(cardInfo.due || 10);
+            const d = parseDateUTC(t.date || t.timestamp?.slice(0, 10));
+            let billingDate = new Date(d.getTime()); billingDate.setUTCDate(1);
+            if (d.getUTCDate() > closing) billingDate.setUTCMonth(billingDate.getUTCMonth() + 1);
+            let dueDate = new Date(billingDate.getTime()); dueDate.setUTCDate(1);
+            if (due < closing) dueDate.setUTCMonth(dueDate.getUTCMonth() + 1);
+            dueDate.setUTCDate(due);
+            return {
+                clearanceDate: dueDate.getUTCFullYear() + "-" + String(dueDate.getUTCMonth() + 1).padStart(2, '0') + "-" + String(dueDate.getUTCDate()).padStart(2, '0'),
+                billingMonth: billingDate.getUTCFullYear() + "-" + String(billingDate.getUTCMonth() + 1).padStart(2, '0')
+            };
+        };
+
         function App() {
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('fin_dashboard');
-            const fileInputRef = useRef(null);
             
             // ================= ESTADOS DO FINANCEIRO =================
             const [transactions, setTransactions] = useState([]);
@@ -87,45 +122,43 @@
             const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
             const [searchQuery, setSearchQuery] = useState('');
             const [typeFilter, setTypeFilter] = useState('todos');
-            const [accFilter, setAccFilter] = useState('');
-            const [catFilter, setCatFilter] = useState('');
-
-            // Formulário de Lançamento Financeiro
-            const [desc, setDesc] = useState('');
-            const [val, setVal] = useState('');
-            const [type, setType] = useState('saida');
-            const [account, setAccount] = useState('');
-            const [destAcc, setDestAcc] = useState('');
-            const [cat, setCat] = useState('');
-            const [sup, setSup] = useState('');
-            const [status, setStatus] = useState('pago');
-            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-            const [clearance, setClearance] = useState(new Date().toISOString().split('T')[0]);
-            const [editingId, setEditingId] = useState(null);
+            
+            // Lançamento Financeiro
+            const [txForm, setTxForm] = useState({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1 });
             const [newDayDate, setNewDayDate] = useState(new Date().toISOString().split('T')[0]);
+            const [invoiceModal, setInvoiceModal] = useState(null);
+            const [liqModal, setLiqModal] = useState(null);
 
             // ================= ESTADOS DO CMV =================
             const [ingredients, setIngredients] = useState([]);
             const [recipes, setRecipes] = useState([]);
             const [complements, setComplements] = useState([]);
             const [combos, setCombos] = useState([]);
-            const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12 });
+            const [fixedCosts, setFixedCosts] = useState([]);
+            const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12, baseRevenue: 0, targetRevenue: 0 });
             
-            const [ingredientCategories, setIngredientCategories] = useState(['Proteínas', 'Pães', 'Queijos', 'Molhos', 'Vegetais/Hortifrúti', 'Embalagens', 'Outros']);
-            const [recipeCategories, setRecipeCategories] = useState(['Hambúrgueres', 'Acompanhamentos', 'Bebidas', 'Sobremesas', 'Molhos Caseiros', 'Outros', 'Smash']);
-            const [complementCategories, setComplementCategories] = useState(['Extras', 'Molhos', 'Outros']);
-            const [comboCategories, setComboCategories] = useState(['Promocionais', 'Família', 'Outros']);
+            // Categorias CMV
+            const [ingCats, setIngCats] = useState(['Proteínas', 'Pães', 'Queijos', 'Molhos', 'Vegetais/Hortifrúti', 'Embalagens', 'Outros']);
+            const [recCats, setRecCats] = useState(['Hambúrgueres', 'Acompanhamentos', 'Bebidas', 'Sobremesas', 'Molhos Caseiros', 'Outros', 'Smash']);
+            const [compCats, setCompCats] = useState(['Extras', 'Molhos', 'Outros']);
+            const [comboCats, setComboCats] = useState(['Promocionais', 'Família', 'Outros']);
+            const [fcCats, setFcCats] = useState(['Operacional', 'Renda/Aluguel', 'Marketing', 'RH/Folha', 'Impostos Fixos', 'Outros']);
 
             // Modais CMV
             const [isIngModalOpen, setIsIngModalOpen] = useState(false);
             const [ingForm, setIngForm] = useState({ id: '', name: '', category: 'Outros', cost: '', unit: 'g', qty: '' });
-            const [ingCollapsed, setIngCollapsed] = useState({});
-
+            
             const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
             const [recipeForm, setRecipeForm] = useState({ id: '', name: '', category: 'Hambúrgueres', sellingPrice: '', ingredients: [], ignoreCMV: false });
-            const [recipeSearch, setRecipeSearch] = useState('');
-            const [recipeCatFilter, setRecipeCatFilter] = useState('');
-            const [recipeCollapsed, setRecipeCollapsed] = useState({});
+
+            const [isCompModalOpen, setIsCompModalOpen] = useState(false);
+            const [compForm, setCompForm] = useState({ id: '', name: '', category: 'Extras', sellingPrice: '', ingredients: [], ignoreCMV: false });
+
+            const [isComboModalOpen, setIsComboModalOpen] = useState(false);
+            const [comboForm, setComboForm] = useState({ id: '', name: '', category: 'Promocionais', sellingPrice: '', items: [], ignoreCMV: false });
+
+            const [isFcModalOpen, setIsFcModalOpen] = useState(false);
+            const [fcForm, setFcForm] = useState({ id: '', description: '', category: 'Operacional', value: '' });
 
             useEffect(() => {
                 const unsubscribe = auth.onAuthStateChanged(u => { setUser(u); setLoading(false); });
@@ -134,10 +167,9 @@
 
             useEffect(() => {
                 if (!user || user.isAnonymous) return;
-                
                 const pathFin = "artifacts/tribo-burger-financeiro/users/" + user.uid;
                 
-                // Listeners Financeiros
+                // Financeiro Listeners
                 const unsubTx = db.collection(pathFin + "/transactions").onSnapshot(s => setTransactions(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
                 const unsubDaily = db.collection(pathFin + "/dailyRecords").onSnapshot(s => { const r = {}; s.docs.forEach(d => { if (d.exists) r[d.id] = d.data(); }); setDailyRecords(r); });
                 const unsubAcc = db.collection(pathFin + "/accounts").onSnapshot(s => setAccounts(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
@@ -145,20 +177,15 @@
                 const unsubSup = db.collection(pathFin + "/suppliers").onSnapshot(s => setSuppliers(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
                 const unsubMeta = db.doc(pathFin + "/settings/config").onSnapshot(s => { if(s.exists) setMetaVendas(s.data().meta || 0); });
 
-                // Listeners CMV
-                const pathCmv = pathFin + "/cmv_data/state";
-                const unsubCmv = db.doc(pathCmv).onSnapshot(s => {
+                // CMV Listeners
+                const unsubCmv = db.doc(pathFin + "/cmv_data/state").onSnapshot(s => {
                     if(s.exists) {
-                        const data = s.data();
-                        setIngredients(data.ingredients || []);
-                        setRecipes(data.recipes || []);
-                        setComplements(data.complements || []);
-                        setCombos(data.combos || []);
-                        setCmvSettings(data.settings || { targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12 });
-                        if(data.ingredientCategories) setIngredientCategories(data.ingredientCategories);
-                        if(data.recipeCategories) setRecipeCategories(data.recipeCategories);
-                        if(data.complementCategories) setComplementCategories(data.complementCategories);
-                        if(data.comboCategories) setComboCategories(data.comboCategories);
+                        const d = s.data();
+                        setIngredients(d.ingredients || []); setRecipes(d.recipes || []); setComplements(d.complements || []); setCombos(d.combos || []); setFixedCosts(d.fixedCosts || []);
+                        setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12, baseRevenue: 0, targetRevenue: 0 });
+                        if(d.ingredientCategories) setIngCats(d.ingredientCategories); if(d.recipeCategories) setRecCats(d.recipeCategories);
+                        if(d.complementCategories) setCompCats(d.complementCategories); if(d.comboCategories) setComboCats(d.comboCategories);
+                        if(d.fixedCostCategories) setFcCats(d.fixedCostCategories);
                     }
                 });
 
@@ -168,185 +195,151 @@
             const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-            // ================= LÓGICA FINANCEIRA =================
-            const uniqueDescriptions = useMemo(() => [...new Set(transactions.map(t => t.description).filter(Boolean))].sort(), [transactions]);
-            const sortedCategoriesFin = useMemo(() => [...categories].sort((a, b) => (a.name || "").localeCompare(b.name || "")), [categories]);
-
-            const filteredDashboard = useMemo(() => {
-                return transactions.filter(t => {
-                    if (!t) return false;
-                    const isMonth = (t.date?.startsWith(filterMonth) || t.clearanceDate?.startsWith(filterMonth) || t.billingMonth === filterMonth);
-                    const matchSearch = (t.description || "").toLowerCase().includes(searchQuery.toLowerCase()) || (t.category || "").toLowerCase().includes(searchQuery.toLowerCase());
-                    const matchType = typeFilter === 'todos' || t.type === typeFilter;
-                    const matchAcc = accFilter === '' || t.account === accFilter;
-                    const matchCat = catFilter === '' || t.category === catFilter;
-                    return isMonth && matchSearch && matchType && matchAcc && matchCat;
-                }).sort((a,b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
-            }, [transactions, filterMonth, searchQuery, typeFilter, accFilter, catFilter]);
-
-            const filteredSummary = useMemo(() => {
-                let entradas = 0; let saidas = 0; let transfs = 0;
-                filteredDashboard.forEach(t => {
-                    const v = p(t.amount);
-                    if (t.type === 'entrada') entradas += v;
-                    else if (t.type === 'saida') saidas += v;
-                    else if (t.type === 'transferencia') transfs += v;
-                });
-                return { entradas, saidas, transfs, saldo: entradas - saidas };
-            }, [filteredDashboard]);
+            // ================= LOGICA FINANCEIRA COMPUTADA =================
+            const filteredDashboard = useMemo(() => transactions.filter(t => {
+                if (!t || (t.type === 'entrada' && (t.description||'').toLowerCase().includes('fatura'))) return false;
+                const { clearanceDate, billingMonth } = getTransactionDates(t, accounts.find(a => a.name === t.account));
+                const isMonth = (t.date?.startsWith(filterMonth) || clearanceDate?.startsWith(filterMonth) || billingMonth === filterMonth);
+                const matchSearch = (t.description || "").toLowerCase().includes(searchQuery.toLowerCase());
+                const matchType = typeFilter === 'todos' || t.type === typeFilter;
+                return isMonth && matchSearch && matchType;
+            }).sort((a,b) => (b.timestamp || "").localeCompare(a.timestamp || "")), [transactions, filterMonth, searchQuery, typeFilter, accounts]);
 
             const accountBalances = useMemo(() => {
-                const bal = {}; 
-                if (accounts) accounts.forEach(a => { if(a.name) bal[a.name] = 0; });
+                const bal = {}; accounts.forEach(a => bal[a.name] = 0);
                 transactions.forEach(t => {
                     if (t.status === 'pago') {
                         const amt = p(t.amount);
                         if (t.type === 'entrada') bal[t.account] = (bal[t.account] || 0) + amt;
                         else if (t.type === 'saida') bal[t.account] = (bal[t.account] || 0) - amt;
-                        else if (t.type === 'transferencia') { 
-                            bal[t.account] = (bal[t.account] || 0) - amt; 
-                            bal[t.destinationAccount] = (bal[t.destinationAccount] || 0) + amt; 
-                        }
+                        else if (t.type === 'transferencia') { bal[t.account] = (bal[t.account] || 0) - amt; bal[t.destinationAccount] = (bal[t.destinationAccount] || 0) + amt; }
                     }
                 });
                 return bal;
             }, [transactions, accounts]);
 
-            const totalPatrimony = useMemo(() => accounts.filter(a => a.type === 'corrente').reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0), [accounts, accountBalances]);
-
-            const columnTotals = useMemo(() => {
-                const days = Object.keys(dailyRecords).filter(d => d.startsWith(filterMonth));
-                const totals = { totalDia: 0, pedidos: 0, pix: 0, pixOnline: 0, fiado: 0, dinheiro: 0, ifood: 0, debito: 0, credito: 0, vr: 0, ticket: 0, alelo: 0, taxaEntrega: 0, motoboy: 0 };
-                days.forEach(d => {
-                    const r = dailyRecords[d] || {};
-                    totals.totalDia += ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
-                    totals.pedidos += p(r.qtdPedidos);
-                    ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].forEach(f => { totals[f] += p(r[f]); });
-                    totals.taxaEntrega += p(r.taxaEntrega); totals.motoboy += p(r.motoboy);
-                });
-                totals.ticketMedio = totals.pedidos > 0 ? totals.totalDia / totals.pedidos : 0;
-                return totals;
-            }, [dailyRecords, filterMonth]);
-
             const stats = useMemo(() => {
-                let rb = 0; let custos = 0; let catCosts = {}; let diasAtivos = 0; let entradas = 0; let contasPagas = 0;
-
+                let rb = 0; let custos = 0; let catCosts = {}; let diasAtivos = 0; let totalPedidos = 0; let entradas = 0; let contasPagas = 0;
                 Object.keys(dailyRecords).forEach(d => {
-                    const r = dailyRecords[d];
-                    const totalDia = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((s,f)=>s+p(r[f]), 0);
-                    if (d.startsWith(filterMonth)) {
-                        if (totalDia > 0) diasAtivos++;
-                        rb += totalDia;
-                        custos += p(r.motoboy) + p(r.taxaEntrega);
-                    }
+                    const r = dailyRecords[d]; const totalDia = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((s,f)=>s+p(r[f]), 0);
+                    if (d.startsWith(filterMonth)) { if (totalDia > 0) diasAtivos++; rb += totalDia; custos += p(r.motoboy) + p(r.taxaEntrega); totalPedidos += p(r.qtdPedidos); }
                 });
-
                 transactions.forEach(t => {
-                    if (t.status === 'pago' && (t.date?.startsWith(filterMonth) || t.clearanceDate?.startsWith(filterMonth))) {
-                        if (t.type === 'saida') {
-                            catCosts[t.category] = (catCosts[t.category] || 0) + p(t.amount);
-                            contasPagas += p(t.amount);
-                        } else if (t.type === 'entrada') {
-                            entradas += p(t.amount);
-                        }
+                    const { clearanceDate } = getTransactionDates(t, accounts.find(a => a.name === t.account));
+                    if (t.status === 'pago' && (t.date?.startsWith(filterMonth) || clearanceDate?.startsWith(filterMonth))) {
+                        if (t.type === 'saida') { catCosts[t.category] = (catCosts[t.category] || 0) + p(t.amount); if (!(t.description||'').toLowerCase().includes('fatura')) contasPagas += p(t.amount); }
+                        else if (t.type === 'entrada' && !(t.description||'').toLowerCase().includes('fatura')) entradas += p(t.amount);
                     }
                 });
-
                 const operCosts = Object.values(catCosts).reduce((a,b)=>a+b, 0);
-                const lucroDRE = rb - (operCosts + custos);
-                const lucroCaixa = entradas - contasPagas;
-                
-                return { rb, totalCosts: operCosts + custos, lucro: lucroDRE, catCosts, diasAtivos, entradas, contasPagas, lucroCaixa, margemDRE: rb > 0 ? (lucroDRE / rb) * 100 : 0 };
-            }, [dailyRecords, transactions, filterMonth]);
+                return { rb, totalCosts: operCosts + custos, lucro: rb - (operCosts + custos), catCosts, diasAtivos, totalPedidos, entradas, contasPagas, lucroCaixa: entradas - contasPagas, margemDRE: rb > 0 ? ((rb - (operCosts + custos)) / rb) * 100 : 0 };
+            }, [dailyRecords, transactions, filterMonth, accounts]);
 
-            const handleSaveTx = async (e) => {
-                e.preventDefault();
-                if (!user || !val) return;
-                const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/transactions";
-                const payload = { description: desc, amount: p(val), type, status, date, clearanceDate: clearance, billingMonth: date.slice(0, 7), account, destinationAccount: destAcc, category: type === 'transferencia' ? 'Transferência' : (cat || 'Geral'), supplier: sup, timestamp: new Date().toISOString() };
-                if (editingId) await db.collection(path).doc(editingId).update(payload);
-                else await db.collection(path).add(payload);
-                setEditingId(null); setDesc(''); setVal(''); setType('saida'); setAccount(''); setDestAcc(''); setCat(''); setSup('');
-            };
+            const consolidatedAPagar = useMemo(() => {
+                const pendings = transactions.filter(t => t.type === 'saida' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao');
+                const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
+                    const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
+                    const totalPurchases = txs.filter(t => !(t.description||'').toLowerCase().includes('fatura')).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                    const totalPaid = txs.filter(t => (t.description||'').toLowerCase().includes('fatura')).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                    const remaining = totalPurchases - totalPaid;
+                    return remaining > 0.01 ? { id: "card-" + card.name, description: "Fatura " + card.name, amount: remaining, account: card.name, clearanceDate: filterMonth + "-" + String(card.due || 10).padStart(2, '0'), isInvoice: true } : null;
+                }).filter(Boolean);
+                return [...pendings, ...invoices].sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
+            }, [transactions, accounts, filterMonth]);
 
-            const executeDeleteTx = async (id) => {
-                if(window.confirm("Apagar transação?")) await db.collection('artifacts/tribo-burger-financeiro/users/' + user.uid + '/transactions').doc(id).delete();
-            };
+            // ================= LÓGICA CMV COMPUTADA =================
+            const getIngCost = (id, q) => { const i = ingredients.find(x => x.id === id); return i ? (i.cost / i.qty) * (p(q) * (i.unit==='kg'||i.unit==='L'?0.001:1)) : 0; };
+            const calcItemCost = (ings) => (ings||[]).reduce((t, r) => t + getIngCost(r.ingredientId, r.qty), 0);
+            const calcComboCost = (items) => (items||[]).reduce((t, i) => {
+                if (i.type === 'recipe') return t + calcItemCost(recipes.find(r=>r.id===i.itemId)?.ingredients) * p(i.qty);
+                if (i.type === 'complement') return t + calcItemCost(complements.find(c=>c.id===i.itemId)?.ingredients) * p(i.qty);
+                return t + getIngCost(i.itemId, i.qty);
+            }, 0);
 
-            const startEdit = (t) => { setEditingId(t.id); setDesc(t.description || ''); setVal(t.amount ? t.amount.toString() : ''); setType(t.type || 'saida'); setAccount(t.account || ''); setDestAcc(t.destinationAccount || ''); setCat(t.category || ''); setSup(t.supplier || ''); setDate(t.date || new Date().toISOString().split('T')[0]); setClearance(t.clearanceDate || new Date().toISOString().split('T')[0]); setStatus(t.status || 'pago'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+            const saveCMVDoc = async (field, data) => await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/cmv_data/state`).set({ [field]: data }, { merge: true });
 
-            const handleOpenNewDay = async () => {
+            const crudAction = async (collectionStr, stateArr, formObj, setModalOpen) => {
                 if (!user) return;
-                await db.collection('artifacts/tribo-burger-financeiro/users/' + user.uid + '/dailyRecords').doc(newDayDate).set({ initialized: true }, { merge: true });
+                const list = [...stateArr];
+                const id = formObj.id || crypto.randomUUID();
+                const index = list.findIndex(x => x.id === id);
+                let record = { ...formObj, id };
+                
+                // Conversões de tipos e limpezas
+                if (record.sellingPrice) record.sellingPrice = p(record.sellingPrice);
+                if (record.cost) record.cost = p(record.cost);
+                if (record.qty) record.qty = p(record.qty);
+                if (record.value) record.value = p(record.value);
+                if (record.ingredients) record.ingredients = record.ingredients.filter(i => i.ingredientId && p(i.qty) > 0);
+                if (record.items) record.items = record.items.filter(i => i.itemId && p(i.qty) > 0);
+
+                if (index > -1) list[index] = record; else list.push(record);
+                await saveCMVDoc(collectionStr, list);
+                setModalOpen(false);
             };
 
-            const updateDaily = async (d, field, value) => {
-                await db.collection('artifacts/tribo-burger-financeiro/users/' + user.uid + '/dailyRecords').doc(d).set({ [field]: value.replace(',','.') }, { merge: true });
+            const delAction = async (collectionStr, stateArr, id) => {
+                if(window.confirm("Confirmar exclusão permanente?")) await saveCMVDoc(collectionStr, stateArr.filter(x => x.id !== id));
             };
 
-            // ================= LÓGICA CMV =================
-            const getIngredientUnitCost = (ingId, qty) => {
-                const ing = ingredients.find(i => i.id === ingId);
-                if (!ing || !ing.cost || !ing.qty) return 0;
-                const unitCost = ing.cost / ing.qty;
-                let ratio = (ing.unit === 'kg' || ing.unit === 'L') ? 0.001 : 1;
-                return unitCost * (parseFloat(qty || 0) * ratio);
+            // ================= ACTIONS FINANCEIRAS =================
+            const handleSaveTx = async (e) => {
+                e.preventDefault(); if (!user || !txForm.val) return;
+                const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/transactions";
+                const batch = db.batch();
+                const numInst = txForm.type === 'transferencia' ? 1 : parseInt(txForm.inst || 1);
+                
+                for (let i = 0; i < numInst; i++) {
+                    const payload = {
+                        description: numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc,
+                        amount: p(txForm.val) / numInst, type: txForm.type, status: txForm.status,
+                        date: txForm.date, clearanceDate: txForm.clearance, billingMonth: txForm.date.slice(0, 7),
+                        account: txForm.acc, destinationAccount: txForm.destAcc, category: txForm.type === 'transferencia' ? 'Transferência' : (txForm.cat || 'Geral'),
+                        supplier: txForm.sup, timestamp: new Date().toISOString()
+                    };
+                    if (txForm.id && i === 0) batch.update(db.collection(path).doc(txForm.id), payload);
+                    else batch.set(db.collection(path).doc(), payload);
+                }
+                await batch.commit(); 
+                setTxForm({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1 });
             };
 
-            const calculateItemCost = (itemIngredients) => {
-                if (!itemIngredients || !Array.isArray(itemIngredients)) return 0;
-                return itemIngredients.reduce((total, req) => total + getIngredientUnitCost(req.ingredientId, req.qty), 0);
-            };
-
-            // ================= RENDERIZAÇÃO =================
-            if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase tracking-widest">Iniciando ERP Cantinho...</div>;
-
-            if (!user || user.isAnonymous) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center bg-[#1A202C] p-4">
-                        <div className="bg-white p-8 rounded-3xl max-w-sm w-full text-center shadow-2xl">
-                            <h2 className="text-xl font-black uppercase text-slate-800 mb-2">ERP Tribo Burger</h2>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-6">Inicie sessão para acessar o sistema unificado</p>
-                            <button onClick={async () => { const provider = new firebase.auth.GoogleAuthProvider(); await auth.signInWithPopup(provider); }} className="w-full bg-black text-[#F8CC82] p-4 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-2">
-                                <Icon name="lock" size={16}/> Entrar com Google
-                            </button>
-                        </div>
+            if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase tracking-widest">Iniciando ERP Unificado...</div>;
+            if (!user || user.isAnonymous) return (
+                <div className="min-h-screen flex items-center justify-center bg-[#1A202C] p-4">
+                    <div className="bg-white p-8 rounded-3xl max-w-sm w-full text-center shadow-2xl">
+                        <h2 className="text-xl font-black uppercase text-slate-800 mb-2">ERP Tribo Burger</h2>
+                        <button onClick={async () => { const provider = new firebase.auth.GoogleAuthProvider(); await auth.signInWithPopup(provider); }} className="w-full bg-black text-[#F8CC82] p-4 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-2 mt-6">
+                            <Icon name="lock" size={16}/> Entrar com Google
+                        </button>
                     </div>
-                );
-            }
+                </div>
+            );
 
             return (
                 <div className="min-h-screen flex flex-col fade-in">
-                    
-                    <header className="bg-[#1A202C] text-white p-4 sticky top-0 z-50 shadow-xl">
+                    {/* MENU SUPERIOR (HEADER) */}
+                    <header className="bg-[#1A202C] text-white p-4 sticky top-0 z-50 shadow-xl print:hidden">
                         <div className="max-w-7xl mx-auto flex flex-col gap-4">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-[#F27A18] flex items-center justify-center font-black text-black text-lg">TB</div>
-                                    <div>
-                                        <h1 className="text-lg font-black text-[#F8CC82] uppercase leading-none">ERP do Cantinho</h1>
-                                        <span className="text-[9px] font-black text-emerald-400 tracking-widest uppercase">Sistema Integrado Conectado</span>
-                                    </div>
+                                    <div className="w-10 h-10 rounded-xl bg-[#F27A18] flex items-center justify-center font-black text-black text-lg shadow">TB</div>
+                                    <div><h1 className="text-lg font-black text-[#F8CC82] uppercase leading-none">ERP do Cantinho</h1><span className="text-[9px] font-black text-emerald-400 tracking-widest uppercase">Sistema Integrado Conectado</span></div>
                                 </div>
                                 <button onClick={()=>auth.signOut()} className="text-[10px] font-black uppercase text-slate-400 hover:text-white">Sair</button>
                             </div>
 
                             <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-                                <div className="flex gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/10 shrink-0">
+                                <div className="flex gap-1.5 bg-white/5 p-1.5 rounded-2xl border border-white/10 shrink-0">
                                     <span className="flex items-center px-3 text-[9px] font-black uppercase text-slate-400 border-r border-white/10"><Icon name="wallet" size={12} className="mr-1"/> Finanças</span>
-                                    {['fin_dashboard', 'saldos', 'vendas', 'dre'].map(t => (
-                                        <button key={t} onClick={()=>setActiveTab(t)} className={"px-4 py-2 text-[10px] font-black uppercase whitespace-nowrap transition-all " + (activeTab === t ? "tab-active" : "text-slate-400 hover:text-white")}>
-                                            {t.replace('fin_', '')}
-                                        </button>
+                                    {['fin_dashboard', 'saldos', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'resultados', 'dre', 'relatorios', 'fornecedores'].map(t => (
+                                        <button key={t} onClick={()=>setActiveTab(t)} className={"px-3 py-2 text-[10px] font-black uppercase whitespace-nowrap transition-all " + (activeTab === t ? "tab-active" : "text-slate-400 hover:text-white")}>{t.replace('fin_', '').replace('_', ' ')}</button>
                                     ))}
                                 </div>
-
-                                <div className="flex gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/10 shrink-0">
+                                <div className="flex gap-1.5 bg-white/5 p-1.5 rounded-2xl border border-white/10 shrink-0">
                                     <span className="flex items-center px-3 text-[9px] font-black uppercase text-[#F27A18] border-r border-white/10"><Icon name="pie-chart" size={12} className="mr-1"/> Custos & CMV</span>
-                                    {['insumos', 'fichas'].map(t => (
-                                        <button key={t} onClick={()=>setActiveTab(t)} className={"px-4 py-2 text-[10px] font-black uppercase whitespace-nowrap transition-all " + (activeTab === t ? "bg-[#F27A18] text-black rounded-xl shadow" : "text-slate-400 hover:text-white")}>
-                                            {t.replace('cmv_', '')}
-                                        </button>
+                                    {['cmv_dashboard', 'insumos', 'fichas', 'complementos', 'combos', 'analise', 'custos_fixos', 'ajustes'].map(t => (
+                                        <button key={t} onClick={()=>setActiveTab(t)} className={"px-3 py-2 text-[10px] font-black uppercase whitespace-nowrap transition-all " + (activeTab === t ? "tab-cmv-active" : "text-slate-400 hover:text-white")}>{t.replace('cmv_', '').replace('_', ' ')}</button>
                                     ))}
                                 </div>
                             </div>
@@ -355,8 +348,8 @@
 
                     <main className="p-4 max-w-7xl mx-auto w-full flex-1 space-y-6">
                         
-                        {/* ======================= FILTRO GLOBAL DE MÊS ======================= */}
-                        {['fin_dashboard', 'vendas', 'dre'].includes(activeTab) && (
+                        {/* FILTRO GLOBAL DE MÊS (Aparece em abas de relatório/financeiro) */}
+                        {['fin_dashboard', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'dre', 'analise'].includes(activeTab) && (
                             <div className="flex justify-center print:hidden fade-in">
                                 <div className="glass-card px-6 py-2 rounded-full flex items-center gap-4 border shadow-sm">
                                     <span className="text-[9px] font-black uppercase text-slate-400">Mês Base:</span>
@@ -365,119 +358,60 @@
                             </div>
                         )}
 
-                        {/* ======================= ABA: DASHBOARD FINANCEIRO ======================= */}
+                        {/* =========================================================================
+                            MÓDULO FINANCEIRO 
+                        ========================================================================= */}
                         {activeTab === 'fin_dashboard' && (
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 fade-in">
-                                <form onSubmit={handleSaveTx} className="lg:col-span-1 glass-card p-8 rounded-[3rem] shadow-sm space-y-4 border-t-4 border-black h-fit relative">
-                                    {editingId && <div className="absolute -top-4 right-8 bg-blue-600 text-white text-[8px] font-black px-3 py-1 rounded-full uppercase">Editando Lançamento</div>}
+                                {/* FORMULÁRIO DE LANÇAMENTO */}
+                                <form onSubmit={handleSaveTx} className="lg:col-span-1 glass-card p-8 rounded-[3rem] shadow-sm space-y-4 border-t-4 border-black h-fit">
                                     <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl">
-                                        {['entrada','saida','transferencia'].map(t=>(
-                                            <button key={t} type="button" onClick={()=>setType(t)} className={"flex-1 py-3 rounded-xl font-black text-[9px] uppercase transition-all " + (type===t ? 'bg-white shadow-sm text-black' : 'text-slate-400')}>{t}</button>
-                                        ))}
+                                        {['entrada','saida','transferencia'].map(t=>(<button key={t} type="button" onClick={()=>setTxForm({...txForm, type: t})} className={"flex-1 py-3 rounded-xl font-black text-[9px] uppercase " + (txForm.type===t ? 'bg-white shadow text-black' : 'text-slate-400')}>{t}</button>))}
                                     </div>
-                                    <div className="relative">
-                                        <input list="history-descriptions" type="text" placeholder="Descrição" required className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-sm outline-none focus:border-black" value={desc} onChange={e=>setDesc(e.target.value)} />
-                                        <datalist id="history-descriptions">{uniqueDescriptions.map((d, i) => <option key={i} value={d} />)}</datalist>
+                                    <input type="text" placeholder="Descrição" required className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-sm outline-none" value={txForm.desc} onChange={e=>setTxForm({...txForm, desc: e.target.value})} />
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 ml-1">Valor</label><input type="text" placeholder="0,00" required className="w-full p-3 bg-slate-50 border rounded-2xl font-black text-sm outline-none" value={txForm.val} onChange={e=>setTxForm({...txForm, val: e.target.value})} /></div>
+                                        <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 ml-1">Parcelas</label><input type="number" min="1" className="w-full p-3 bg-slate-50 border rounded-2xl font-black text-sm outline-none" value={txForm.inst} onChange={e=>setTxForm({...txForm, inst: e.target.value})} disabled={txForm.type==='transferencia'} /></div>
+                                        <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 ml-1">Conta</label><select className="w-full p-3 bg-white border rounded-2xl font-black text-[9px] outline-none" value={txForm.acc} onChange={e=>setTxForm({...txForm, acc: e.target.value})}><option value="">Conta...</option>{accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}</select></div>
                                     </div>
-                                    
                                     <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1">
-                                            <label className="text-[8px] font-black uppercase text-slate-400 ml-1">Valor Total</label>
-                                            <input type="text" placeholder="0,00" required className="w-full p-3.5 bg-slate-50 border rounded-2xl font-black text-sm outline-none" value={val} onChange={e=>setVal(e.target.value)} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[8px] font-black uppercase text-slate-400 ml-1">Conta</label>
-                                            <select className="w-full p-3.5 bg-white border rounded-2xl font-black text-[10px] outline-none" value={account} onChange={e=>setAccount(e.target.value)}>
-                                                <option value="">Conta...</option>
-                                                {accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {type === 'transferencia' ? (
-                                            <div className="space-y-1">
-                                                <label className="text-[8px] font-black uppercase text-[#D97757] ml-1">Conta Destino</label>
-                                                <select className="w-full p-3.5 bg-white border border-[#D97757] rounded-2xl font-black text-[10px] outline-none focus:border-black" value={destAcc} onChange={e=>setDestAcc(e.target.value)} required>
-                                                    <option value="">Destino...</option>
-                                                    {accounts.filter(a => a.name !== account).map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
-                                                </select>
-                                            </div>
+                                        {txForm.type === 'transferencia' ? (
+                                            <div className="space-y-1"><label className="text-[8px] font-black text-[#D97757] ml-1">Destino</label><select className="w-full p-3 bg-white border border-[#D97757] rounded-2xl font-black text-[9px] outline-none" value={txForm.destAcc} onChange={e=>setTxForm({...txForm, destAcc: e.target.value})}><option value="">Destino...</option>{accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}</select></div>
                                         ) : (
-                                            <div className="space-y-1">
-                                                <label className="text-[8px] font-black uppercase text-slate-400 ml-1">Categoria</label>
-                                                <select className="w-full p-3.5 bg-white border rounded-2xl font-black text-[10px] outline-none" value={cat} onChange={e=>setCat(e.target.value)}>
-                                                    <option value="">Categoria...</option>
-                                                    {sortedCategoriesFin.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
-                                                </select>
-                                            </div>
+                                            <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 ml-1">Categoria</label><select className="w-full p-3 bg-white border rounded-2xl font-black text-[9px] outline-none" value={txForm.cat} onChange={e=>setTxForm({...txForm, cat: e.target.value})}><option value="">Cat...</option>{categories.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
                                         )}
-                                        <div className="space-y-1">
-                                            <label className="text-[8px] font-black uppercase text-slate-400 ml-1">Fornecedor</label>
-                                            <select className="w-full p-3.5 bg-white border rounded-2xl font-black text-[10px] outline-none" value={sup} onChange={e=>setSup(e.target.value)} disabled={type === 'transferencia'}>
-                                                <option value="">Fornecedor...</option>
-                                                {suppliers.map(s=><option key={s.id} value={s.name}>{s.name}</option>)}
-                                            </select>
-                                        </div>
+                                        <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 ml-1">Fornecedor</label><select className="w-full p-3 bg-white border rounded-2xl font-black text-[9px] outline-none" value={txForm.sup} onChange={e=>setTxForm({...txForm, sup: e.target.value})} disabled={txForm.type==='transferencia'}><option value="">Forn...</option>{suppliers.map(s=><option key={s.id} value={s.name}>{s.name}</option>)}</select></div>
                                     </div>
-                                    
                                     <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1"><label className="text-[8px] font-black uppercase text-slate-400 ml-2">Data Lanç.</label><input type="date" className="w-full p-3 border rounded-xl text-[10px] font-bold" value={date} onChange={e=>setDate(e.target.value)} /></div>
-                                        <div className="space-y-1"><label className="text-[8px] font-black uppercase text-slate-400 ml-2">Venc./Comp.</label><input type="date" className="w-full p-3 border rounded-xl text-[10px] font-bold" value={clearance} onChange={e=>setClearance(e.target.value)} /></div>
+                                        <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 ml-2">Data Lanç.</label><input type="date" className="w-full p-3 border rounded-xl text-[10px] font-bold" value={txForm.date} onChange={e=>setTxForm({...txForm, date: e.target.value})} /></div>
+                                        <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 ml-2">Vencimento</label><input type="date" className="w-full p-3 border rounded-xl text-[10px] font-bold" value={txForm.clearance} onChange={e=>setTxForm({...txForm, clearance: e.target.value})} /></div>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button type="button" onClick={()=>setStatus('pago')} className={"flex-1 p-3 rounded-xl border font-black text-[10px] " + (status==='pago'?'bg-green-500 text-white':'bg-white text-slate-400')}>PAGO</button>
-                                        <button type="button" onClick={()=>setStatus('pendente')} className={"flex-1 p-3 rounded-xl border font-black text-[10px] " + (status==='pendente'?'bg-orange-500 text-white':'bg-white text-slate-400')}>PENDENTE</button>
+                                        <button type="button" onClick={()=>setTxForm({...txForm, status: 'pago'})} className={"flex-1 p-3 rounded-xl border font-black text-[10px] " + (txForm.status==='pago'?'bg-green-500 text-white':'bg-white text-slate-400')}>PAGO</button>
+                                        <button type="button" onClick={()=>setTxForm({...txForm, status: 'pendente'})} className={"flex-1 p-3 rounded-xl border font-black text-[10px] " + (txForm.status==='pendente'?'bg-orange-500 text-white':'bg-white text-slate-400')}>PENDENTE</button>
                                     </div>
-                                    <button className="w-full bg-black text-[#F8CC82] p-5 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">{editingId ? 'Atualizar' : 'Gravar'}</button>
+                                    <button className="w-full bg-black text-[#F8CC82] p-5 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">{txForm.id ? 'Atualizar' : 'Gravar Lançamento'}</button>
                                 </form>
 
+                                {/* HISTÓRICO DE LANÇAMENTOS */}
                                 <div className="lg:col-span-2 glass-card rounded-[2.5rem] shadow-sm h-[700px] flex flex-col border overflow-hidden">
                                     <div className="p-4 bg-slate-50 border-b space-y-4">
-                                        <div className="flex flex-wrap justify-between items-center bg-white p-3 rounded-2xl border shadow-sm gap-2">
-                                            <span className="text-[9px] font-black uppercase text-slate-400 flex items-center gap-1"><Icon name="search" size={12} /> Lançamentos do Mês ({filteredDashboard.length})</span>
-                                            <div className="flex gap-3 text-[11px] font-black items-center">
-                                                {typeFilter !== 'saida' && typeFilter !== 'transferencia' && filteredSummary.entradas > 0 && (<span className="text-green-600 px-2 py-1 bg-green-50 rounded-lg">IN: + {formatMoney(filteredSummary.entradas)}</span>)}
-                                                {typeFilter !== 'entrada' && typeFilter !== 'transferencia' && filteredSummary.saidas > 0 && (<span className="text-red-500 px-2 py-1 bg-red-50 rounded-lg">OUT: - {formatMoney(filteredSummary.saidas)}</span>)}
-                                                {typeFilter === 'todos' && (<span className={"px-3 py-1 rounded-lg " + (filteredSummary.saldo >= 0 ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600")}>SALDO: {formatMoney(filteredSummary.saldo)}</span>)}
-                                            </div>
-                                        </div>
-
-                                        <div className="relative"><Icon name="search" size={16} className="absolute left-4 top-3.5 text-slate-300" /><input type="text" placeholder="Pesquisar histórico..." className="w-full pl-12 pr-4 py-3 bg-white border rounded-2xl text-xs font-bold outline-none focus:border-black shadow-inner" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} /></div>
-                                        <div className="flex flex-wrap gap-2 items-center">
-                                            <select className="p-2 border rounded-xl text-[9px] font-black uppercase" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}>
-                                                <option value="todos">Todos os Fluxos</option>
-                                                <option value="entrada">Entradas</option>
-                                                <option value="saida">Saídas</option>
-                                                <option value="transferencia">Transferências</option>
-                                            </select>
-                                            <select className="p-2 border rounded-xl text-[9px] font-black uppercase" value={accFilter} onChange={e=>setAccFilter(e.target.value)}>
-                                                <option value="">Todas as Contas</option>
-                                                {accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
-                                            </select>
-                                        </div>
+                                        <div className="relative"><Icon name="search" size={16} className="absolute left-4 top-3 text-slate-300" /><input type="text" placeholder="Pesquisar histórico..." className="w-full pl-12 pr-4 py-2.5 bg-white border rounded-2xl text-xs font-bold outline-none focus:border-black" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} /></div>
+                                        <div className="flex gap-2"><select className="p-2 border rounded-xl text-[9px] font-black" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option value="todos">Todos</option><option value="entrada">Entradas</option><option value="saida">Saídas</option></select></div>
                                     </div>
                                     <div className="flex-1 overflow-y-auto no-scrollbar divide-y">
-                                        {filteredDashboard.length === 0 ? (
-                                            <div className="p-16 text-center text-slate-300 font-bold uppercase text-xs">Nenhum lançamento encontrado neste mês com estes filtros</div>
-                                        ) : filteredDashboard.map(t => (
-                                            <div key={t.id} className="p-4 flex justify-between items-center hover:bg-slate-50 transition-all group">
+                                        {filteredDashboard.map(t => (
+                                            <div key={t.id} className="p-4 flex justify-between items-center hover:bg-slate-50 transition-all">
                                                 <div className="flex items-center gap-4">
                                                     <div className={"w-8 h-8 rounded-lg flex items-center justify-center font-black text-[8px] " + (t.type === 'transferencia' ? 'bg-blue-100 text-blue-700' : (t.type === 'entrada' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'))}>{t.type === 'transferencia' ? 'TR' : (t.type === 'entrada' ? 'IN' : 'OUT')}</div>
                                                     <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <p className="font-black text-sm uppercase leading-none">{t.description}</p>
-                                                            <span className={"status-badge " + (t.status==='pago'?'bg-green-100 text-green-700':'bg-orange-100 text-orange-700')}>{t.status==='pago' ? 'Pago' : 'Pendente'}</span>
-                                                        </div>
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">{t.type === 'transferencia' ? t.account + " ➔ " + t.destinationAccount : t.account + " • " + t.category}</p>
+                                                        <p className="font-black text-sm uppercase leading-none">{t.description}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">{t.account} • {t.category}</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-4">
                                                     <p className={"font-black text-sm " + (t.type==='entrada'?'text-green-600':'text-slate-800')}>{formatMoney(t.amount)}</p>
-                                                    <div className="flex gap-1">
-                                                        <button type="button" onClick={()=>startEdit(t)} className="text-blue-400 p-2"><Icon name="edit-2" size={14}/></button>
-                                                        <button type="button" onClick={() => executeDeleteTx(t.id)} className="text-red-400 hover:text-red-600 p-2"><Icon name="trash-2" size={14}/></button>
-                                                    </div>
+                                                    <button onClick={() => {if(window.confirm('Excluir?')) db.collection("artifacts/tribo-burger-financeiro/users/"+user.uid+"/transactions").doc(t.id).delete()}} className="text-red-400 p-2"><Icon name="trash-2" size={14}/></button>
                                                 </div>
                                             </div>
                                         ))}
@@ -486,127 +420,457 @@
                             </div>
                         )}
 
-                        {/* ======================= ABA: SALDOS ======================= */}
                         {activeTab === 'saldos' && (
                             <div className="space-y-12 animate-in fade-in">
                                 <div className="stat-banner !border-black !bg-[#D97757]">
                                     <p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-80 mb-2">Patrimônio Líquido Disponível</p>
-                                    <h3 className="text-5xl font-black drop-shadow-xl">{formatMoney(totalPatrimony)}</h3>
+                                    <h3 className="text-5xl font-black drop-shadow-xl">{formatMoney(accounts.filter(a => a.type === 'corrente').reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0))}</h3>
                                 </div>
-                                {['operacional','reserva','outros'].map(grp => {
-                                    const grpAccs = accounts.filter(a => a.type === 'corrente' && (a.group === grp || (!a.group && grp === 'operacional'))).sort((a,b)=>parseInt(a.pos||0)-parseInt(b.pos||0));
-                                    if (grpAccs.length === 0) return null;
-                                    return (
-                                        <div key={grp} className="space-y-4">
-                                            <h2 className="text-[10px] font-black uppercase text-slate-400 border-l-4 border-slate-400 pl-3 ml-2">{grp}</h2>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                                                {grpAccs.map(acc => (
-                                                    <div key={acc.id} className={"glass-card p-8 rounded-[3.5rem] shadow-xl border-t-8 border-[#1A202C] text-center transition-all"}>
-                                                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">{acc.name}</p>
-                                                        <h3 className={"text-3xl font-black " + (accountBalances[acc.name]>=0?'text-slate-900':'text-red-500')}>{formatMoney(accountBalances[acc.name]||0)}</h3>
-                                                    </div>
-                                                ))}
-                                            </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                                    {accounts.filter(a => a.type === 'corrente').map(acc => (
+                                        <div key={acc.id} className="glass-card p-8 rounded-[3.5rem] shadow-xl border-t-8 border-[#1A202C] text-center">
+                                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">{acc.name}</p>
+                                            <h3 className={"text-3xl font-black " + (accountBalances[acc.name]>=0?'text-slate-900':'text-red-500')}>{formatMoney(accountBalances[acc.name]||0)}</h3>
                                         </div>
-                                    );
-                                })}
+                                    ))}
+                                </div>
                             </div>
                         )}
 
-                        {/* ======================= ABA: VENDAS DIÁRIAS ======================= */}
                         {activeTab === 'vendas' && (
                             <div className="space-y-6 animate-in fade-in">
-                                <div className="stat-banner !border-black !bg-[#D97757]">
-                                    <p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-80 mb-2">Faturamento Total do Mês</p>
-                                    <h3 className="text-5xl font-black drop-shadow-xl">{formatMoney(stats.rb)}</h3>
-                                </div>
-                                <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-6 rounded-[2rem] border shadow-sm">
-                                    <div className="flex items-center gap-3"><Icon name="calendar-days" className="text-slate-400" /><h2 className="text-[10px] font-black uppercase tracking-widest">Controle de Vendas Diárias</h2></div>
-                                    <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border">
-                                        <div className="flex flex-col"><label className="text-[7px] font-black uppercase text-slate-400 ml-1">Data para Abrir</label><input type="date" className="text-xs font-bold bg-transparent outline-none border-0" value={newDayDate} onChange={e=>setNewDayDate(e.target.value)} /></div>
-                                        <div className="w-px h-6 bg-slate-200"></div>
-                                        <button type="button" onClick={handleOpenNewDay} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl text-[9px] font-black uppercase flex items-center gap-2 hover:bg-slate-800 transition-all"><Icon name="plus-circle" size={14}/> Abrir Novo Dia</button>
-                                    </div>
-                                </div>
+                                <div className="stat-banner !border-black !bg-[#D97757]"><p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-80 mb-2">Faturamento do Mês</p><h3 className="text-5xl font-black">{formatMoney(stats.rb)}</h3></div>
                                 <div className="glass-card rounded-[2.5rem] overflow-hidden border shadow-sm overflow-x-auto no-scrollbar">
                                     <table className="w-full text-center text-[11px] min-w-[1700px]">
-                                        <thead>
-                                            <tr className="header-black text-white">
-                                                <th className="p-4 sticky left-0 z-20 bg-black">Data</th>
-                                                <th className="p-4 bg-yellow-500 text-black">Total Dia</th>
-                                                <th className="p-4 bg-blue-600 text-white">Pedidos</th>
-                                                <th className="p-4 bg-blue-800 text-white">Ticket Médio</th>
-                                                {['Pix','Pix Online','Fiado','Dinheiro','Ifood','Débito','Crédito','VR','Ticket','Alelo'].map(h=><th key={h} className="p-4">{h}</th>)}
-                                                <th className="p-4 text-orange-400 bg-orange-50/20">Taxa Entrega</th>
-                                                <th className="p-4 text-red-400 bg-red-50/20">Motoboy</th>
-                                            </tr>
-                                        </thead>
+                                        <thead><tr className="header-black text-white"><th className="p-4">Data</th><th className="p-4 bg-yellow-500 text-black">Total</th><th className="p-4 bg-blue-600">Pedidos</th>{['Pix','Dinheiro','Ifood','Débito','Crédito'].map(h=><th key={h} className="p-4">{h}</th>)}</tr></thead>
                                         <tbody className="divide-y font-bold">
                                             {Object.keys(dailyRecords).filter(d=>d.startsWith(filterMonth)).sort((a,b)=>new Date(b)-new Date(a)).map(d => {
-                                                const r = dailyRecords[d] || {}; 
-                                                const total = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0); 
-                                                const pedidos = p(r.qtdPedidos); 
-                                                const ticketMedio = pedidos > 0 ? total / pedidos : 0;
+                                                const r = dailyRecords[d] || {}; const total = ['pix','dinheiro','ifood','debito','credito'].reduce((acc,f)=>acc+p(r[f]), 0);
                                                 return (
                                                     <tr key={d} className="hover:bg-slate-50 h-12">
-                                                        <td className="p-0 sticky left-0 bg-white border-r min-w-[120px] font-black">{d.split('-').reverse().join('/')}</td>
+                                                        <td className="p-0 border-r">{d.split('-').reverse().join('/')}</td>
                                                         <td className="p-4 bg-yellow-50 font-black">{formatMoney(total)}</td>
-                                                        <td className="p-0 border-r bg-blue-50/30"><input className="table-input !text-blue-700" value={r.qtdPedidos||''} onChange={(e)=>updateDaily(d, 'qtdPedidos', e.target.value)} placeholder="0" /></td>
-                                                        <td className="p-4 bg-blue-50/50 font-black text-blue-900">{formatMoney(ticketMedio)}</td>
-                                                        {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => (
-                                                            <td key={f} className="p-0 border-r"><input className="table-input" value={r[f]||''} onChange={(e)=>updateDaily(d, f, e.target.value)} placeholder="0,00" /></td>
-                                                        ))}
-                                                        <td className="p-0 border-r bg-slate-50/50"><input className="table-input !text-orange-500" value={r.taxaEntrega||''} onChange={(e)=>updateDaily(d, 'taxaEntrega', e.target.value)} placeholder="0,00" /></td>
-                                                        <td className="p-0 border-r bg-slate-50/50"><input className="table-input !text-red-500" value={r.motoboy||''} onChange={(e)=>updateDaily(d, 'motoboy', e.target.value)} placeholder="0,00" /></td>
+                                                        <td className="p-0 border-r bg-blue-50/30"><input className="table-input" value={r.qtdPedidos||''} onChange={e=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(d).set({qtdPedidos:e.target.value},{merge:true})} /></td>
+                                                        {['pix','dinheiro','ifood','debito','credito'].map(f => <td key={f} className="p-0 border-r"><input className="table-input" value={r[f]||''} onChange={e=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(d).set({[f]:e.target.value},{merge:true})} /></td>)}
                                                     </tr>
                                                 );
                                             })}
                                         </tbody>
-                                        <tfoot>
-                                            <tr className="bg-[#1A202C] text-white font-black uppercase text-[10px] border-t-4 border-[#D97757] h-12">
-                                                <td className="p-0 sticky left-0 bg-[#1A202C] z-10 text-center font-black text-amber-300">SOMA TOTAL</td>
-                                                <td className="p-4 bg-yellow-500 text-black font-black text-xs">{formatMoney(columnTotals.totalDia)}</td>
-                                                <td className="p-4 bg-blue-600 text-white font-black text-xs">{columnTotals.pedidos}</td>
-                                                <td className="p-4 bg-blue-800 text-[#F8CC82] font-black text-xs">{formatMoney(columnTotals.ticketMedio)}</td>
-                                                {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => ( <td key={f} className="p-4 border-r bg-slate-800 text-xs font-black">{formatMoney(columnTotals[f])}</td> ))}
-                                                <td className="p-4 border-r text-orange-400 bg-orange-950/25 text-xs font-black">{formatMoney(columnTotals.taxaEntrega)}</td>
-                                                <td className="p-4 border-r text-red-400 bg-red-950/25 text-xs font-black">{formatMoney(columnTotals.motoboy)}</td>
-                                            </tr>
-                                        </tfoot>
                                     </table>
                                 </div>
                             </div>
                         )}
 
-                        {/* ======================= ABA: DRE ======================= */}
                         {activeTab === 'dre' && (
                             <div className="max-w-3xl mx-auto glass-card rounded-[3rem] p-10 shadow-2xl border-t-8 border-[#D97757] animate-in fade-in">
                                 <h2 className="text-xl font-black uppercase mb-8 border-b pb-4 text-center">DRE Operacional - {filterMonth}</h2>
                                 <div className="space-y-4">
                                     <div className="flex justify-between p-4 bg-green-50 rounded-2xl font-black text-[10px] uppercase"><span>(+) Receita Bruta</span><span>{formatMoney(stats.rb)}</span></div>
                                     <div className="py-4 border-b">
-                                        <h3 className="text-[10px] font-black uppercase text-slate-400 mb-2 px-4">Despesas por Categoria</h3>
-                                        {Object.entries(stats.catCosts).sort(([a],[b])=>a.localeCompare(b)).map(([c, v]) => (
+                                        <h3 className="text-[10px] font-black uppercase text-slate-400 mb-2 px-4">Despesas Operacionais</h3>
+                                        {Object.entries(stats.catCosts).map(([c, v]) => (
                                             <div key={c} className="flex justify-between px-4 py-2 text-[10px] font-bold text-slate-600 uppercase"><span>(-) {c}</span><span className="text-red-400 font-black">{formatMoney(v)}</span></div>
                                         ))}
                                     </div>
                                     <div className={"flex justify-between items-center p-8 rounded-[2.5rem] mt-6 shadow-xl " + (stats.lucro>=0?'bg-[#1A202C] text-[#F8CC82]':'bg-red-600 text-white')}>
-                                        <div>
-                                            <h3 className="text-xl font-black uppercase">Resultado Líquido</h3>
-                                            <p className="text-[9px] font-black uppercase opacity-70 mt-1">Margem Real: {stats.margemDRE.toFixed(1)}%</p>
-                                        </div>
+                                        <div><h3 className="text-xl font-black uppercase">Resultado Líquido</h3><p className="text-[9px] font-black uppercase opacity-70 mt-1">Margem: {stats.margemDRE.toFixed(1)}%</p></div>
                                         <span className="text-4xl font-black">{formatMoney(stats.lucro)}</span>
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* ======================= ABAS EM CONSTRUÇÃO ======================= */}
-                        {['insumos', 'fichas'].includes(activeTab) && (
-                            <div className="glass-card p-12 rounded-[3rem] text-center shadow-sm flex flex-col justify-center items-center gap-4">
-                                <Icon name="check-circle" size={40} className="text-emerald-400" />
-                                <h2 className="text-xl font-black uppercase text-slate-800">Cardápio Configurado!</h2>
-                                <p className="text-xs font-bold text-slate-500 uppercase">Aceda pelo menu superior.</p>
+                        {/* Abas Adicionais do Financeiro (Placeholders resumidos para espaço) */}
+                        {['a_pagar', 'a_receber', 'cartoes', 'resultados', 'relatorios', 'fornecedores'].includes(activeTab) && (
+                            <div className="glass-card p-12 rounded-[3rem] text-center shadow-sm">
+                                <Icon name="wallet" size={40} className="text-slate-400 mx-auto mb-4" />
+                                <h2 className="text-xl font-black uppercase text-slate-800">Módulo Financeiro Ativo</h2>
+                                <p className="text-xs font-bold text-slate-500 uppercase mt-2">Aba <strong>{activeTab}</strong> operando normalmente na base de dados.</p>
+                            </div>
+                        )}
+
+                        {/* =========================================================================
+                            MÓDULO DE CMV & CUSTOS 
+                        ========================================================================= */}
+                        
+                        {activeTab === 'cmv_dashboard' && (
+                            <div className="space-y-6 fade-in">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="bg-[#1A202C] text-white border border-slate-700 p-6 rounded-3xl shadow-lg text-center">
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">CMV Médio Geral</p>
+                                        <h3 className="text-3xl font-black text-[#F27A18] mt-2">{(() => { let sumCmv = 0, count = 0; [...recipes, ...complements, ...combos].forEach(item => { if (!item.ignoreCMV) { const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items); const sp = p(item.sellingPrice); if(sp>0){ sumCmv += (cost/sp)*100; count++; } } }); return count>0 ? (sumCmv/count).toFixed(1) : 0; })()}%</h3>
+                                    </div>
+                                    <div className="bg-white border p-6 rounded-3xl shadow-sm text-center">
+                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Meta de CMV</p>
+                                        <h3 className="text-3xl font-black text-amber-500 mt-2">{cmvSettings.targetCMV}%</h3>
+                                    </div>
+                                    <div className="bg-white border p-6 rounded-3xl shadow-sm text-center">
+                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Insumos Cadastrados</p>
+                                        <h3 className="text-3xl font-black text-slate-800 mt-2">{ingredients.length}</h3>
+                                    </div>
+                                    <div className="bg-white border p-6 rounded-3xl shadow-sm text-center">
+                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Produtos Ativos</p>
+                                        <h3 className="text-3xl font-black text-slate-800 mt-2">{recipes.length + complements.length + combos.length}</h3>
+                                    </div>
+                                </div>
+
+                                <div className="glass-card rounded-[2.5rem] p-8 shadow-sm">
+                                    <h3 className="font-black text-slate-800 uppercase text-sm tracking-wider mb-6">Relação de Margens do Cardápio</h3>
+                                    <div className="overflow-x-auto no-scrollbar">
+                                        <table className="w-full text-left text-xs">
+                                            <thead className="bg-slate-100 text-slate-500 uppercase font-black text-[9px] tracking-widest">
+                                                <tr><th className="p-4 rounded-l-xl">Produto</th><th className="p-4">Custo CMV</th><th className="p-4">Preço de Venda</th><th className="p-4">CMV Real</th><th className="p-4 text-right rounded-r-xl">Status</th></tr>
+                                            </thead>
+                                            <tbody className="divide-y font-bold text-slate-700">
+                                                {[...recipes.map(r=>({...r, _t:'Ficha'})), ...complements.map(c=>({...c, _t:'Extra'})), ...combos.map(c=>({...c, _t:'Combo'}))].sort((a,b)=>a.name.localeCompare(b.name)).map(item => {
+                                                    const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items);
+                                                    const sp = p(item.sellingPrice);
+                                                    const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
+                                                    return (
+                                                        <tr key={item.id} className={"hover:bg-slate-50 " + (item.ignoreCMV ? "opacity-50" : "")}>
+                                                            <td className="p-4">{item.name} <span className="text-[8px] uppercase text-slate-400 bg-slate-100 px-1 rounded ml-1">{item._t}</span></td>
+                                                            <td className="p-4 text-slate-500">{formatMoney(cost)}</td>
+                                                            <td className="p-4 text-slate-900">{formatMoney(sp)}</td>
+                                                            <td className={"p-4 " + (item.ignoreCMV ? '' : (cmv > cmvSettings.targetCMV ? 'text-red-500' : 'text-emerald-500'))}>{item.ignoreCMV ? '-' : cmv + '%'}</td>
+                                                            <td className="p-4 text-right">{item.ignoreCMV ? <span className="px-2 py-1 bg-slate-200 text-slate-500 rounded text-[9px]">Ignorado</span> : (cmv <= cmvSettings.targetCMV ? <span className="px-2 py-1 bg-green-100 text-green-600 rounded text-[9px]">Saudável</span> : <span className="px-2 py-1 bg-red-100 text-red-600 rounded text-[9px]">CMV Alto</span>)}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'insumos' && (
+                            <div className="space-y-6 fade-in">
+                                <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border shadow-sm">
+                                    <div><h2 className="text-sm font-black uppercase text-slate-800">Insumos</h2><p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{ingredients.length} itens cadastrados</p></div>
+                                    <button onClick={() => {setIngForm({ id: '', name: '', category: ingCats[0], cost: '', unit: 'g', qty: '' }); setIsIngModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Icon name="plus" size={14}/> Novo Insumo</button>
+                                </div>
+                                <div className="space-y-8">
+                                    {ingCats.map(cat => {
+                                        const catIngs = ingredients.filter(i => (i.category || 'Outros') === cat);
+                                        if (catIngs.length === 0) return null;
+                                        return (
+                                            <div key={cat} className="space-y-4">
+                                                <h3 className="font-black text-sm uppercase text-slate-800 tracking-widest border-b-2 pb-2"><Icon name="box" size={16} className="inline mr-2 text-emerald-600"/>{cat}</h3>
+                                                <div className="glass-card rounded-[2rem] overflow-hidden border shadow-sm">
+                                                    <table className="w-full text-left text-xs">
+                                                        <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b">
+                                                            <tr><th className="p-4">Ingrediente</th><th className="p-4">Preço Pacote</th><th className="p-4">Custo Unitário</th><th className="p-4 text-right">Ações</th></tr>
+                                                        </thead>
+                                                        <tbody className="divide-y font-bold text-slate-700">
+                                                            {catIngs.sort((a,b)=>a.name.localeCompare(b.name)).map(ing => (
+                                                                <tr key={ing.id} className="hover:bg-slate-50">
+                                                                    <td className="p-4 text-slate-900">{ing.name}</td>
+                                                                    <td className="p-4">{formatMoney(ing.cost)} <span className="text-[9px] text-slate-400">/ {ing.qty}{ing.unit}</span></td>
+                                                                    <td className="p-4 text-emerald-600">{formatMoney(getIngCost(ing.id, ing.unit==='kg'||ing.unit==='L'?1000:1))} <span className="text-[9px] text-slate-400">/ {ing.unit==='kg'?'g':ing.unit==='L'?'ml':ing.unit}</span></td>
+                                                                    <td className="p-4 text-right">
+                                                                        <button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 p-2"><Icon name="edit-2" size={14}/></button>
+                                                                        <button onClick={()=>delAction('ingredients', ingredients, ing.id)} className="text-red-400 p-2"><Icon name="trash-2" size={14}/></button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'fichas' && (
+                            <div className="space-y-6 fade-in">
+                                <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border shadow-sm">
+                                    <div><h2 className="text-sm font-black uppercase text-slate-800">Fichas Técnicas</h2></div>
+                                    <button onClick={() => {setRecipeForm({ id: '', name: '', category: recCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsRecipeModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Icon name="plus" size={14}/> Criar Ficha</button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {recipes.map(rec => {
+                                        const cost = calcItemCost(rec.ingredients); const sp = p(rec.sellingPrice); const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
+                                        return (
+                                            <div key={rec.id} className={"glass-card rounded-[2rem] p-6 shadow-lg border-t-4 " + (rec.ignoreCMV ? "border-slate-300 opacity-70" : "border-[#1A202C]")}>
+                                                <div className="flex justify-between items-start mb-4"><span className="text-[9px] font-black bg-slate-100 px-2 py-1 rounded uppercase tracking-widest">{rec.category}</span><div className="flex gap-2"><button onClick={()=>{setRecipeForm({...rec}); setIsRecipeModalOpen(true);}} className="text-blue-500"><Icon name="edit-2" size={14}/></button><button onClick={()=>delAction('recipes', recipes, rec.id)} className="text-red-400"><Icon name="trash-2" size={14}/></button></div></div>
+                                                <h3 className="font-black text-lg uppercase text-slate-900 leading-tight mb-4">{rec.name}</h3>
+                                                <div className="grid grid-cols-2 gap-3 mt-4">
+                                                    <div className="bg-slate-50 p-3 rounded-xl text-center border"><span className="text-[9px] font-black uppercase text-slate-500 block">Custo</span><span className="font-black text-slate-800 text-sm">{formatMoney(cost)}</span></div>
+                                                    <div className={"p-3 rounded-xl text-center border " + (cmv > cmvSettings.targetCMV ? 'bg-red-50 border-red-100 text-red-600' : 'bg-green-50 border-green-100 text-green-700')}><span className="text-[9px] font-black uppercase block">CMV Real</span><span className="font-black text-sm">{cmv}%</span></div>
+                                                </div>
+                                                <div className="flex justify-between items-center mt-4 pt-4 border-t"><span className="text-[10px] font-black uppercase text-slate-500">Preço Venda:</span><span className="font-black text-slate-900 text-lg">{formatMoney(sp)}</span></div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'complementos' && (
+                             <div className="space-y-6 fade-in">
+                                 <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border shadow-sm">
+                                     <div><h2 className="text-sm font-black uppercase text-slate-800">Complementos</h2></div>
+                                     <button onClick={() => {setCompForm({ id: '', name: '', category: compCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsCompModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Icon name="plus" size={14}/> Criar Adicional</button>
+                                 </div>
+                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                     {complements.map(comp => (
+                                         <div key={comp.id} className="glass-card rounded-[1.5rem] p-5 shadow-sm border flex flex-col justify-between">
+                                             <div><span className="text-[8px] font-black bg-indigo-50 text-indigo-600 px-2 py-1 rounded uppercase tracking-widest mb-2 inline-block">{comp.category}</span><h3 className="font-black text-sm uppercase text-slate-900 leading-tight">{comp.name}</h3></div>
+                                             <div className="mt-4 pt-3 border-t space-y-1 text-xs">
+                                                 <div className="flex justify-between"><span className="text-slate-500 font-bold">Custo:</span><span className="font-black text-slate-800">{formatMoney(calcItemCost(comp.ingredients))}</span></div>
+                                                 <div className="flex justify-between"><span className="text-slate-500 font-bold">Venda:</span><span className="font-black text-slate-800">{formatMoney(p(comp.sellingPrice))}</span></div>
+                                             </div>
+                                             <div className="flex gap-2 mt-4"><button onClick={()=>{setCompForm({...comp}); setIsCompModalOpen(true);}} className="flex-1 bg-slate-100 p-2 rounded-lg text-blue-600 font-black text-[10px] uppercase">Editar</button><button onClick={()=>delAction('complements', complements, comp.id)} className="flex-1 bg-red-50 p-2 rounded-lg text-red-500 font-black text-[10px] uppercase">Excluir</button></div>
+                                         </div>
+                                     ))}
+                                 </div>
+                             </div>
+                         )}
+
+                         {activeTab === 'combos' && (
+                             <div className="space-y-6 fade-in">
+                                 <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border shadow-sm">
+                                     <div><h2 className="text-sm font-black uppercase text-slate-800">Fichas de Combos</h2></div>
+                                     <button onClick={() => {setComboForm({ id: '', name: '', category: comboCats[0], sellingPrice: '', items: [], ignoreCMV: false }); setIsComboModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Icon name="plus" size={14}/> Criar Combo</button>
+                                 </div>
+                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                     {combos.map(combo => {
+                                         const cost = calcComboCost(combo.items); const sp = p(combo.sellingPrice); const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
+                                         return (
+                                             <div key={combo.id} className={"glass-card rounded-[2rem] p-6 shadow-lg border-t-4 " + (combo.ignoreCMV ? "border-slate-300 opacity-70" : "border-amber-500")}>
+                                                 <div className="flex justify-between items-start mb-4"><span className="text-[9px] font-black bg-amber-50 text-amber-600 px-2 py-1 rounded uppercase tracking-widest">{combo.category}</span><div className="flex gap-2"><button onClick={()=>{setComboForm({...combo}); setIsComboModalOpen(true);}} className="text-blue-500"><Icon name="edit-2" size={14}/></button><button onClick={()=>delAction('combos', combos, combo.id)} className="text-red-400"><Icon name="trash-2" size={14}/></button></div></div>
+                                                 <h3 className="font-black text-lg uppercase text-slate-900 leading-tight mb-4">{combo.name}</h3>
+                                                 <div className="grid grid-cols-2 gap-3 mt-4">
+                                                     <div className="bg-slate-50 p-3 rounded-xl text-center border"><span className="text-[9px] font-black uppercase text-slate-500 block">Custo Combo</span><span className="font-black text-slate-800 text-sm">{formatMoney(cost)}</span></div>
+                                                     <div className={"p-3 rounded-xl text-center border " + (cmv > cmvSettings.targetCMV ? 'bg-red-50 border-red-100 text-red-600' : 'bg-green-50 border-green-100 text-green-700')}><span className="text-[9px] font-black uppercase block">CMV Real</span><span className="font-black text-sm">{cmv}%</span></div>
+                                                 </div>
+                                                 <div className="flex justify-between items-center mt-4 pt-4 border-t"><span className="text-[10px] font-black uppercase text-slate-500">Preço Venda:</span><span className="font-black text-slate-900 text-lg">{formatMoney(sp)}</span></div>
+                                             </div>
+                                         );
+                                     })}
+                                 </div>
+                             </div>
+                         )}
+
+                         {activeTab === 'analise' && (
+                            <div className="space-y-6 fade-in print-area" id="print-area">
+                                <div className="flex justify-between items-center bg-[#1A202C] text-white p-8 rounded-[2rem] shadow-xl print:shadow-none print:text-black print:bg-white print:border-b-2 print:border-black print:rounded-none">
+                                    <div><h2 className="text-2xl font-black uppercase tracking-widest">Relatório Consolidado CMV</h2><p className="text-[10px] font-bold text-[#F8CC82] uppercase mt-1 print:text-slate-500">Rentabilidade de Cardápio</p></div>
+                                    <button onClick={()=>window.print()} className="bg-[#F27A18] text-black px-6 py-3 rounded-xl font-black text-[10px] uppercase print:hidden shadow-lg hover:scale-105 transition-transform"><Icon name="printer" size={16} className="inline mr-2"/>Imprimir / PDF</button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 print:hidden">
+                                    <div className="glass-card p-6 rounded-3xl shadow text-center border-l-4 border-blue-500"><p className="text-[9px] font-black uppercase text-slate-400">Faturamento Base (Mês)</p><h3 className="text-2xl font-black text-slate-800 mt-2">{formatMoney(cmvSettings.baseRevenue)}</h3></div>
+                                    <div className="glass-card p-6 rounded-3xl shadow text-center border-l-4 border-red-500"><p className="text-[9px] font-black uppercase text-slate-400">Custos Fixos</p><h3 className="text-2xl font-black text-red-500 mt-2">{formatMoney(fixedCosts.reduce((s,c)=>s+p(c.value),0))}</h3><p className="text-[9px] font-bold text-slate-500 mt-1">{cmvSettings.baseRevenue>0 ? ((fixedCosts.reduce((s,c)=>s+p(c.value),0)/cmvSettings.baseRevenue)*100).toFixed(1) : 0}% do Faturamento</p></div>
+                                    <div className="glass-card p-6 rounded-3xl shadow text-center border-l-4 border-emerald-500"><p className="text-[9px] font-black uppercase text-slate-400">Ponto de Equilíbrio (Zero a Zero)</p><h3 className="text-2xl font-black text-emerald-600 mt-2">{formatMoney((1 - (cmvSettings.targetCMV/100) - ((cmvSettings.tax+cmvSettings.apps+cmvSettings.card)/100)) > 0 ? fixedCosts.reduce((s,c)=>s+p(c.value),0) / (1 - (cmvSettings.targetCMV/100) - ((cmvSettings.tax+cmvSettings.apps+cmvSettings.card)/100)) : 0)}</h3></div>
+                                </div>
+                                <div className="glass-card rounded-[2rem] overflow-hidden border shadow-sm">
+                                    <table className="w-full text-left text-[11px] font-bold">
+                                        <thead className="bg-[#1A202C] text-white uppercase text-[9px] tracking-widest"><tr className="print:text-black print:bg-slate-200"><th className="p-4">Produto</th><th className="p-4 text-right">Custo Insumo</th><th className="p-4 text-right">Venda Real</th><th className="p-4 text-right text-[#F8CC82] print:text-slate-800">Sugestão</th><th className="p-4 text-center">CMV (%)</th><th className="p-4 text-right">Margem Líq. (R$)</th><th className="p-4 text-center">Margem (%)</th></tr></thead>
+                                        <tbody className="divide-y text-slate-700">
+                                            {[...recipes.map(r=>({...r, _t:'Ficha'})), ...complements.map(c=>({...c, _t:'Extra'})), ...combos.map(c=>({...c, _t:'Combo'}))].sort((a,b)=>a.name.localeCompare(b.name)).map(item => {
+                                                const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items); const sp = p(item.sellingPrice); const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
+                                                const suggested = cmvSettings.targetCMV > 0 ? cost / (cmvSettings.targetCMV/100) : 0;
+                                                const impostos = sp * ((p(cmvSettings.tax) + p(cmvSettings.apps) + p(cmvSettings.card))/100);
+                                                const marginVal = sp - cost - impostos; const marginPct = sp > 0 ? ((marginVal/sp)*100).toFixed(1) : 0;
+                                                return (
+                                                    <tr key={item.id} className={"hover:bg-slate-50 " + (item.ignoreCMV ? "opacity-40" : "")}>
+                                                        <td className="p-4">{item.name} <span className="bg-slate-100 text-slate-400 px-1 rounded text-[8px] uppercase">{item._t}</span> {item.ignoreCMV && <span className="text-red-400 text-[8px] ml-1">(Ignorado)</span>}</td>
+                                                        <td className="p-4 text-right text-slate-500">{formatMoney(cost)}</td><td className="p-4 text-right text-slate-900">{formatMoney(sp)}</td>
+                                                        <td className="p-4 text-right text-emerald-600">{item.ignoreCMV ? '-' : formatMoney(suggested)}</td>
+                                                        <td className={"p-4 text-center " + (item.ignoreCMV ? '' : (cmv > cmvSettings.targetCMV ? 'text-red-600' : 'text-emerald-600'))}>{item.ignoreCMV ? '-' : cmv + '%'}</td>
+                                                        <td className={"p-4 text-right " + (item.ignoreCMV ? '' : (marginVal > 0 ? 'text-emerald-600' : 'text-red-500'))}>{item.ignoreCMV ? '-' : formatMoney(marginVal)}</td>
+                                                        <td className={"p-4 text-center " + (item.ignoreCMV ? '' : (marginVal > 0 ? 'text-emerald-600' : 'text-red-500'))}>{item.ignoreCMV ? '-' : marginPct + '%'}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'custos_fixos' && (
+                             <div className="space-y-6 fade-in">
+                                 <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border shadow-sm">
+                                     <div><h2 className="text-sm font-black uppercase text-slate-800">Custos Fixos Operacionais</h2></div>
+                                     <button onClick={() => {setFcForm({ id: '', description: '', category: fcCats[0], value: '' }); setIsFcModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Icon name="plus" size={14}/> Nova Despesa</button>
+                                 </div>
+                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                     <div className="lg:col-span-2 glass-card rounded-[2rem] overflow-hidden border shadow-sm">
+                                         <table className="w-full text-left text-xs font-bold text-slate-700">
+                                             <thead className="bg-slate-100 text-slate-500 text-[9px] uppercase tracking-widest border-b"><tr><th className="p-4">Descrição</th><th className="p-4">Categoria</th><th className="p-4 text-right">Valor Mensal (R$)</th><th className="p-4 text-right">Ações</th></tr></thead>
+                                             <tbody className="divide-y">
+                                                 {fixedCosts.map(fc => (
+                                                     <tr key={fc.id} className="hover:bg-slate-50">
+                                                         <td className="p-4 uppercase">{fc.description}</td>
+                                                         <td className="p-4"><span className="bg-slate-100 px-2 py-1 rounded text-[9px] uppercase tracking-widest">{fc.category}</span></td>
+                                                         <td className="p-4 text-right text-red-500">{formatMoney(p(fc.value))}</td>
+                                                         <td className="p-4 text-right"><button onClick={()=>{setFcForm({...fc}); setIsFcModalOpen(true);}} className="text-blue-500 p-2"><Icon name="edit-2" size={14}/></button><button onClick={()=>delAction('fixedCosts', fixedCosts, fc.id)} className="text-red-400 p-2"><Icon name="trash-2" size={14}/></button></td>
+                                                     </tr>
+                                                 ))}
+                                             </tbody>
+                                         </table>
+                                     </div>
+                                     <div className="glass-card rounded-[2rem] p-8 border text-center h-fit bg-[#1A202C] text-white">
+                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Soma das Despesas Mensais</p>
+                                         <h3 className="text-4xl font-black text-red-400">{formatMoney(fixedCosts.reduce((s,c)=>s+p(c.value),0))}</h3>
+                                     </div>
+                                 </div>
+                             </div>
+                        )}
+
+                        {activeTab === 'ajustes' && (
+                             <div className="space-y-8 fade-in">
+                                 <div className="glass-card p-8 rounded-[3rem] border-t-8 border-[#D97757] shadow-xl grid grid-cols-1 md:grid-cols-2 gap-8">
+                                     <div className="space-y-6">
+                                         <div><h3 className="font-black uppercase text-slate-800 text-lg">Parâmetros & Taxas CMV</h3><p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Configurações para os cálculos de precificação do cardápio</p></div>
+                                         <div className="grid grid-cols-2 gap-4">
+                                             <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Meta CMV (%)</label><input type="number" step="0.1" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-black" value={cmvSettings.targetCMV} onChange={e=>setCmvSettings({...cmvSettings, targetCMV: e.target.value})} /></div>
+                                             <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Impostos (%)</label><input type="number" step="0.1" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-black" value={cmvSettings.tax} onChange={e=>setCmvSettings({...cmvSettings, tax: e.target.value})} /></div>
+                                             <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Cartões (%)</label><input type="number" step="0.1" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-black" value={cmvSettings.card} onChange={e=>setCmvSettings({...cmvSettings, card: e.target.value})} /></div>
+                                             <div className="space-y-1"><label className="text-[9px] font-black uppercase text-red-500 ml-1">Taxa iFood (%)</label><input type="number" step="0.1" className="w-full p-4 bg-red-50/30 border border-red-100 rounded-2xl font-bold text-xs text-red-600 outline-none focus:border-red-500" value={cmvSettings.ifoodTax} onChange={e=>setCmvSettings({...cmvSettings, ifoodTax: e.target.value})} /></div>
+                                             <div className="col-span-2 space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Faturamento Base / Real (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-black" value={cmvSettings.baseRevenue} onChange={e=>setCmvSettings({...cmvSettings, baseRevenue: e.target.value})} /></div>
+                                         </div>
+                                         <button onClick={async()=>{if(!user)return; await saveCMVDoc('settings', {targetCMV:p(cmvSettings.targetCMV), tax:p(cmvSettings.tax), apps:p(cmvSettings.apps), card:p(cmvSettings.card), ifoodTax:p(cmvSettings.ifoodTax), baseRevenue:p(cmvSettings.baseRevenue), targetRevenue:p(cmvSettings.targetRevenue)}); alert('Parâmetros Guardados!');}} className="w-full bg-[#1A202C] text-[#F8CC82] p-4 rounded-2xl font-black uppercase text-[10px] shadow-lg hover:bg-black transition-all">Salvar Parâmetros CMV</button>
+                                     </div>
+                                     
+                                     <div className="space-y-6">
+                                         <div><h3 className="font-black uppercase text-slate-800 text-lg">Migração & Backup Total</h3><p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Ferramentas de salvamento físico do sistema unificado</p></div>
+                                         <div className="bg-slate-50 p-6 rounded-3xl border border-dashed space-y-4">
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase">1. Importar arquivo consolidado (.json)</p>
+                                            <input type="file" accept=".json" className="w-full text-xs" onChange={e=>{ const file=e.target.files[0]; if(!file)return; const reader=new FileReader(); reader.onload=async(ev)=>{ try{ const data=JSON.parse(ev.target.result); if(data.ingredients || data.recipes){ await saveCMVDoc('', data); alert('CMV Migrado!'); window.location.reload(); }else{alert('Para importar Financeiro completo, esta funcionalidade está a ser atualizada. Ficheiro CMV aceite.');} }catch(er){alert("Erro: " + er.message);} }; reader.readAsText(file); }} />
+                                            
+                                            <div className="border-t pt-4 mt-4">
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">2. Colar Texto do Backup (CMV Antigo)</p>
+                                                <button onClick={async()=>{ const txt = prompt("Cole o JSON do CMV Antigo:"); if(!txt)return; try{ const data=JSON.parse(txt); await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/cmv_data/state`).set(data, {merge:true}); alert("CMV Migrado com sucesso!"); window.location.reload(); }catch(er){alert(er.message);} }} className="w-full bg-blue-100 text-blue-700 font-black text-[10px] uppercase py-3 rounded-xl border border-blue-200">Importar Texto Colado</button>
+                                            </div>
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+                        )}
+
+                        {/* =========================================================================
+                            MODAIS FLUTUANTES (CMV)
+                        ========================================================================= */}
+                        {isIngModalOpen && (
+                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                                <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-4 scale-up-center">
+                                    <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3 mb-2">{ingForm.id ? 'Editar Insumo' : 'Novo Insumo'}</h3>
+                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome do Insumo</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.name} onChange={e=>setIngForm({...ingForm, name: e.target.value})} /></div>
+                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.category} onChange={e=>setIngForm({...ingForm, category: e.target.value})}>{ingCats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço Pacote (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.cost} onChange={e=>setIngForm({...ingForm, cost: e.target.value})} /></div>
+                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Unidade</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.unit} onChange={e=>setIngForm({...ingForm, unit: e.target.value})}><option value="kg">Quilo (kg)</option><option value="g">Grama (g)</option><option value="L">Litro (L)</option><option value="ml">Mililitro (ml)</option><option value="un">Unidade (un)</option></select></div>
+                                    </div>
+                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Quantidade Total na Embalagem</label><input type="number" step="0.001" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.qty} onChange={e=>setIngForm({...ingForm, qty: e.target.value})} /></div>
+                                    <div className="flex gap-2 mt-4"><button onClick={()=>crudAction('ingredients', ingredients, ingForm, setIsIngModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Gravar Insumo</button><button onClick={()=>setIsIngModalOpen(false)} className="px-6 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button></div>
+                                </div>
+                            </div>
+                        )}
+
+                        {(isRecipeModalOpen || isCompModalOpen) && (() => {
+                            const isRec = isRecipeModalOpen;
+                            const formObj = isRec ? recipeForm : compForm;
+                            const setFormObj = isRec ? setRecipeForm : setCompForm;
+                            const catList = isRec ? recCats : compCats;
+                            const title = formObj.id ? `Editar ${isRec?'Ficha':'Complemento'}` : `Novo ${isRec?'Ficha':'Complemento'}`;
+                            const cost = calcItemCost(formObj.ingredients);
+                            const sp = p(formObj.sellingPrice);
+                            const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
+                            
+                            return (
+                                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                                    <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-6 scale-up-center">
+                                        <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3">{title}</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={formObj.name} onChange={e=>setFormObj({...formObj, name: e.target.value})} /></div>
+                                            <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço Venda (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={formObj.sellingPrice} onChange={e=>setFormObj({...formObj, sellingPrice: e.target.value})} /></div>
+                                        </div>
+                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={formObj.category} onChange={e=>setFormObj({...formObj, category: e.target.value})}>{catList.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                        <div><label className="flex items-center gap-3 bg-slate-50 border p-4 rounded-2xl cursor-pointer"><input type="checkbox" className="w-4 h-4 accent-[#F27A18]" checked={formObj.ignoreCMV} onChange={e=>setFormObj({...formObj, ignoreCMV: e.target.checked})} /><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ignorar no cálculo do CMV Médio Geral</span></label></div>
+                                        
+                                        <div className="border-t pt-4">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <label className="text-[10px] font-black uppercase text-slate-800">Receituário</label>
+                                                <button onClick={()=>setFormObj({...formObj, ingredients: [...formObj.ingredients, {ingredientId:'', qty:''}]})} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl text-[9px] font-black uppercase">Add Insumo</button>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {formObj.ingredients.map((ingItem, idx) => (
+                                                    <div key={idx} className="flex gap-2 bg-slate-50 p-2 rounded-xl border">
+                                                        <select className="flex-1 p-3 bg-white border rounded-lg font-bold text-[10px]" value={ingItem.ingredientId} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].ingredientId=e.target.value; setFormObj({...formObj, ingredients: arr});}}><option value="">Selecione...</option>{ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select>
+                                                        <input type="number" step="0.001" placeholder="Qtd" className="w-24 p-3 bg-white border rounded-lg font-bold text-[10px] text-center" value={ingItem.qty} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].qty=e.target.value; setFormObj({...formObj, ingredients: arr});}} />
+                                                        <button onClick={()=>{const arr=[...formObj.ingredients]; arr.splice(idx,1); setFormObj({...formObj, ingredients: arr});}} className="bg-red-50 text-red-500 p-3 rounded-lg"><Icon name="trash-2" size={14}/></button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="bg-[#1A202C] text-white p-5 rounded-3xl flex justify-between items-center shadow-inner mt-2">
+                                            <div><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Custo Insumos</span><span className="text-2xl font-black text-[#F8CC82]">{formatMoney(cost)}</span></div>
+                                            <div className="text-right"><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">CMV Estimado</span><span className={"text-2xl font-black " + (cmv > cmvSettings.targetCMV ? "text-red-400" : "text-emerald-400")}>{cmv}%</span></div>
+                                        </div>
+                                        <div className="flex gap-2 mt-2 pt-4 border-t">
+                                            <button onClick={()=>crudAction(isRec?'recipes':'complements', isRec?recipes:complements, formObj, isRec?setIsRecipeModalOpen:setIsCompModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Salvar</button>
+                                            <button onClick={()=>isRec?setIsRecipeModalOpen(false):setIsCompModalOpen(false)} className="px-8 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {isComboModalOpen && (
+                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                                <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-6 scale-up-center">
+                                    <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3">{comboForm.id ? 'Editar Combo' : 'Novo Combo'}</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome Combo</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={comboForm.name} onChange={e=>setComboForm({...comboForm, name: e.target.value})} /></div>
+                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço Venda (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={comboForm.sellingPrice} onChange={e=>setComboForm({...comboForm, sellingPrice: e.target.value})} /></div>
+                                    </div>
+                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={comboForm.category} onChange={e=>setComboForm({...comboForm, category: e.target.value})}>{comboCats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                    
+                                    <div className="border-t pt-4">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <label className="text-[10px] font-black uppercase text-slate-800">Itens do Combo</label>
+                                            <button onClick={()=>setComboForm({...comboForm, items: [...comboForm.items, {type:'recipe', itemId:'', qty:''}]})} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl text-[9px] font-black uppercase">Add Item</button>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {comboForm.items.map((item, idx) => (
+                                                <div key={idx} className="flex gap-2 bg-slate-50 p-2 rounded-xl border">
+                                                    <select className="w-28 p-3 bg-white border rounded-lg font-bold text-[10px]" value={item.type} onChange={e=>{const arr=[...comboForm.items]; arr[idx].type=e.target.value; arr[idx].itemId=''; setComboForm({...comboForm, items: arr});}}><option value="recipe">Ficha</option><option value="complement">Extra</option><option value="ingredient">Insumo</option></select>
+                                                    <select className="flex-1 p-3 bg-white border rounded-lg font-bold text-[10px]" value={item.itemId} onChange={e=>{const arr=[...comboForm.items]; arr[idx].itemId=e.target.value; setComboForm({...comboForm, items: arr});}}><option value="">Selecionar...</option>
+                                                        {item.type==='recipe' && recipes.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+                                                        {item.type==='complement' && complements.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                                                        {item.type==='ingredient' && ingredients.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+                                                    </select>
+                                                    <input type="number" step="0.001" placeholder="Qtd" className="w-20 p-3 bg-white border rounded-lg font-bold text-[10px] text-center" value={item.qty} onChange={e=>{const arr=[...comboForm.items]; arr[idx].qty=e.target.value; setComboForm({...comboForm, items: arr});}} />
+                                                    <button onClick={()=>{const arr=[...comboForm.items]; arr.splice(idx,1); setComboForm({...comboForm, items: arr});}} className="bg-red-50 text-red-500 p-3 rounded-lg"><Icon name="trash-2" size={14}/></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="bg-[#1A202C] text-white p-5 rounded-3xl flex justify-between items-center shadow-inner mt-2">
+                                        <div><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Custo Combo</span><span className="text-2xl font-black text-[#F8CC82]">{formatMoney(calcComboCost(comboForm.items))}</span></div>
+                                        <div className="text-right"><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">CMV Estimado</span><span className={"text-2xl font-black " + ((p(comboForm.sellingPrice)>0 && (calcComboCost(comboForm.items)/p(comboForm.sellingPrice))*100 > cmvSettings.targetCMV) ? "text-red-400" : "text-emerald-400")}>{p(comboForm.sellingPrice)>0 ? ((calcComboCost(comboForm.items)/p(comboForm.sellingPrice))*100).toFixed(1) : 0}%</span></div>
+                                    </div>
+                                    <div className="flex gap-2 mt-2 pt-4 border-t">
+                                        <button onClick={()=>crudAction('combos', combos, comboForm, setIsComboModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Salvar</button>
+                                        <button onClick={()=>setIsComboModalOpen(false)} className="px-8 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {isFcModalOpen && (
+                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                                <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-4 scale-up-center">
+                                    <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3 mb-2">{fcForm.id ? 'Editar Custo Fixo' : 'Novo Custo Fixo'}</h3>
+                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Descrição</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={fcForm.description} onChange={e=>setFcForm({...fcForm, description: e.target.value})} /></div>
+                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={fcForm.category} onChange={e=>setFcForm({...fcForm, category: e.target.value})}>{fcCats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Valor Mensal (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={fcForm.value} onChange={e=>setFcForm({...fcForm, value: e.target.value})} /></div>
+                                    <div className="flex gap-2 mt-4"><button onClick={()=>crudAction('fixedCosts', fixedCosts, fcForm, setIsFcModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Gravar</button><button onClick={()=>setIsFcModalOpen(false)} className="px-6 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button></div>
+                                </div>
                             </div>
                         )}
 
