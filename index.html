@@ -11,7 +11,6 @@
     <script src="https://unpkg.com/@babel/standalone@7.21.0/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <!-- Firebase Compat V10 -->
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
@@ -37,7 +36,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // Configuração do Firebase Financeiro Principal
+        // Configuração do Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyCL0o0TQYbPXoo7Yo_qJpc1oa7jib8KBcc",
             authDomain: "tribo-burger-app.firebaseapp.com",
@@ -78,6 +77,9 @@
             const [isIngModalOpen, setIsIngModalOpen] = useState(false);
             const [ingForm, setIngForm] = useState({ id: '', name: '', category: 'Outros', cost: '', unit: 'g', qty: '' });
 
+            // Referência invisível para o input de arquivo
+            const fileInputRef = useRef(null);
+
             useEffect(() => {
                 const unsubscribe = auth.onAuthStateChanged(u => { 
                     setUser(u); 
@@ -109,23 +111,28 @@
 
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-            // ================= LÓGICA DE MIGRAÇÃO =================
-            const handleImportOldCmv = async () => {
-                const dataStr = prompt("Cole aqui o texto do backup (JSON) que você copiou do sistema antigo:");
-                if (!dataStr) return;
-                
-                try {
-                    const data = JSON.parse(dataStr);
-                    const pathCmv = "artifacts/tribo-burger-pricing-system/users/" + user.uid + "/user_data/state";
-                    
-                    // Salva o objeto inteiro copiado do localStorage no novo banco unificado
-                    await db.doc(pathCmv).set(data, { merge: true });
-                    
-                    alert("✅ Dados do Cantinho migrados com sucesso! A página será atualizada.");
-                    window.location.reload();
-                } catch (err) {
-                    alert("❌ Erro ao importar: Verifique se copiou todo o texto da caixinha corretamente. Erro técnico: " + err.message);
-                }
+            // ================= LÓGICA DE IMPORTAÇÃO DE ARQUIVO =================
+            const handleFileImport = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        const pathCmv = "artifacts/tribo-burger-pricing-system/users/" + user.uid + "/user_data/state";
+                        
+                        await db.doc(pathCmv).set(data, { merge: true });
+                        
+                        alert("✅ Dados migrados com sucesso! O seu arquivo foi importado.");
+                        window.location.reload();
+                    } catch (err) {
+                        alert("❌ Erro ao ler o arquivo. Certifique-se de que é o arquivo .json correto.");
+                    }
+                };
+                reader.readAsText(file);
+                // Reseta o input para permitir enviar o mesmo arquivo novamente se necessário
+                event.target.value = null;
             };
 
             // ================= LÓGICA DE INSUMOS =================
@@ -244,8 +251,12 @@
                                         <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Matéria-prima cadastrada: {ingredients.length} itens</p>
                                     </div>
                                     <div className="flex gap-2 w-full md:w-auto">
-                                        <button onClick={handleImportOldCmv} className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase transition-all">
-                                            <Icon name="download" size={14}/> Importar Dados Antigos
+                                        
+                                        {/* Input invisível para upload de arquivo */}
+                                        <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleFileImport} />
+                                        
+                                        <button onClick={() => fileInputRef.current.click()} className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase transition-all">
+                                            <Icon name="upload" size={14}/> Importar Arquivo .JSON
                                         </button>
                                         <button onClick={() => openIngModal()} className="flex-1 md:flex-none btn-accent px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px]">
                                             <Icon name="plus" size={14}/> Novo Insumo
@@ -266,7 +277,7 @@
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
                                             {ingredients.length === 0 ? (
-                                                <tr><td colSpan="5" className="p-12 text-center text-slate-400 uppercase font-black text-xs">Nenhum insumo cadastrado.<br/><span className="text-[9px] font-bold">Use o botão "Importar Dados Antigos" se você já usava o sistema de CMV.</span></td></tr>
+                                                <tr><td colSpan="5" className="p-12 text-center text-slate-400 uppercase font-black text-xs">Nenhum insumo cadastrado.<br/><span className="text-[9px] font-bold mt-2 inline-block">Use o botão "Importar Arquivo .JSON" para puxar os seus dados.</span></td></tr>
                                             ) : ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(ing => {
                                                 const unitCost = ing.cost / ing.qty;
                                                 return (
