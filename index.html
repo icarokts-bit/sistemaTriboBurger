@@ -11,6 +11,7 @@
     <script src="https://unpkg.com/@babel/standalone@7.21.0/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 
+    <!-- Firebase Compat V10 -->
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
@@ -66,32 +67,46 @@
             const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('fin_dashboard');
             
-            // Dados Financeiros
             const [transactions, setTransactions] = useState([]);
             const [accounts, setAccounts] = useState([]);
             
             // Dados CMV
             const [ingredients, setIngredients] = useState([]);
             const [recipes, setRecipes] = useState([]);
+            const [complements, setComplements] = useState([]);
+            const [combos, setCombos] = useState([]);
             const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12 });
             
             const [ingredientCategories, setIngredientCategories] = useState(['Proteínas', 'Pães', 'Queijos', 'Molhos', 'Vegetais/Hortifrúti', 'Embalagens', 'Outros']);
             const [recipeCategories, setRecipeCategories] = useState(['Hambúrgueres', 'Acompanhamentos', 'Bebidas', 'Sobremesas', 'Molhos Caseiros', 'Outros', 'Smash']);
+            const [complementCategories, setComplementCategories] = useState(['Extras', 'Molhos', 'Outros']);
+            const [comboCategories, setComboCategories] = useState(['Promocionais', 'Família', 'Outros']);
 
-            // Modais e Formulários
+            // Estados - Insumos
             const [isIngModalOpen, setIsIngModalOpen] = useState(false);
             const [ingForm, setIngForm] = useState({ id: '', name: '', category: 'Outros', cost: '', unit: 'g', qty: '' });
+            const [ingCollapsed, setIngCollapsed] = useState({});
 
+            // Estados - Fichas Técnicas
             const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
             const [recipeForm, setRecipeForm] = useState({ id: '', name: '', category: 'Hambúrgueres', sellingPrice: '', ingredients: [], ignoreCMV: false });
-
-            // Filtros de Fichas
             const [recipeSearch, setRecipeSearch] = useState('');
             const [recipeCatFilter, setRecipeCatFilter] = useState('');
-            
-            // Estados de Recolher/Expandir Categorias
             const [recipeCollapsed, setRecipeCollapsed] = useState({});
-            const [ingCollapsed, setIngCollapsed] = useState({});
+
+            // Estados - Complementos
+            const [isCompModalOpen, setIsCompModalOpen] = useState(false);
+            const [compForm, setCompForm] = useState({ id: '', name: '', category: 'Extras', sellingPrice: '', ingredients: [], ignoreCMV: false });
+            const [compSearch, setCompSearch] = useState('');
+            const [compCatFilter, setCompCatFilter] = useState('');
+            const [compCollapsed, setCompCollapsed] = useState({});
+
+            // Estados - Combos
+            const [isComboModalOpen, setIsComboModalOpen] = useState(false);
+            const [comboForm, setComboForm] = useState({ id: '', name: '', category: 'Promocionais', sellingPrice: '', items: [], ignoreCMV: false });
+            const [comboSearch, setComboSearch] = useState('');
+            const [comboCatFilter, setComboCatFilter] = useState('');
+            const [comboCollapsed, setComboCollapsed] = useState({});
 
             const fileInputRef = useRef(null);
 
@@ -116,9 +131,14 @@
                         const data = s.data();
                         setIngredients(data.ingredients || []);
                         setRecipes(data.recipes || []);
+                        setComplements(data.complements || []);
+                        setCombos(data.combos || []);
                         setCmvSettings(data.settings || { targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12 });
+                        
                         if(data.ingredientCategories) setIngredientCategories(data.ingredientCategories);
                         if(data.recipeCategories) setRecipeCategories(data.recipeCategories);
+                        if(data.complementCategories) setComplementCategories(data.complementCategories);
+                        if(data.comboCategories) setComboCategories(data.comboCategories);
                     }
                 });
 
@@ -127,7 +147,7 @@
 
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-            // ================= LÓGICA DE IMPORTAÇÃO (MANUTENÇÃO) =================
+            // ================= IMPORTAÇÃO DE DADOS =================
             const handlePasteImport = async () => {
                 const text = prompt("Cole aqui todo o texto do backup que você copiou no sistema antigo:");
                 if (!text || text.trim() === "") return;
@@ -197,6 +217,23 @@
                 return itemIngredients.reduce((total, req) => total + getIngredientUnitCost(req.ingredientId, req.qty), 0);
             };
 
+            const calculateComboCost = (comboItems) => {
+                if (!comboItems || !Array.isArray(comboItems)) return 0;
+                return comboItems.reduce((total, item) => {
+                    if (!item.itemId || !item.qty) return total;
+                    const qty = parseFloat(item.qty);
+                    if (item.type === 'recipe') {
+                        const rec = recipes.find(r => r.id === item.itemId);
+                        return total + (rec ? calculateItemCost(rec.ingredients) * qty : 0);
+                    } else if (item.type === 'complement') {
+                        const comp = complements.find(c => c.id === item.itemId);
+                        return total + (comp ? calculateItemCost(comp.ingredients) * qty : 0);
+                    } else {
+                        return total + getIngredientUnitCost(item.itemId, qty);
+                    }
+                }, 0);
+            };
+
             const getRecipeCategoryStyle = (cat) => {
                 switch(cat) {
                     case 'Hambúrgueres': return 'bg-orange-100 text-orange-700 border-orange-200';
@@ -205,186 +242,121 @@
                     case 'Sobremesas': return 'bg-pink-100 text-pink-700 border-pink-200';
                     case 'Molhos Caseiros': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
                     case 'Smash': return 'bg-purple-100 text-purple-700 border-purple-200';
+                    case 'Promocionais': return 'bg-amber-100 text-amber-700 border-amber-200';
+                    case 'Família': return 'bg-red-100 text-red-700 border-red-200';
+                    case 'Extras': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+                    case 'Molhos': return 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200';
                     default: return 'bg-slate-100 text-slate-700 border-slate-200';
                 }
             };
 
-            // ================= LÓGICA DE INSUMOS =================
+            // ================= LÓGICA GERAL CRUD =================
+            const saveToFirebase = async (collectionName, list) => {
+                const pathCmv = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/cmv_data/state";
+                await db.doc(pathCmv).set({ [collectionName]: list }, { merge: true });
+            };
+
+            const handleDuplicate = async (collectionName, item, list) => {
+                if (!user) return;
+                const newItem = { ...item, id: crypto.randomUUID(), name: `${item.name} (Cópia)` };
+                await saveToFirebase(collectionName, [...list, newItem]);
+                alert("Cópia criada com sucesso!");
+            };
+
+            const handleDelete = async (collectionName, id, list) => {
+                if(window.confirm("Tem a certeza que deseja eliminar este item?")) {
+                    await saveToFirebase(collectionName, list.filter(i => i.id !== id));
+                }
+            };
+
+            // ================= INSUMOS =================
             const handleSaveIngredient = async (e) => {
                 e.preventDefault();
-                if (!user) return;
-                
                 const targetId = ingForm.id || crypto.randomUUID();
                 const list = [...ingredients];
                 const index = list.findIndex(i => i.id === targetId);
-                const record = { 
-                    id: targetId, 
-                    name: ingForm.name, 
-                    category: ingForm.category, 
-                    cost: parseFloat(ingForm.cost), 
-                    unit: ingForm.unit, 
-                    qty: parseFloat(ingForm.qty) 
-                };
-
-                if (index > -1) list[index] = record;
-                else list.push(record);
-
-                const pathCmv = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/cmv_data/state";
-                await db.doc(pathCmv).set({ ingredients: list }, { merge: true });
+                const record = { id: targetId, name: ingForm.name, category: ingForm.category, cost: parseFloat(ingForm.cost), unit: ingForm.unit, qty: parseFloat(ingForm.qty) };
+                if (index > -1) list[index] = record; else list.push(record);
+                await saveToFirebase('ingredients', list);
                 setIsIngModalOpen(false);
             };
 
-            const handleDeleteIngredient = async (id) => {
-                if(window.confirm("Excluir este insumo permanentemente?")) {
-                    const list = ingredients.filter(i => i.id !== id);
-                    const pathCmv = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/cmv_data/state";
-                    await db.doc(pathCmv).set({ ingredients: list }, { merge: true });
-                }
-            };
-
             const openIngModal = (ing = null) => {
-                if(ing) {
-                    setIngForm({ id: ing.id, name: ing.name, category: ing.category, cost: ing.cost, unit: ing.unit, qty: ing.qty });
-                } else {
-                    setIngForm({ id: '', name: '', category: ingredientCategories[0] || 'Outros', cost: '', unit: 'g', qty: '' });
-                }
+                setIngForm(ing ? { ...ing } : { id: '', name: '', category: ingredientCategories[0] || 'Outros', cost: '', unit: 'g', qty: '' });
                 setIsIngModalOpen(true);
             };
 
-            const toggleIngCat = (cat) => {
-                setIngCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }));
-            };
-
-            // Agrupamento de Insumos
-            const groupedIngredients = useMemo(() => {
-                return ingredients.reduce((acc, ing) => {
-                    const cat = ing.category || 'Outros';
-                    if (!acc[cat]) acc[cat] = [];
-                    acc[cat].push(ing);
-                    return acc;
-                }, {});
-            }, [ingredients]);
-
-            const sortedIngCategories = useMemo(() => {
-                return Object.keys(groupedIngredients).sort();
-            }, [groupedIngredients]);
-
-
-            // ================= LÓGICA DE FICHAS TÉCNICAS (RECEITAS) =================
+            // ================= FICHAS TÉCNICAS =================
             const handleSaveRecipe = async (e) => {
                 e.preventDefault();
-                if (!user) return;
-                
                 const targetId = recipeForm.id || crypto.randomUUID();
                 const list = [...recipes];
                 const index = list.findIndex(r => r.id === targetId);
-                const record = { 
-                    id: targetId, 
-                    name: recipeForm.name, 
-                    category: recipeForm.category, 
-                    sellingPrice: parseFloat(recipeForm.sellingPrice), 
-                    ingredients: recipeForm.ingredients.filter(i => i.ingredientId && parseFloat(i.qty) > 0),
-                    ignoreCMV: recipeForm.ignoreCMV
-                };
-
-                if (index > -1) list[index] = record;
-                else list.push(record);
-
-                const pathCmv = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/cmv_data/state";
-                await db.doc(pathCmv).set({ recipes: list }, { merge: true });
+                const record = { ...recipeForm, id: targetId, sellingPrice: parseFloat(recipeForm.sellingPrice), ingredients: recipeForm.ingredients.filter(i => i.ingredientId && parseFloat(i.qty) > 0) };
+                if (index > -1) list[index] = record; else list.push(record);
+                await saveToFirebase('recipes', list);
                 setIsRecipeModalOpen(false);
             };
 
-            const handleDeleteRecipe = async (id) => {
-                if(window.confirm("Tem a certeza que deseja eliminar esta Ficha Técnica?")) {
-                    const list = recipes.filter(r => r.id !== id);
-                    const pathCmv = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/cmv_data/state";
-                    await db.doc(pathCmv).set({ recipes: list }, { merge: true });
-                }
-            };
-
-            const handleDuplicateRecipe = async (recipe) => {
-                if (!user) return;
-                const newRecipe = { 
-                    ...recipe, 
-                    id: crypto.randomUUID(), 
-                    name: `${recipe.name} (Cópia)` 
-                };
-                const list = [...recipes, newRecipe];
-                const pathCmv = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/cmv_data/state";
-                await db.doc(pathCmv).set({ recipes: list }, { merge: true });
-                alert("Ficha duplicada com sucesso!");
-            };
-
             const openRecipeModal = (recipe = null) => {
-                if(recipe) {
-                    setRecipeForm({ 
-                        id: recipe.id, 
-                        name: recipe.name, 
-                        category: recipe.category, 
-                        sellingPrice: recipe.sellingPrice, 
-                        ingredients: [...(recipe.ingredients || [])],
-                        ignoreCMV: recipe.ignoreCMV || false
-                    });
-                } else {
-                    setRecipeForm({ 
-                        id: '', 
-                        name: '', 
-                        category: recipeCategories[0] || 'Hambúrgueres', 
-                        sellingPrice: '', 
-                        ingredients: [],
-                        ignoreCMV: false
-                    });
-                }
+                setRecipeForm(recipe ? { ...recipe, ingredients: [...(recipe.ingredients || [])] } : { id: '', name: '', category: recipeCategories[0] || 'Hambúrgueres', sellingPrice: '', ingredients: [], ignoreCMV: false });
                 setIsRecipeModalOpen(true);
             };
 
-            const addRecipeIngredient = () => {
-                setRecipeForm(prev => ({
-                    ...prev,
-                    ingredients: [...prev.ingredients, { ingredientId: '', qty: '' }]
-                }));
+            // ================= COMPLEMENTOS =================
+            const handleSaveComplement = async (e) => {
+                e.preventDefault();
+                const targetId = compForm.id || crypto.randomUUID();
+                const list = [...complements];
+                const index = list.findIndex(r => r.id === targetId);
+                const record = { ...compForm, id: targetId, sellingPrice: parseFloat(compForm.sellingPrice), ingredients: compForm.ingredients.filter(i => i.ingredientId && parseFloat(i.qty) > 0) };
+                if (index > -1) list[index] = record; else list.push(record);
+                await saveToFirebase('complements', list);
+                setIsCompModalOpen(false);
             };
 
-            const updateRecipeIngredient = (index, field, value) => {
-                const newIngredients = [...recipeForm.ingredients];
-                newIngredients[index][field] = value;
-                setRecipeForm(prev => ({ ...prev, ingredients: newIngredients }));
+            const openCompModal = (comp = null) => {
+                setCompForm(comp ? { ...comp, ingredients: [...(comp.ingredients || [])] } : { id: '', name: '', category: complementCategories[0] || 'Extras', sellingPrice: '', ingredients: [], ignoreCMV: false });
+                setIsCompModalOpen(true);
             };
 
-            const removeRecipeIngredient = (index) => {
-                const newIngredients = [...recipeForm.ingredients];
-                newIngredients.splice(index, 1);
-                setRecipeForm(prev => ({ ...prev, ingredients: newIngredients }));
+            // ================= COMBOS =================
+            const handleSaveCombo = async (e) => {
+                e.preventDefault();
+                const targetId = comboForm.id || crypto.randomUUID();
+                const list = [...combos];
+                const index = list.findIndex(r => r.id === targetId);
+                const record = { ...comboForm, id: targetId, sellingPrice: parseFloat(comboForm.sellingPrice), items: comboForm.items.filter(i => i.itemId && parseFloat(i.qty) > 0) };
+                if (index > -1) list[index] = record; else list.push(record);
+                await saveToFirebase('combos', list);
+                setIsComboModalOpen(false);
             };
 
-            const toggleRecipeCat = (cat) => {
-                setRecipeCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }));
+            const openComboModal = (combo = null) => {
+                setComboForm(combo ? { ...combo, items: [...(combo.items || [])] } : { id: '', name: '', category: comboCategories[0] || 'Promocionais', sellingPrice: '', items: [], ignoreCMV: false });
+                setIsComboModalOpen(true);
             };
 
-            // Filtragem e Agrupamento de Fichas
-            const filteredRecipes = useMemo(() => {
-                return recipes.filter(r => {
-                    const matchesSearch = (r.name || '').toLowerCase().includes(recipeSearch.toLowerCase());
-                    const matchesCat = recipeCatFilter === '' || (r.category || 'Outros') === recipeCatFilter;
-                    return matchesSearch && matchesCat;
-                });
-            }, [recipes, recipeSearch, recipeCatFilter]);
+            const updateComboItem = (index, field, value) => {
+                const newItems = [...comboForm.items];
+                newItems[index][field] = value;
+                if (field === 'type') newItems[index].itemId = ''; // Reset ID if type changes
+                setComboForm(prev => ({ ...prev, items: newItems }));
+            };
 
-            const groupedRecipes = useMemo(() => {
-                return filteredRecipes.reduce((acc, recipe) => {
-                    const cat = recipe.category || 'Outros';
-                    if (!acc[cat]) acc[cat] = [];
-                    acc[cat].push(recipe);
-                    return acc;
-                }, {});
-            }, [filteredRecipes]);
+            // ================= AGRUPADORES =================
+            const groupedIngredients = useMemo(() => ingredients.reduce((acc, ing) => { const cat = ing.category || 'Outros'; if (!acc[cat]) acc[cat] = []; acc[cat].push(ing); return acc; }, {}), [ingredients]);
+            
+            const filteredRecipes = useMemo(() => recipes.filter(r => (r.name || '').toLowerCase().includes(recipeSearch.toLowerCase()) && (recipeCatFilter === '' || (r.category || 'Outros') === recipeCatFilter)), [recipes, recipeSearch, recipeCatFilter]);
+            const groupedRecipes = useMemo(() => filteredRecipes.reduce((acc, recipe) => { const cat = recipe.category || 'Outros'; if (!acc[cat]) acc[cat] = []; acc[cat].push(recipe); return acc; }, {}), [filteredRecipes]);
+            
+            const filteredComplements = useMemo(() => complements.filter(c => (c.name || '').toLowerCase().includes(compSearch.toLowerCase()) && (compCatFilter === '' || (c.category || 'Outros') === compCatFilter)), [complements, compSearch, compCatFilter]);
+            const groupedComplements = useMemo(() => filteredComplements.reduce((acc, comp) => { const cat = comp.category || 'Outros'; if (!acc[cat]) acc[cat] = []; acc[cat].push(comp); return acc; }, {}), [filteredComplements]);
 
-            const sortedRecipeCategories = useMemo(() => {
-                return Object.keys(groupedRecipes).sort();
-            }, [groupedRecipes]);
+            const filteredCombos = useMemo(() => combos.filter(c => (c.name || '').toLowerCase().includes(comboSearch.toLowerCase()) && (comboCatFilter === '' || (c.category || 'Outros') === comboCatFilter)), [combos, comboSearch, comboCatFilter]);
+            const groupedCombos = useMemo(() => filteredCombos.reduce((acc, combo) => { const cat = combo.category || 'Outros'; if (!acc[cat]) acc[cat] = []; acc[cat].push(combo); return acc; }, {}), [filteredCombos]);
 
-            // Renderização da Tela
+            // Renderização
             if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase tracking-widest">Iniciando ERP Cantinho...</div>;
 
             if (!user || user.isAnonymous) {
@@ -429,7 +401,7 @@
 
                                 <div className="flex gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/10 shrink-0">
                                     <span className="flex items-center px-3 text-[9px] font-black uppercase text-[#F27A18] border-r border-white/10"><Icon name="pie-chart" size={12} className="mr-1"/> Custos & CMV</span>
-                                    {['cmv_dashboard', 'insumos', 'fichas', 'combos'].map(t => (
+                                    {['cmv_dashboard', 'insumos', 'fichas', 'complementos', 'combos'].map(t => (
                                         <button key={t} onClick={()=>setActiveTab(t)} className={"px-4 py-2 text-[10px] font-black uppercase whitespace-nowrap transition-all " + (activeTab === t ? "bg-[#F27A18] text-black rounded-xl shadow" : "text-slate-400 hover:text-white")}>
                                             {t.replace('cmv_', '')}
                                         </button>
@@ -441,14 +413,6 @@
 
                     <main className="p-4 max-w-7xl mx-auto w-full flex-1 space-y-6">
                         
-                        {activeTab === 'fin_dashboard' && (
-                            <div className="glass-card p-10 rounded-[3rem] text-center border-t-8 border-slate-800 fade-in shadow-xl">
-                                <Icon name="trending-up" size={48} className="mx-auto mb-4 text-slate-300"/>
-                                <h2 className="text-2xl font-black uppercase text-slate-800">Módulo Financeiro Integrado</h2>
-                                <p className="text-xs font-bold text-slate-500 uppercase mt-2">Os seus lançamentos e caixas diários estão a carregar aqui.</p>
-                            </div>
-                        )}
-
                         {/* ======================= ABA INSUMOS ======================= */}
                         {activeTab === 'insumos' && (
                             <div className="space-y-6 fade-in">
@@ -475,13 +439,11 @@
                                     <div className="p-12 text-center text-slate-400 uppercase font-black text-xs glass-card rounded-[2.5rem] border-dashed">Nenhum insumo cadastrado.</div>
                                 ) : (
                                     <div className="space-y-8">
-                                        {sortedIngCategories.map(category => {
+                                        {Object.keys(groupedIngredients).sort().map(category => {
                                             const isCollapsed = ingCollapsed[category];
                                             return (
                                             <div key={category} className="space-y-4">
-                                                
-                                                {/* Cabeçalho da Categoria de Insumos com Toggle */}
-                                                <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => toggleIngCat(category)}>
+                                                <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => setIngCollapsed(prev => ({ ...prev, [category]: !prev[category] }))}>
                                                     <div className="flex items-center gap-3 ml-2">
                                                         <span className="text-emerald-600"><Icon name="box" size={20}/></span>
                                                         <h3 className="font-black text-sm uppercase text-slate-800 tracking-widest">{category}</h3>
@@ -490,7 +452,6 @@
                                                     <Icon name={isCollapsed ? "chevron-down" : "chevron-up"} size={20} className="text-slate-400 mr-2"/>
                                                 </div>
 
-                                                {/* Tabela de Insumos da Categoria */}
                                                 {!isCollapsed && (
                                                     <div className="glass-card rounded-[2rem] overflow-hidden border shadow-sm overflow-x-auto">
                                                         <table className="w-full text-left text-xs">
@@ -512,7 +473,7 @@
                                                                             <td className="p-4 text-emerald-600 font-black">{formatMoney(unitCost)} <span className="text-[9px] text-slate-400">/ {ing.unit === 'kg' ? 'g' : (ing.unit === 'L' ? 'ml' : ing.unit)}</span></td>
                                                                             <td className="p-4 text-right">
                                                                                 <button onClick={() => openIngModal(ing)} className="text-blue-500 hover:text-blue-700 p-2"><Icon name="edit-2" size={16}/></button>
-                                                                                <button onClick={() => handleDeleteIngredient(ing.id)} className="text-red-400 hover:text-red-600 p-2"><Icon name="trash-2" size={16}/></button>
+                                                                                <button onClick={() => handleDelete('ingredients', ing.id, ingredients)} className="text-red-400 hover:text-red-600 p-2"><Icon name="trash-2" size={16}/></button>
                                                                             </td>
                                                                         </tr>
                                                                     );
@@ -535,14 +496,13 @@
                                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-[2rem] border shadow-sm">
                                     <div>
                                         <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Fichas Técnicas (Produtos)</h2>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Precifique os burgers e porções.</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Precifique os burgers e porções principais.</p>
                                     </div>
                                     <button onClick={() => openRecipeModal()} className="w-full md:w-auto btn-accent px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px]">
                                         <Icon name="plus" size={14}/> Criar Ficha
                                     </button>
                                 </div>
 
-                                {/* Barra de Pesquisa e Filtros */}
                                 <div className="bg-white p-4 rounded-[1.5rem] border shadow-sm flex flex-col md:flex-row gap-3">
                                     <div className="relative flex-1">
                                         <Icon name="search" size={16} className="absolute left-4 top-3 text-slate-400" />
@@ -558,13 +518,11 @@
                                     <div className="p-12 text-center text-slate-400 uppercase font-black text-xs glass-card rounded-[2.5rem] border-dashed">Nenhuma ficha técnica encontrada.</div>
                                 ) : (
                                     <div className="space-y-8">
-                                        {sortedRecipeCategories.map(category => {
+                                        {Object.keys(groupedRecipes).sort().map(category => {
                                             const isCollapsed = recipeCollapsed[category];
                                             return (
                                             <div key={category} className="space-y-4">
-                                                
-                                                {/* Cabeçalho da Categoria com Toggle */}
-                                                <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => toggleRecipeCat(category)}>
+                                                <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => setRecipeCollapsed(prev => ({ ...prev, [category]: !prev[category] }))}>
                                                     <div className="flex items-center gap-3 ml-2">
                                                         <span className="text-[#F27A18]"><Icon name="layers" size={20}/></span>
                                                         <h3 className="font-black text-sm uppercase text-slate-800 tracking-widest">{category}</h3>
@@ -573,98 +531,37 @@
                                                     <Icon name={isCollapsed ? "chevron-down" : "chevron-up"} size={20} className="text-slate-400 mr-2"/>
                                                 </div>
 
-                                                {/* Grid de Fichas (Rica em Dados) */}
                                                 {!isCollapsed && (
                                                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                                                         {groupedRecipes[category].sort((a,b)=>a.name.localeCompare(b.name)).map(recipe => {
-                                                            // Lógica de Preços (Sistema Antigo)
                                                             const foodCost = calculateItemCost(recipe.ingredients);
                                                             const sellingPrice = parseFloat(recipe.sellingPrice || 0);
                                                             const cmv = sellingPrice > 0 ? ((foodCost / sellingPrice) * 100).toFixed(1) : 0;
-                                                            
-                                                            const taxPercent = parseFloat(cmvSettings.tax || 0);
-                                                            const appsPercent = parseFloat(cmvSettings.apps || 0);
-                                                            const cardPercent = parseFloat(cmvSettings.card || 0);
                                                             const targetCmvPercent = parseFloat(cmvSettings.targetCMV || 30);
-                                                            const ifoodTaxPercent = parseFloat(cmvSettings.ifoodTax || 0);
-
-                                                            const totalTaxesVal = sellingPrice * ((taxPercent + appsPercent + cardPercent) / 100);
+                                                            const totalTaxesVal = sellingPrice * ((parseFloat(cmvSettings.tax || 0) + parseFloat(cmvSettings.apps || 0) + parseFloat(cmvSettings.card || 0)) / 100);
                                                             const marginValue = sellingPrice - foodCost - totalTaxesVal;
-                                                            const marginPercentage = sellingPrice > 0 ? ((marginValue / sellingPrice) * 100).toFixed(1) : 0;
-
-                                                            const suggested = targetCmvPercent > 0 ? foodCost / (targetCmvPercent / 100) : 0;
-                                                            const ifoodPrice = sellingPrice > 0 ? (sellingPrice / (1 - (ifoodTaxPercent / 100))) : (suggested / (1 - (ifoodTaxPercent / 100)));
-
-                                                            // Separação de Embalagens
-                                                            const mainItems = [];
-                                                            const packagingItems = [];
                                                             
-                                                            (recipe.ingredients || []).forEach(item => {
-                                                                const ing = ingredients.find(i => i.id === item.ingredientId);
-                                                                if (ing) {
-                                                                    const isPkg = (ing.category || '').toLowerCase().includes('embalage');
-                                                                    const lineCost = getIngredientUnitCost(ing.id, item.qty);
-                                                                    const itemData = { name: ing.name, qty: item.qty, unit: ing.unit, cost: lineCost };
-                                                                    if (isPkg) packagingItems.push(itemData);
-                                                                    else mainItems.push(itemData);
-                                                                }
-                                                            });
-
                                                             return (
                                                                 <div key={recipe.id} className={"glass-card rounded-[2rem] p-6 shadow-xl flex flex-col justify-between border-t-4 transition-all hover:shadow-2xl " + (recipe.ignoreCMV ? "opacity-80 border-slate-400" : "border-[#1A202C]")}>
-                                                                    
-                                                                    {/* Topo do Card */}
                                                                     <div>
                                                                         <div className="flex justify-between items-center mb-3">
                                                                             <span className={"px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border " + getRecipeCategoryStyle(category)}>{category}</span>
                                                                             <div className="flex gap-1.5">
-                                                                                <button onClick={() => handleDuplicateRecipe(recipe)} className="bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-800 p-1.5 rounded-lg transition-colors" title="Duplicar"><Icon name="copy" size={14}/></button>
-                                                                                <button onClick={() => openRecipeModal(recipe)} className="bg-slate-100 border border-slate-200 text-blue-500 hover:text-blue-700 p-1.5 rounded-lg transition-colors" title="Editar"><Icon name="edit-2" size={14}/></button>
-                                                                                <button onClick={() => handleDeleteRecipe(recipe.id)} className="bg-slate-100 border border-slate-200 text-red-400 hover:text-red-600 p-1.5 rounded-lg transition-colors" title="Excluir"><Icon name="trash-2" size={14}/></button>
+                                                                                <button onClick={() => handleDuplicate('recipes', recipe, recipes)} className="bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-800 p-1.5 rounded-lg transition-colors"><Icon name="copy" size={14}/></button>
+                                                                                <button onClick={() => openRecipeModal(recipe)} className="bg-slate-100 border border-slate-200 text-blue-500 hover:text-blue-700 p-1.5 rounded-lg transition-colors"><Icon name="edit-2" size={14}/></button>
+                                                                                <button onClick={() => handleDelete('recipes', recipe.id, recipes)} className="bg-slate-100 border border-slate-200 text-red-400 hover:text-red-600 p-1.5 rounded-lg transition-colors"><Icon name="trash-2" size={14}/></button>
                                                                             </div>
                                                                         </div>
-                                                                        
                                                                         <h4 className="font-black text-lg text-slate-900 leading-tight flex items-center flex-wrap gap-2">
                                                                             {recipe.name} 
-                                                                            {recipe.ignoreCMV && <span className="px-2 py-0.5 rounded text-[8px] font-black bg-slate-200 text-slate-500 uppercase tracking-widest"><Icon name="eye-off" size={10} className="inline mr-1 mb-0.5"/>CMV Ignorado</span>}
+                                                                            {recipe.ignoreCMV && <span className="px-2 py-0.5 rounded text-[8px] font-black bg-slate-200 text-slate-500 uppercase tracking-widest">Ignorado</span>}
                                                                         </h4>
-
-                                                                        {/* Box de Ingredientes (Estilo Antigo) */}
-                                                                        <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-3 shadow-inner">
-                                                                            <div>
-                                                                                <p className="font-black text-[9px] text-slate-400 uppercase tracking-widest mb-1.5">Ingredientes Principais</p>
-                                                                                <div className="divide-y divide-slate-200 font-bold text-slate-700">
-                                                                                    {mainItems.length === 0 ? <p className="text-slate-400 italic text-[10px]">Sem itens.</p> : mainItems.map((mi, idx) => (
-                                                                                        <div key={idx} className="flex justify-between items-center py-1">
-                                                                                            <span className="truncate pr-2">• {mi.name} <span className="text-slate-400 font-normal">({mi.qty}{mi.unit})</span></span>
-                                                                                            <span className="text-slate-900">{formatMoney(mi.cost)}</span>
-                                                                                        </div>
-                                                                                    ))}
-                                                                                </div>
-                                                                            </div>
-
-                                                                            {packagingItems.length > 0 && (
-                                                                                <div className="pt-2 border-t border-slate-200">
-                                                                                    <p className="font-black text-[8px] text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Icon name="package" size={10}/> Embalagens & Sup.</p>
-                                                                                    <div className="divide-y divide-slate-200 font-bold text-slate-700">
-                                                                                        {packagingItems.map((pi, idx) => (
-                                                                                            <div key={idx} className="flex justify-between items-center py-1 text-[10px]">
-                                                                                                <span className="truncate pr-2">• {pi.name} <span className="text-slate-400 font-normal">({pi.qty}{pi.unit})</span></span>
-                                                                                                <span className="text-slate-900">{formatMoney(pi.cost)}</span>
-                                                                                            </div>
-                                                                                        ))}
-                                                                                    </div>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
                                                                     </div>
 
-                                                                    {/* Box Financeiro Inferior (Estilo Antigo) */}
                                                                     <div className="space-y-4 pt-4 mt-2">
-                                                                        {/* CMV e Custo */}
                                                                         <div className="grid grid-cols-2 gap-3 text-center">
                                                                             <div className="bg-white border shadow-sm p-3 rounded-xl flex flex-col justify-center">
-                                                                                <span className="text-[8px] text-slate-400 uppercase font-black tracking-widest leading-tight">Custo Alimento<br/>(CMV R$)</span>
+                                                                                <span className="text-[8px] text-slate-400 uppercase font-black tracking-widest leading-tight">Custo Alimento</span>
                                                                                 <span className="text-base font-black text-slate-900 mt-1">{formatMoney(foodCost)}</span>
                                                                             </div>
                                                                             <div className={"border shadow-sm p-3 rounded-xl flex flex-col justify-center " + (recipe.ignoreCMV ? "bg-slate-50 border-slate-200" : (parseFloat(cmv) > targetCmvPercent ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"))}>
@@ -673,35 +570,17 @@
                                                                             </div>
                                                                         </div>
 
-                                                                        {/* Listagem de Margens */}
                                                                         <div className="space-y-1.5 text-xs border-t border-slate-200 pt-3">
                                                                             <div className="flex justify-between items-center font-bold">
-                                                                                <span className="text-slate-600">Preço Atual Venda:</span>
+                                                                                <span className="text-slate-600">Preço de Venda:</span>
                                                                                 <span className="font-black text-slate-900 text-sm">{formatMoney(sellingPrice)}</span>
                                                                             </div>
-                                                                            <div className="flex justify-between items-center text-slate-400 font-semibold text-[10px]">
-                                                                                <span>Impostos e Taxas Totais:</span>
-                                                                                <span>{formatMoney(totalTaxesVal)}</span>
-                                                                            </div>
                                                                             <div className="flex justify-between items-center font-bold pt-1 border-t border-slate-100">
-                                                                                <span className="text-slate-600 text-[10px] uppercase tracking-widest">Margem Lucro Op.:</span>
-                                                                                <span className={"text-sm font-black " + (marginValue > 0 ? 'text-green-600' : 'text-red-500')}>{formatMoney(marginValue)} <span className="text-[10px]">({marginPercentage}%)</span></span>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        {/* Sugestões de Preço */}
-                                                                        <div className="grid grid-cols-2 gap-2 mt-2">
-                                                                            <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
-                                                                                <span className="text-[8px] font-black text-slate-400 uppercase block mb-0.5">Sugestão Salão</span>
-                                                                                <span className="text-xs font-black text-green-600">{formatMoney(suggested)}</span>
-                                                                            </div>
-                                                                            <div className="bg-red-50/50 p-2 rounded-lg border border-red-100 text-center">
-                                                                                <span className="text-[8px] font-black text-red-400 uppercase block mb-0.5">Sugestão iFood</span>
-                                                                                <span className="text-xs font-black text-red-600">{formatMoney(ifoodPrice)}</span>
+                                                                                <span className="text-slate-600 text-[10px] uppercase tracking-widest">Lucro Op.:</span>
+                                                                                <span className={"text-sm font-black " + (marginValue > 0 ? 'text-green-600' : 'text-red-500')}>{formatMoney(marginValue)}</span>
                                                                             </div>
                                                                         </div>
                                                                     </div>
-
                                                                 </div>
                                                             );
                                                         })}
@@ -715,7 +594,214 @@
                             </div>
                         )}
 
-                        {/* ======================= MODAL DA FICHA TÉCNICA ======================= */}
+                        {/* ======================= ABA COMPLEMENTOS ======================= */}
+                        {activeTab === 'complementos' && (
+                            <div className="space-y-6 fade-in">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-[2rem] border shadow-sm">
+                                    <div>
+                                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Complementos & Adicionais</h2>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Precifique os itens extras vendidos à parte.</p>
+                                    </div>
+                                    <button onClick={() => openCompModal()} className="w-full md:w-auto btn-accent px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px]">
+                                        <Icon name="plus" size={14}/> Criar Complemento
+                                    </button>
+                                </div>
+
+                                <div className="bg-white p-4 rounded-[1.5rem] border shadow-sm flex flex-col md:flex-row gap-3">
+                                    <div className="relative flex-1">
+                                        <Icon name="search" size={16} className="absolute left-4 top-3 text-slate-400" />
+                                        <input type="text" placeholder="Procurar complementos..." className="w-full pl-12 pr-4 py-2.5 bg-slate-50 border rounded-xl text-xs font-bold outline-none focus:border-[#F27A18]" value={compSearch} onChange={e=>setCompSearch(e.target.value)} />
+                                    </div>
+                                    <select className="p-2.5 bg-slate-50 border rounded-xl font-bold text-xs outline-none focus:border-[#F27A18]" value={compCatFilter} onChange={e=>setCompCatFilter(e.target.value)}>
+                                        <option value="">Todas as Categorias</option>
+                                        {complementCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
+
+                                {filteredComplements.length === 0 ? (
+                                    <div className="p-12 text-center text-slate-400 uppercase font-black text-xs glass-card rounded-[2.5rem] border-dashed">Nenhum complemento encontrado.</div>
+                                ) : (
+                                    <div className="space-y-8">
+                                        {Object.keys(groupedComplements).sort().map(category => {
+                                            const isCollapsed = compCollapsed[category];
+                                            return (
+                                            <div key={category} className="space-y-4">
+                                                <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => setCompCollapsed(prev => ({ ...prev, [category]: !prev[category] }))}>
+                                                    <div className="flex items-center gap-3 ml-2">
+                                                        <span className="text-indigo-600"><Icon name="layers" size={20}/></span>
+                                                        <h3 className="font-black text-sm uppercase text-slate-800 tracking-widest">{category}</h3>
+                                                        <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[10px] uppercase font-black">{groupedComplements[category].length}</span>
+                                                    </div>
+                                                    <Icon name={isCollapsed ? "chevron-down" : "chevron-up"} size={20} className="text-slate-400 mr-2"/>
+                                                </div>
+
+                                                {!isCollapsed && (
+                                                    <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
+                                                        {groupedComplements[category].sort((a,b)=>a.name.localeCompare(b.name)).map(comp => {
+                                                            const foodCost = calculateItemCost(comp.ingredients);
+                                                            const sellingPrice = parseFloat(comp.sellingPrice || 0);
+                                                            const cmv = sellingPrice > 0 ? ((foodCost / sellingPrice) * 100).toFixed(1) : 0;
+                                                            const targetCmvPercent = parseFloat(cmvSettings.targetCMV || 30);
+                                                            
+                                                            return (
+                                                                <div key={comp.id} className={"glass-card rounded-[2rem] p-5 shadow-lg flex flex-col justify-between border-t-4 transition-all " + (comp.ignoreCMV ? "opacity-80 border-slate-400" : "border-indigo-500")}>
+                                                                    <div>
+                                                                        <div className="flex justify-between items-center mb-2">
+                                                                            <span className={"px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border " + getRecipeCategoryStyle(category)}>{category}</span>
+                                                                            <div className="flex gap-1.5">
+                                                                                <button onClick={() => handleDuplicate('complements', comp, complements)} className="bg-slate-100 text-slate-500 p-1.5 rounded-lg"><Icon name="copy" size={14}/></button>
+                                                                                <button onClick={() => openCompModal(comp)} className="bg-blue-50 text-blue-500 p-1.5 rounded-lg"><Icon name="edit-2" size={14}/></button>
+                                                                                <button onClick={() => handleDelete('complements', comp.id, complements)} className="bg-red-50 text-red-500 p-1.5 rounded-lg"><Icon name="trash-2" size={14}/></button>
+                                                                            </div>
+                                                                        </div>
+                                                                        <h4 className="font-black text-md text-slate-900 leading-tight mb-2">{comp.name}</h4>
+                                                                    </div>
+                                                                    <div className="space-y-2 pt-2 border-t border-slate-100 mt-2 text-xs">
+                                                                        <div className="flex justify-between items-center"><span className="text-slate-500">Custo:</span><span className="font-black">{formatMoney(foodCost)}</span></div>
+                                                                        <div className="flex justify-between items-center"><span className="text-slate-500">Venda:</span><span className="font-black text-slate-900 text-sm">{formatMoney(sellingPrice)}</span></div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ======================= ABA COMBOS ======================= */}
+                        {activeTab === 'combos' && (
+                            <div className="space-y-6 fade-in">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-[2rem] border shadow-sm">
+                                    <div>
+                                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Fichas de Combos</h2>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Reúna várias fichas, complementos e insumos em ofertas combinadas.</p>
+                                    </div>
+                                    <button onClick={() => openComboModal()} className="w-full md:w-auto btn-accent px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px]">
+                                        <Icon name="plus" size={14}/> Criar Combo
+                                    </button>
+                                </div>
+
+                                <div className="bg-white p-4 rounded-[1.5rem] border shadow-sm flex flex-col md:flex-row gap-3">
+                                    <div className="relative flex-1">
+                                        <Icon name="search" size={16} className="absolute left-4 top-3 text-slate-400" />
+                                        <input type="text" placeholder="Procurar combos..." className="w-full pl-12 pr-4 py-2.5 bg-slate-50 border rounded-xl text-xs font-bold outline-none focus:border-[#F27A18]" value={comboSearch} onChange={e=>setComboSearch(e.target.value)} />
+                                    </div>
+                                    <select className="p-2.5 bg-slate-50 border rounded-xl font-bold text-xs outline-none focus:border-[#F27A18]" value={comboCatFilter} onChange={e=>setComboCatFilter(e.target.value)}>
+                                        <option value="">Todas as Categorias</option>
+                                        {comboCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
+
+                                {filteredCombos.length === 0 ? (
+                                    <div className="p-12 text-center text-slate-400 uppercase font-black text-xs glass-card rounded-[2.5rem] border-dashed">Nenhum combo encontrado.</div>
+                                ) : (
+                                    <div className="space-y-8">
+                                        {Object.keys(groupedCombos).sort().map(category => {
+                                            const isCollapsed = comboCollapsed[category];
+                                            return (
+                                            <div key={category} className="space-y-4">
+                                                <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => setComboCollapsed(prev => ({ ...prev, [category]: !prev[category] }))}>
+                                                    <div className="flex items-center gap-3 ml-2">
+                                                        <span className="text-amber-500"><Icon name="layers" size={20}/></span>
+                                                        <h3 className="font-black text-sm uppercase text-slate-800 tracking-widest">{category}</h3>
+                                                        <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[10px] uppercase font-black">{groupedCombos[category].length}</span>
+                                                    </div>
+                                                    <Icon name={isCollapsed ? "chevron-down" : "chevron-up"} size={20} className="text-slate-400 mr-2"/>
+                                                </div>
+
+                                                {!isCollapsed && (
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                                        {groupedCombos[category].sort((a,b)=>a.name.localeCompare(b.name)).map(combo => {
+                                                            const comboCost = calculateComboCost(combo.items);
+                                                            const sellingPrice = parseFloat(combo.sellingPrice || 0);
+                                                            const cmv = sellingPrice > 0 ? ((comboCost / sellingPrice) * 100).toFixed(1) : 0;
+                                                            const targetCmvPercent = parseFloat(cmvSettings.targetCMV || 30);
+                                                            const totalTaxesVal = sellingPrice * ((parseFloat(cmvSettings.tax || 0) + parseFloat(cmvSettings.apps || 0) + parseFloat(cmvSettings.card || 0)) / 100);
+                                                            const marginValue = sellingPrice - comboCost - totalTaxesVal;
+                                                            
+                                                            // Cálculo do Valor Original para Desconto
+                                                            let originalValue = 0;
+                                                            (combo.items || []).forEach(ci => {
+                                                                if (ci.type === 'recipe') {
+                                                                    const rec = recipes.find(r => r.id === ci.itemId);
+                                                                    if (rec) originalValue += parseFloat(rec.sellingPrice || 0) * parseFloat(ci.qty || 0);
+                                                                }
+                                                            });
+
+                                                            const temDesconto = originalValue > sellingPrice && sellingPrice > 0;
+                                                            const descontoPct = temDesconto ? ((originalValue - sellingPrice) / originalValue) * 100 : 0;
+
+                                                            return (
+                                                                <div key={combo.id} className={"glass-card rounded-[2rem] p-6 shadow-xl flex flex-col justify-between border-t-4 transition-all hover:shadow-2xl " + (combo.ignoreCMV ? "opacity-80 border-slate-400" : "border-amber-500")}>
+                                                                    <div>
+                                                                        <div className="flex justify-between items-center mb-3">
+                                                                            <span className={"px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border " + getRecipeCategoryStyle(category)}>{category}</span>
+                                                                            <div className="flex gap-1.5">
+                                                                                <button onClick={() => handleDuplicate('combos', combo, combos)} className="bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-800 p-1.5 rounded-lg"><Icon name="copy" size={14}/></button>
+                                                                                <button onClick={() => openComboModal(combo)} className="bg-slate-100 border border-slate-200 text-blue-500 hover:text-blue-700 p-1.5 rounded-lg"><Icon name="edit-2" size={14}/></button>
+                                                                                <button onClick={() => handleDelete('combos', combo.id, combos)} className="bg-slate-100 border border-slate-200 text-red-400 hover:text-red-600 p-1.5 rounded-lg"><Icon name="trash-2" size={14}/></button>
+                                                                            </div>
+                                                                        </div>
+                                                                        <h4 className="font-black text-lg text-slate-900 leading-tight mb-4">{combo.name}</h4>
+                                                                        
+                                                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2 mb-4 text-xs font-bold text-slate-700">
+                                                                            {combo.items.length === 0 ? <p className="text-slate-400 italic text-[10px]">Sem itens.</p> : combo.items.map((it, idx) => {
+                                                                                let name = 'Desconhecido';
+                                                                                if (it.type === 'recipe') { const r = recipes.find(x=>x.id===it.itemId); if(r) name = `🍔 ${r.name}`; }
+                                                                                if (it.type === 'complement') { const c = complements.find(x=>x.id===it.itemId); if(c) name = `🧩 ${c.name}`; }
+                                                                                if (it.type === 'ingredient') { const i = ingredients.find(x=>x.id===it.itemId); if(i) name = `📦 ${i.name}`; }
+                                                                                return <div key={idx} className="truncate">• {it.qty}x {name}</div>;
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="space-y-4 pt-4 mt-auto">
+                                                                        <div className="grid grid-cols-2 gap-3 text-center">
+                                                                            <div className="bg-white border shadow-sm p-3 rounded-xl flex flex-col justify-center">
+                                                                                <span className="text-[8px] text-slate-400 uppercase font-black tracking-widest leading-tight">Custo Combo</span>
+                                                                                <span className="text-base font-black text-slate-900 mt-1">{formatMoney(comboCost)}</span>
+                                                                            </div>
+                                                                            <div className={"border shadow-sm p-3 rounded-xl flex flex-col justify-center " + (combo.ignoreCMV ? "bg-slate-50 border-slate-200" : (parseFloat(cmv) > targetCmvPercent ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"))}>
+                                                                                <span className="text-[8px] text-slate-400 uppercase font-black tracking-widest leading-tight">CMV Real (%)</span>
+                                                                                <span className={"text-lg font-black mt-1 " + (combo.ignoreCMV ? "text-slate-500" : (parseFloat(cmv) > targetCmvPercent ? "text-red-600" : "text-green-600"))}>{cmv}%</span>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="space-y-1.5 text-xs border-t border-slate-200 pt-3">
+                                                                            {temDesconto && (
+                                                                                <div className="flex justify-between items-center mb-1">
+                                                                                    <span className="text-slate-400 font-bold text-[10px]">Soma Original Fichas:</span>
+                                                                                    <span className="text-slate-400 line-through">{formatMoney(originalValue)}</span>
+                                                                                </div>
+                                                                            )}
+                                                                            <div className="flex justify-between items-center font-bold">
+                                                                                <span className="text-slate-600">Preço Atual Combo:</span>
+                                                                                <div className="text-right">
+                                                                                    <span className="font-black text-slate-900 text-sm">{formatMoney(sellingPrice)}</span>
+                                                                                    {temDesconto && <span className="block text-[9px] text-green-600 uppercase bg-green-50 px-1 py-0.5 rounded mt-0.5">-{descontoPct.toFixed(1)}% OFF</span>}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ======================= MODAL DA FICHA TÉCNICA (RECEITA) ======================= */}
                         {isRecipeModalOpen && (
                             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                                 <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-6 scale-up-center">
@@ -752,27 +838,26 @@
                                     <div className="border-t pt-4">
                                         <div className="flex justify-between items-center mb-3">
                                             <label className="text-[10px] font-black uppercase text-slate-800">Composição (Ingredientes)</label>
-                                            <button type="button" onClick={addRecipeIngredient} className="text-[9px] font-black uppercase bg-[#1A202C] text-[#F8CC82] px-4 py-2 rounded-xl hover:bg-black flex items-center gap-1 shadow"><Icon name="plus" size={14}/> Adicionar Item</button>
+                                            <button type="button" onClick={() => setRecipeForm(p => ({...p, ingredients: [...p.ingredients, { ingredientId: '', qty: '' }]}))} className="text-[9px] font-black uppercase bg-[#1A202C] text-[#F8CC82] px-4 py-2 rounded-xl hover:bg-black flex items-center gap-1 shadow"><Icon name="plus" size={14}/> Adicionar Item</button>
                                         </div>
 
                                         <div className="space-y-2">
                                             {recipeForm.ingredients.length === 0 && <p className="text-center text-[10px] uppercase font-bold text-slate-400 py-6 bg-slate-50 rounded-2xl border border-dashed">Nenhum ingrediente adicionado.</p>}
                                             {recipeForm.ingredients.map((ingItem, idx) => (
                                                 <div key={idx} className="flex flex-col sm:flex-row items-center gap-2 bg-slate-50 p-2 rounded-xl border">
-                                                    <select className="w-full sm:flex-1 p-3 bg-white border rounded-lg font-bold text-[10px] outline-none" value={ingItem.ingredientId} onChange={e => updateRecipeIngredient(idx, 'ingredientId', e.target.value)}>
+                                                    <select className="w-full sm:flex-1 p-3 bg-white border rounded-lg font-bold text-[10px] outline-none" value={ingItem.ingredientId} onChange={e => { const newIngs = [...recipeForm.ingredients]; newIngs[idx].ingredientId = e.target.value; setRecipeForm({...recipeForm, ingredients: newIngs}); }}>
                                                         <option value="">-- Selecione o Insumo --</option>
                                                         {ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                                                     </select>
                                                     <div className="flex w-full sm:w-auto gap-2">
-                                                        <input type="number" step="0.001" placeholder="Qtd" className="w-full sm:w-24 p-3 bg-white border rounded-lg font-bold text-[10px] text-center outline-none" value={ingItem.qty} onChange={e => updateRecipeIngredient(idx, 'qty', e.target.value)} />
-                                                        <button type="button" onClick={() => removeRecipeIngredient(idx)} className="p-3 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 border border-red-100 shrink-0"><Icon name="trash-2" size={14}/></button>
+                                                        <input type="number" step="0.001" placeholder="Qtd" className="w-full sm:w-24 p-3 bg-white border rounded-lg font-bold text-[10px] text-center outline-none" value={ingItem.qty} onChange={e => { const newIngs = [...recipeForm.ingredients]; newIngs[idx].qty = e.target.value; setRecipeForm({...recipeForm, ingredients: newIngs}); }} />
+                                                        <button type="button" onClick={() => { const newIngs = [...recipeForm.ingredients]; newIngs.splice(idx, 1); setRecipeForm({...recipeForm, ingredients: newIngs}); }} className="p-3 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 border border-red-100 shrink-0"><Icon name="trash-2" size={14}/></button>
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
 
-                                    {/* Resumo ao vivo do custo do modal */}
                                     <div className="bg-slate-800 text-white p-5 rounded-3xl flex justify-between items-center shadow-inner mt-2">
                                         <div className="text-left">
                                             <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Custo Total de Produção</span>
@@ -794,16 +879,175 @@
                             </div>
                         )}
 
-                        {/* Modais Antigos de Manutenção */}
-                        {isIngModalOpen && activeTab === 'insumos' && (
-                            <div/>
+                        {/* ======================= MODAL DO COMPLEMENTO ======================= */}
+                        {isCompModalOpen && (
+                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                                <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-6 scale-up-center">
+                                    <div className="flex justify-between items-center border-b pb-3">
+                                        <h3 className="text-sm font-black uppercase text-slate-800">{compForm.id ? 'Editar Complemento' : 'Novo Complemento'}</h3>
+                                        <button onClick={()=>setIsCompModalOpen(false)} className="text-slate-400 hover:text-slate-800"><Icon name="x" size={20}/></button>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome do Complemento</label>
+                                            <input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-[#F27A18]" placeholder="Ex: Bacon Extra" value={compForm.name} onChange={e=>setCompForm({...compForm, name: e.target.value})} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço de Venda Praticado (R$)</label>
+                                            <input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-[#F27A18]" placeholder="Ex: 4.50" value={compForm.sellingPrice} onChange={e=>setCompForm({...compForm, sellingPrice: e.target.value})} />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria do Produto</label>
+                                        <select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={compForm.category} onChange={e=>setCompForm({...compForm, category: e.target.value})}>
+                                            {complementCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-4 rounded-2xl cursor-pointer hover:bg-slate-100 transition-colors">
+                                            <input type="checkbox" className="w-4 h-4 accent-[#F27A18]" checked={compForm.ignoreCMV} onChange={e=>setCompForm({...compForm, ignoreCMV: e.target.checked})} />
+                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Não considerar para o cálculo de CMV Geral (Ignorar)</span>
+                                        </label>
+                                    </div>
+
+                                    <div className="border-t pt-4">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <label className="text-[10px] font-black uppercase text-slate-800">Composição (Ingredientes)</label>
+                                            <button type="button" onClick={() => setCompForm(p => ({...p, ingredients: [...p.ingredients, { ingredientId: '', qty: '' }]}))} className="text-[9px] font-black uppercase bg-[#1A202C] text-[#F8CC82] px-4 py-2 rounded-xl hover:bg-black flex items-center gap-1 shadow"><Icon name="plus" size={14}/> Adicionar Item</button>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {compForm.ingredients.length === 0 && <p className="text-center text-[10px] uppercase font-bold text-slate-400 py-6 bg-slate-50 rounded-2xl border border-dashed">Nenhum ingrediente adicionado.</p>}
+                                            {compForm.ingredients.map((ingItem, idx) => (
+                                                <div key={idx} className="flex flex-col sm:flex-row items-center gap-2 bg-slate-50 p-2 rounded-xl border">
+                                                    <select className="w-full sm:flex-1 p-3 bg-white border rounded-lg font-bold text-[10px] outline-none" value={ingItem.ingredientId} onChange={e => { const newIngs = [...compForm.ingredients]; newIngs[idx].ingredientId = e.target.value; setCompForm({...compForm, ingredients: newIngs}); }}>
+                                                        <option value="">-- Selecione o Insumo --</option>
+                                                        {ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                                                    </select>
+                                                    <div className="flex w-full sm:w-auto gap-2">
+                                                        <input type="number" step="0.001" placeholder="Qtd" className="w-full sm:w-24 p-3 bg-white border rounded-lg font-bold text-[10px] text-center outline-none" value={ingItem.qty} onChange={e => { const newIngs = [...compForm.ingredients]; newIngs[idx].qty = e.target.value; setCompForm({...compForm, ingredients: newIngs}); }} />
+                                                        <button type="button" onClick={() => { const newIngs = [...compForm.ingredients]; newIngs.splice(idx, 1); setCompForm({...compForm, ingredients: newIngs}); }} className="p-3 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 border border-red-100 shrink-0"><Icon name="trash-2" size={14}/></button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-slate-800 text-white p-5 rounded-3xl flex justify-between items-center shadow-inner mt-2">
+                                        <div className="text-left">
+                                            <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Custo Total do Extra</span>
+                                            <span className="text-2xl font-black text-[#F8CC82]">{formatMoney(calculateItemCost(compForm.ingredients))}</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">CMV Estimado</span>
+                                            <span className={"text-2xl font-black " + ((compForm.sellingPrice && (calculateItemCost(compForm.ingredients) / compForm.sellingPrice)*100 > parseFloat(cmvSettings.targetCMV||30)) ? "text-red-400" : "text-emerald-400")}>
+                                                {compForm.sellingPrice > 0 ? ((calculateItemCost(compForm.ingredients) / compForm.sellingPrice) * 100).toFixed(1) : 0}%
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-2 mt-2 pt-4 border-t">
+                                        <button onClick={handleSaveComplement} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Gravar Complemento</button>
+                                        <button onClick={()=>setIsCompModalOpen(false)} className="px-8 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button>
+                                    </div>
+                                </div>
+                            </div>
                         )}
 
-                        {['combos', 'saldos', 'vendas', 'dre'].includes(activeTab) && (
+                        {/* ======================= MODAL DO COMBO ======================= */}
+                        {isComboModalOpen && (
+                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                                <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-6 scale-up-center">
+                                    <div className="flex justify-between items-center border-b pb-3">
+                                        <h3 className="text-sm font-black uppercase text-slate-800">{comboForm.id ? 'Editar Combo' : 'Novo Combo'}</h3>
+                                        <button onClick={()=>setIsComboModalOpen(false)} className="text-slate-400 hover:text-slate-800"><Icon name="x" size={20}/></button>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome do Combo</label>
+                                            <input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-[#F27A18]" placeholder="Ex: Combo Família" value={comboForm.name} onChange={e=>setComboForm({...comboForm, name: e.target.value})} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço de Venda do Combo (R$)</label>
+                                            <input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-[#F27A18]" placeholder="Ex: 50.00" value={comboForm.sellingPrice} onChange={e=>setComboForm({...comboForm, sellingPrice: e.target.value})} />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria do Produto</label>
+                                        <select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={comboForm.category} onChange={e=>setComboForm({...comboForm, category: e.target.value})}>
+                                            {comboCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-4 rounded-2xl cursor-pointer hover:bg-slate-100 transition-colors">
+                                            <input type="checkbox" className="w-4 h-4 accent-[#F27A18]" checked={comboForm.ignoreCMV} onChange={e=>setComboForm({...comboForm, ignoreCMV: e.target.checked})} />
+                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Não considerar para o cálculo de CMV Geral (Ignorar)</span>
+                                        </label>
+                                    </div>
+
+                                    <div className="border-t pt-4">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <label className="text-[10px] font-black uppercase text-slate-800">Itens do Combo</label>
+                                            <button type="button" onClick={() => setComboForm(p => ({...p, items: [...p.items, { type: 'recipe', itemId: '', qty: '' }]}))} className="text-[9px] font-black uppercase bg-[#1A202C] text-[#F8CC82] px-4 py-2 rounded-xl hover:bg-black flex items-center gap-1 shadow"><Icon name="plus" size={14}/> Adicionar Item</button>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {comboForm.items.length === 0 && <p className="text-center text-[10px] uppercase font-bold text-slate-400 py-6 bg-slate-50 rounded-2xl border border-dashed">Nenhum item adicionado.</p>}
+                                            {comboForm.items.map((comboItem, idx) => (
+                                                <div key={idx} className="flex flex-col md:flex-row items-center gap-2 bg-slate-50 p-2 rounded-xl border">
+                                                    <select className="w-full md:w-32 p-3 bg-white border rounded-lg font-bold text-[10px] outline-none" value={comboItem.type} onChange={e => { const newItems = [...comboForm.items]; newItems[idx].type = e.target.value; newItems[idx].itemId = ''; setComboForm({...comboForm, items: newItems}); }}>
+                                                        <option value="recipe">🍔 Ficha</option>
+                                                        <option value="complement">🧩 Comp.</option>
+                                                        <option value="ingredient">📦 Insumo</option>
+                                                    </select>
+                                                    <select className="w-full md:flex-1 p-3 bg-white border rounded-lg font-bold text-[10px] outline-none" value={comboItem.itemId} onChange={e => { const newItems = [...comboForm.items]; newItems[idx].itemId = e.target.value; setComboForm({...comboForm, items: newItems}); }}>
+                                                        <option value="">-- Escolher --</option>
+                                                        {comboItem.type === 'recipe' && recipes.sort((a,b)=>a.name.localeCompare(b.name)).map(i => <option key={i.id} value={i.id}>Ficha: {i.name}</option>)}
+                                                        {comboItem.type === 'complement' && complements.sort((a,b)=>a.name.localeCompare(b.name)).map(i => <option key={i.id} value={i.id}>Comp: {i.name}</option>)}
+                                                        {comboItem.type === 'ingredient' && ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(i => <option key={i.id} value={i.id}>Insumo: {i.name}</option>)}
+                                                    </select>
+                                                    <div className="flex w-full md:w-auto gap-2">
+                                                        <input type="number" step="0.001" placeholder="Qtd" className="w-full md:w-24 p-3 bg-white border rounded-lg font-bold text-[10px] text-center outline-none" value={comboItem.qty} onChange={e => { const newItems = [...comboForm.items]; newItems[idx].qty = e.target.value; setComboForm({...comboForm, items: newItems}); }} />
+                                                        <button type="button" onClick={() => { const newItems = [...comboForm.items]; newItems.splice(idx, 1); setComboForm({...comboForm, items: newItems}); }} className="p-3 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 border border-red-100 shrink-0"><Icon name="trash-2" size={14}/></button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-slate-800 text-white p-5 rounded-3xl flex justify-between items-center shadow-inner mt-2">
+                                        <div className="text-left">
+                                            <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Custo Somado do Combo</span>
+                                            <span className="text-2xl font-black text-[#F8CC82]">{formatMoney(calculateComboCost(comboForm.items))}</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">CMV Estimado do Combo</span>
+                                            <span className={"text-2xl font-black " + ((comboForm.sellingPrice && (calculateComboCost(comboForm.items) / comboForm.sellingPrice)*100 > parseFloat(cmvSettings.targetCMV||30)) ? "text-red-400" : "text-emerald-400")}>
+                                                {comboForm.sellingPrice > 0 ? ((calculateComboCost(comboForm.items) / comboForm.sellingPrice) * 100).toFixed(1) : 0}%
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-2 mt-2 pt-4 border-t">
+                                        <button onClick={handleSaveCombo} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Gravar Combo</button>
+                                        <button onClick={()=>setIsComboModalOpen(false)} className="px-8 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ======================= ABAS EM CONSTRUÇÃO ======================= */}
+                        {['saldos', 'vendas', 'dre'].includes(activeTab) && (
                             <div className="glass-card p-12 rounded-[3rem] text-center shadow-sm flex flex-col justify-center items-center gap-4">
                                 <Icon name="sprout" size={40} className="text-emerald-400" />
                                 <h2 className="text-xl font-black uppercase text-slate-800">Em Construção</h2>
-                                <p className="text-xs font-bold text-slate-500 uppercase">A aba <strong>{activeTab.toUpperCase()}</strong> será implementada na Etapa 3.</p>
+                                <p className="text-xs font-bold text-slate-500 uppercase">A aba <strong>{activeTab.toUpperCase()}</strong> será implementada na Etapa 4.</p>
                             </div>
                         )}
 
