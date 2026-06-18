@@ -21,8 +21,6 @@
         body, input:not([type="password"]), select, button, textarea, option, span, p, h1, h2, h3, h4, th, td { text-transform: uppercase !important; }
         input::placeholder, textarea::placeholder { text-transform: uppercase !important; }
         .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(226, 232, 240, 0.6); }
-        .tab-active { background-color: #1A202C; color: #F8CC82; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-        .tab-cmv-active { background-color: #F27A18; color: #000; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .fade-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -82,7 +80,7 @@
             'Utensils', 'Sprout', 'Edit', 'Edit2', 'Trash', 'Trash2', 'Plus', 'Check', 'Search', 
             'Bell', 'Calendar', 'CreditCard', 'TrendingUp', 'CheckSquare', 'PlusCircle', 
             'CalendarDays', 'ShoppingCart', 'CheckCircle', 'Lock', 'ShieldCheck', 'Copy', 'Download', 'CloudLightning',
-            'Target', 'TrendingDown', 'AlertTriangle', 'FileText', 'PieChart', 'Printer', 'Wallet', 'Star'
+            'Target', 'TrendingDown', 'AlertTriangle', 'FileText', 'PieChart', 'Printer', 'Wallet', 'Star', 'Menu', 'X'
         ];
         
         const IconComponents = {};
@@ -110,7 +108,7 @@
             Utensils, Sprout, Edit, Edit2, Trash, Trash2, Plus, Check, Search, Bell, Calendar, 
             CreditCard, TrendingUp, CheckSquare, PlusCircle, CalendarDays, ShoppingCart, 
             CheckCircle, Lock, ShieldCheck, Copy, Download, CloudLightning, Target, TrendingDown, AlertTriangle,
-            FileText, PieChart, Printer, Wallet, Star
+            FileText, PieChart, Printer, Wallet, Star, Menu, X
         } = IconComponents;
 
         const parseDateUTC = (dateStr) => {
@@ -152,6 +150,9 @@
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('fin_dashboard');
+            
+            // ===== ESTADO DO MENU LATERAL =====
+            const [isMenuOpen, setIsMenuOpen] = useState(false);
             
             // ================= ESTADOS GERAIS =================
             const [transactions, setTransactions] = useState([]);
@@ -238,7 +239,7 @@
             const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-            // ================= LOGICA FINANCEIRA COMPUTADA =================
+            // ================= LÓGICA FINANCEIRA COMPUTADA =================
             const filteredDashboard = useMemo(() => transactions.filter(t => {
                 if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
                 const { clearanceDate, billingMonth } = getTransactionDates(t, accounts.find(a => a.name === t.account));
@@ -543,6 +544,7 @@
 
             return (
                 <div className="min-h-screen flex flex-col fade-in">
+                    
                     {/* ================= MODAIS FINANCEIROS NA ROOT ================= */}
                     {liqModal && (
                         <div className="modal-overlay">
@@ -600,31 +602,63 @@
                     )}
 
                     {/* ================= HEADER ================= */}
-                    <header className="bg-[#1A202C] text-white p-4 sticky top-0 z-50 shadow-xl print:hidden">
-                        <div className="max-w-7xl mx-auto flex flex-col gap-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-[#F27A18] flex items-center justify-center font-black text-black text-lg shadow">TB</div>
-                                    <div><h1 className="text-lg font-black text-[#F8CC82] uppercase leading-none">ERP do Cantinho</h1><span className="text-[9px] font-black text-emerald-400 tracking-widest uppercase">Sistema Integrado Conectado</span></div>
+                    <header className="bg-[#1A202C] text-white p-4 sticky top-0 z-50 shadow-xl print:hidden flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <button onClick={() => setIsMenuOpen(true)} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-colors">
+                                <Menu size={20} />
+                            </button>
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-[#F27A18] flex items-center justify-center font-black text-black text-lg shadow">TB</div>
+                                <div className="hidden sm:block">
+                                    <h1 className="text-lg font-black text-[#F8CC82] uppercase leading-none">ERP do Cantinho</h1>
+                                    <span className="text-[9px] font-black text-emerald-400 tracking-widest uppercase">Sistema Integrado Conectado</span>
                                 </div>
-                                <button onClick={()=>auth.signOut()} className="text-[10px] font-black uppercase text-slate-400 hover:text-white">Sair</button>
                             </div>
-                            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-                                <div className="flex gap-1 bg-white/5 p-1.5 rounded-2xl border border-white/10 shrink-0">
-                                    <span className="flex items-center px-3 text-[9px] font-black uppercase text-slate-400 border-r border-white/10"><Wallet size={12} className="mr-1"/> Finanças</span>
+                        </div>
+                        <button onClick={()=>auth.signOut()} className="text-[10px] font-black uppercase text-slate-400 hover:text-white">Sair</button>
+                    </header>
+
+                    {/* ================= SIDEBAR MENU LATERAL ================= */}
+                    {isMenuOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] transition-opacity print:hidden" onClick={() => setIsMenuOpen(false)}></div>}
+
+                    <div className={`fixed inset-y-0 left-0 z-[95] w-72 bg-[#1A202C] shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col print:hidden ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black text-sm shadow">TB</div>
+                                <span className="font-black text-[#F8CC82] uppercase tracking-widest">Menu</span>
+                            </div>
+                            <button onClick={() => setIsMenuOpen(false)} className="text-slate-400 hover:text-white p-2 bg-white/5 rounded-lg"><X size={16}/></button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-6">
+                            {/* Grupo Financeiro */}
+                            <div>
+                                <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] mb-3 flex items-center gap-2 px-2"><Wallet size={12}/> Finanças</h3>
+                                <div className="flex flex-col gap-1">
                                     {['fin_dashboard', 'saldos', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'resultados', 'dre', 'relatorios', 'fornecedores'].map(t => (
-                                        <button key={t} onClick={()=>setActiveTab(t)} className={"px-3 py-2 text-[10px] font-black uppercase whitespace-nowrap transition-all " + (activeTab === t ? "tab-active" : "text-slate-400 hover:text-white")}>{t.replace('fin_', '').replace('_', ' ')}</button>
+                                        <button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-4 py-3 text-xs font-black uppercase transition-all rounded-xl " + (activeTab === t ? "bg-white/10 text-[#F8CC82] shadow-inner" : "text-slate-400 hover:text-white hover:bg-white/5")}>
+                                            {t.replace('fin_', '').replace('_', ' ')}
+                                        </button>
                                     ))}
                                 </div>
-                                <div className="flex gap-1 bg-white/5 p-1.5 rounded-2xl border border-white/10 shrink-0">
-                                    <span className="flex items-center px-3 text-[9px] font-black uppercase text-[#F27A18] border-r border-white/10"><PieChart size={12} className="mr-1"/> Custos & CMV</span>
+                            </div>
+
+                            {/* Grupo CMV */}
+                            <div>
+                                <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] mb-3 flex items-center gap-2 px-2"><PieChart size={12}/> Custos & CMV</h3>
+                                <div className="flex flex-col gap-1">
                                     {['cmv_dashboard', 'insumos', 'fichas', 'complementos', 'combos', 'analise', 'custos_fixos', 'ajustes'].map(t => (
-                                        <button key={t} onClick={()=>setActiveTab(t)} className={"px-3 py-2 text-[10px] font-black uppercase whitespace-nowrap transition-all " + (activeTab === t ? "tab-cmv-active" : "text-slate-400 hover:text-white")}>{t.replace('cmv_', '').replace('_', ' ')}</button>
+                                        <button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-4 py-3 text-xs font-black uppercase transition-all rounded-xl " + (activeTab === t ? "bg-[#F27A18] text-black shadow-md" : "text-slate-400 hover:text-white hover:bg-white/5")}>
+                                            {t.replace('cmv_', '').replace('_', ' ')}
+                                        </button>
                                     ))}
                                 </div>
                             </div>
                         </div>
-                    </header>
+                        <div className="p-6 border-t border-white/10 text-center">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-600">Tribo Burger v2.0</p>
+                        </div>
+                    </div>
 
                     <main className="p-4 max-w-7xl mx-auto w-full flex-1 space-y-6">
                         {/* MÊS GLOBAL */}
@@ -1024,8 +1058,8 @@
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-red-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-red-600 mb-6 flex items-center gap-2"><TrendingDown size={18}/> 3. Contas a Pagar (Provisão)</h3><h4 className="text-4xl font-black text-red-600 mb-3">{formatMoney(totalDespesasPendentes)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Soma de saídas pendentes e faturas de cartão.</p></div></div>
-                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-emerald-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-emerald-600 mb-6 flex items-center gap-2"><TrendingUp size={18}/> 4. Contas a Receber (Provisão)</h3><h4 className="text-4xl font-black text-emerald-600 mb-3">{formatMoney(totalReceitasPendentes)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar no caixa neste mês.</p></div></div>
+                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-red-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-red-600 mb-6 flex items-center gap-2"><TrendingDown size={18}/> 3. Contas a Pagar (Provisão)</h3><h4 className="text-4xl font-black text-red-600 mb-3">{formatMoney(consolidatedAPagar.reduce((acc, t)=>acc+t.amount,0))}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Soma de saídas pendentes e faturas de cartão.</p></div></div>
+                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-emerald-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-emerald-600 mb-6 flex items-center gap-2"><TrendingUp size={18}/> 4. Contas a Receber (Provisão)</h3><h4 className="text-4xl font-black text-emerald-600 mb-3">{formatMoney(transactions.filter(t=>t.type==='entrada'&&t.status==='pendente'&&getTransactionDates(t, accounts.find(a=>a.name===t.account)).clearanceDate?.startsWith(filterMonth)).reduce((acc,t)=>acc+p(t.amount),0))}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar no caixa neste mês.</p></div></div>
                                 </div>
                                 <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-orange-500">
                                     <div className="flex justify-between items-center mb-6"><h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2"><PieChart size={18}/> 5. Composição de Custos por Categoria</h3></div>
@@ -1380,107 +1414,4 @@
                                     <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.category} onChange={e=>setIngForm({...ingForm, category: e.target.value})}>{ingCats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço Pacote (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.cost} onChange={e=>setIngForm({...ingForm, cost: e.target.value})} /></div>
-                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Unidade</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.unit} onChange={e=>setIngForm({...ingForm, unit: e.target.value})}><option value="kg">Quilo (kg)</option><option value="g">Grama (g)</option><option value="L">Litro (L)</option><option value="ml">Mililitro (ml)</option><option value="un">Unidade (un)</option></select></div>
-                                    </div>
-                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Quantidade Total na Embalagem</label><input type="number" step="0.001" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.qty} onChange={e=>setIngForm({...ingForm, qty: e.target.value})} /></div>
-                                    <div className="flex gap-2 mt-4"><button onClick={()=>crudActionCMV('ingredients', ingredients, ingForm, setIsIngModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Gravar Insumo</button><button onClick={()=>setIsIngModalOpen(false)} className="px-6 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button></div>
-                                </div>
-                            </div>
-                        )}
-
-                        {(isRecipeModalOpen || isCompModalOpen) && (() => {
-                            const isRec = isRecipeModalOpen; const formObj = isRec ? recipeForm : compForm; const setFormObj = isRec ? setRecipeForm : setCompForm;
-                            const catList = isRec ? recCats : compCats; const title = formObj.id ? `Editar ${isRec?'Ficha':'Complemento'}` : `Novo ${isRec?'Ficha':'Complemento'}`;
-                            const cost = calcItemCost(formObj.ingredients); const sp = p(formObj.sellingPrice); const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
-                            return (
-                                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                                    <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-6 scale-up-center">
-                                        <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3">{title}</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={formObj.name} onChange={e=>setFormObj({...formObj, name: e.target.value})} /></div>
-                                            <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço Venda (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={formObj.sellingPrice} onChange={e=>setFormObj({...formObj, sellingPrice: e.target.value})} /></div>
-                                        </div>
-                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={formObj.category} onChange={e=>setFormObj({...formObj, category: e.target.value})}>{catList.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-                                        <div><label className="flex items-center gap-3 bg-slate-50 border p-4 rounded-2xl cursor-pointer"><input type="checkbox" className="w-4 h-4 accent-[#F27A18]" checked={formObj.ignoreCMV} onChange={e=>setFormObj({...formObj, ignoreCMV: e.target.checked})} /><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ignorar no cálculo do CMV Médio Geral</span></label></div>
-                                        <div className="border-t pt-4">
-                                            <div className="flex justify-between items-center mb-3"><label className="text-[10px] font-black uppercase text-slate-800">Receituário</label><button onClick={()=>setFormObj({...formObj, ingredients: [...formObj.ingredients, {ingredientId:'', qty:''}]})} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl text-[9px] font-black uppercase">Add Insumo</button></div>
-                                            <div className="space-y-2">
-                                                {formObj.ingredients.map((ingItem, idx) => (
-                                                    <div key={idx} className="flex gap-2 bg-slate-50 p-2 rounded-xl border">
-                                                        <select className="flex-1 p-3 bg-white border rounded-lg font-bold text-[10px]" value={ingItem.ingredientId} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].ingredientId=e.target.value; setFormObj({...formObj, ingredients: arr});}}><option value="">Selecione...</option>{ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select>
-                                                        <input type="number" step="0.001" placeholder="Qtd" className="w-24 p-3 bg-white border rounded-lg font-bold text-[10px] text-center" value={ingItem.qty} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].qty=e.target.value; setFormObj({...formObj, ingredients: arr});}} />
-                                                        <button onClick={()=>{const arr=[...formObj.ingredients]; arr.splice(idx,1); setFormObj({...formObj, ingredients: arr});}} className="bg-red-50 text-red-500 p-3 rounded-lg"><Icon name="trash-2" size={14}/></button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className="bg-[#1A202C] text-white p-5 rounded-3xl flex justify-between items-center shadow-inner mt-2">
-                                            <div><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Custo Insumos</span><span className="text-2xl font-black text-[#F8CC82]">{formatMoney(cost)}</span></div>
-                                            <div className="text-right"><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">CMV Estimado</span><span className={"text-2xl font-black " + (cmv > cmvSettings.targetCMV ? "text-red-400" : "text-emerald-400")}>{cmv}%</span></div>
-                                        </div>
-                                        <div className="flex gap-2 mt-2 pt-4 border-t">
-                                            <button onClick={()=>crudActionCMV(isRec?'recipes':'complements', isRec?recipes:complements, formObj, isRec?setIsRecipeModalOpen:setIsCompModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Salvar</button>
-                                            <button onClick={()=>isRec?setIsRecipeModalOpen(false):setIsCompModalOpen(false)} className="px-8 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-
-                        {isComboModalOpen && (
-                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                                <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-6 scale-up-center">
-                                    <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3">{comboForm.id ? 'Editar Combo' : 'Novo Combo'}</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome Combo</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={comboForm.name} onChange={e=>setComboForm({...comboForm, name: e.target.value})} /></div>
-                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço Venda (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={comboForm.sellingPrice} onChange={e=>setComboForm({...comboForm, sellingPrice: e.target.value})} /></div>
-                                    </div>
-                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={comboForm.category} onChange={e=>setComboForm({...comboForm, category: e.target.value})}>{comboCats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-                                    <div className="border-t pt-4">
-                                        <div className="flex justify-between items-center mb-3"><label className="text-[10px] font-black uppercase text-slate-800">Itens do Combo</label><button onClick={()=>setComboForm({...comboForm, items: [...comboForm.items, {type:'recipe', itemId:'', qty:''}]})} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl text-[9px] font-black uppercase">Add Item</button></div>
-                                        <div className="space-y-2">
-                                            {comboForm.items.map((item, idx) => (
-                                                <div key={idx} className="flex gap-2 bg-slate-50 p-2 rounded-xl border">
-                                                    <select className="w-28 p-3 bg-white border rounded-lg font-bold text-[10px]" value={item.type} onChange={e=>{const arr=[...comboForm.items]; arr[idx].type=e.target.value; arr[idx].itemId=''; setComboForm({...comboForm, items: arr});}}><option value="recipe">Ficha</option><option value="complement">Extra</option><option value="ingredient">Insumo</option></select>
-                                                    <select className="flex-1 p-3 bg-white border rounded-lg font-bold text-[10px]" value={item.itemId} onChange={e=>{const arr=[...comboForm.items]; arr[idx].itemId=e.target.value; setComboForm({...comboForm, items: arr});}}><option value="">Selecionar...</option>
-                                                        {item.type==='recipe' && recipes.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
-                                                        {item.type==='complement' && complements.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                                                        {item.type==='ingredient' && ingredients.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
-                                                    </select>
-                                                    <input type="number" step="0.001" placeholder="Qtd" className="w-20 p-3 bg-white border rounded-lg font-bold text-[10px] text-center" value={item.qty} onChange={e=>{const arr=[...comboForm.items]; arr[idx].qty=e.target.value; setComboForm({...comboForm, items: arr});}} />
-                                                    <button onClick={()=>{const arr=[...comboForm.items]; arr.splice(idx,1); setComboForm({...comboForm, items: arr});}} className="bg-red-50 text-red-500 p-3 rounded-lg"><Icon name="trash-2" size={14}/></button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="bg-[#1A202C] text-white p-5 rounded-3xl flex justify-between items-center shadow-inner mt-2">
-                                        <div><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Custo Combo</span><span className="text-2xl font-black text-[#F8CC82]">{formatMoney(calcComboCost(comboForm.items))}</span></div>
-                                        <div className="text-right"><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">CMV Estimado</span><span className={"text-2xl font-black " + ((p(comboForm.sellingPrice)>0 && (calcComboCost(comboForm.items)/p(comboForm.sellingPrice))*100 > cmvSettings.targetCMV) ? "text-red-400" : "text-emerald-400")}>{p(comboForm.sellingPrice)>0 ? ((calcComboCost(comboForm.items)/p(comboForm.sellingPrice))*100).toFixed(1) : 0}%</span></div>
-                                    </div>
-                                    <div className="flex gap-2 mt-2 pt-4 border-t"><button onClick={()=>crudActionCMV('combos', combos, comboForm, setIsComboModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Salvar</button><button onClick={()=>setIsComboModalOpen(false)} className="px-8 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button></div>
-                                </div>
-                            </div>
-                        )}
-
-                        {isFcModalOpen && (
-                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                                <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-4 scale-up-center">
-                                    <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3 mb-2">{fcForm.id ? 'Editar Custo Fixo' : 'Novo Custo Fixo'}</h3>
-                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Descrição</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={fcForm.description} onChange={e=>setFcForm({...fcForm, description: e.target.value})} /></div>
-                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={fcForm.category} onChange={e=>setFcForm({...fcForm, category: e.target.value})}>{fcCats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Valor Mensal (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={fcForm.value} onChange={e=>setFcForm({...fcForm, value: e.target.value})} /></div>
-                                    <div className="flex gap-2 mt-4"><button onClick={()=>crudActionCMV('fixedCosts', fixedCosts, fcForm, setIsFcModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Gravar</button><button onClick={()=>setIsFcModalOpen(false)} className="px-6 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button></div>
-                                </div>
-                            </div>
-                        )}
-
-                    </main>
-                </div>
-            );
-        }
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Unidade</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.unit} onChange={e=>setIngForm({...ingForm, unit: e.target.value})}><option value="kg">Quilo (kg)</option><option value="g">Grama (g)</option><option value="L">
