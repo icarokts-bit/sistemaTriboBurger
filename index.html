@@ -11,7 +11,6 @@
     <script src="https://unpkg.com/@babel/standalone@7.21.0/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <!-- Firebase Compat V10 -->
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
@@ -204,7 +203,7 @@
             const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-            // ================= LOGICA FINANCEIRA COMPUTADA =================
+            // ================= LÓGICA FINANCEIRA COMPUTADA =================
             const filteredDashboard = useMemo(() => transactions.filter(t => {
                 if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
                 const { clearanceDate, billingMonth } = getTransactionDates(t, accounts.find(a => a.name === t.account));
@@ -226,6 +225,8 @@
                 });
                 return bal;
             }, [transactions, accounts]);
+
+            const totalPatrimony = useMemo(() => accounts.filter(a => a.type === 'corrente').reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0), [accounts, accountBalances]);
 
             const stats = useMemo(() => {
                 let rb = 0; let custos = 0; let catCosts = {}; let diasAtivos = 0; let totalPedidos = 0;
@@ -311,6 +312,47 @@
                     rb, totalCosts: operCosts + custos, lucro: lucroDRE, catCosts, diasAtivos, totalPedidos, ticketDiario: diasAtivos > 0 ? rb / diasAtivos : 0, ticketPedido: totalPedidos > 0 ? rb / totalPedidos : 0, entradas, contasPagas, lucroCaixa, projecaoMensal, metaDiaria, margemDRE: rb > 0 ? (lucroDRE / rb) * 100 : 0, margemCaixa: entradas > 0 ? (lucroCaixa / entradas) * 100 : 0, weeklyCurrent, weeklyPrev, weekdayAverages, diasUteisRestantes: Math.max(0, diasUteisTotaisMes - diasUteisPassados)
                 };
             }, [dailyRecords, transactions, filterMonth, metaVendas, accounts]);
+
+            // ================= COMPUTAÇÃO DE TOTAIS DA ABA VENDAS =================
+            const columnTotals = useMemo(() => {
+                const days = Object.keys(dailyRecords).filter(d => d.startsWith(filterMonth));
+                const totals = { totalDia: 0, pedidos: 0, pix: 0, pixOnline: 0, fiado: 0, dinheiro: 0, ifood: 0, debito: 0, credito: 0, vr: 0, ticket: 0, alelo: 0, taxaEntrega: 0, motoboy: 0 };
+                days.forEach(d => {
+                    const r = dailyRecords[d] || {};
+                    totals.totalDia += ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
+                    totals.pedidos += p(r.qtdPedidos);
+                    ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].forEach(f => { totals[f] += p(r[f]); });
+                    totals.taxaEntrega += p(r.taxaEntrega); totals.motoboy += p(r.motoboy);
+                });
+                totals.ticketMedio = totals.pedidos > 0 ? totals.totalDia / totals.pedidos : 0;
+                return totals;
+            }, [dailyRecords, filterMonth]);
+
+            // ================= COMPUTAÇÃO DE TOTAIS RELATÓRIOS BLINDADA =================
+            const totalDespesasPendentes = useMemo(() => {
+                const pendings = transactions.filter(t => t.type === 'saida' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao');
+                const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
+                    const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
+                    const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                    const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                    return totalPurchases - totalPaid;
+                }).filter(val => val > 0.01);
+                
+                const sumPendings = pendings.reduce((acc, t) => acc + p(t.amount), 0);
+                const sumInvoices = invoices.reduce((acc, val) => acc + val, 0);
+                return sumPendings + sumInvoices;
+            }, [transactions, accounts, filterMonth]);
+
+            const totalReceitasPendentes = useMemo(() => {
+                return transactions.filter(t => {
+                    if (t.type !== 'entrada' || t.status !== 'pendente') return false;
+                    const accInfo = accounts.find(a => a.name === t.account);
+                    const dates = getTransactionDates(t, accInfo);
+                    return dates.clearanceDate && dates.clearanceDate.startsWith(filterMonth);
+                }).reduce((acc, t) => acc + p(t.amount), 0);
+            }, [transactions, accounts, filterMonth]);
+
+            const somaDespesasCategoria = useMemo(() => Object.values(stats.catCosts).reduce((a, b) => a + b, 0), [stats.catCosts]);
 
             const consolidatedAPagar = useMemo(() => {
                 const pendings = transactions.filter(t => t.type === 'saida' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao');
@@ -899,15 +941,15 @@
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-red-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-red-600 mb-6 flex items-center gap-2"><Icon name="trending-down" size={18}/> 3. Contas a Pagar (Provisão)</h3><h4 className="text-4xl font-black text-red-600 mb-3">{formatMoney(consolidatedAPagar.reduce((acc, t)=>acc+t.amount,0))}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Soma de saídas pendentes e faturas de cartão.</p></div></div>
-                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-emerald-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-emerald-600 mb-6 flex items-center gap-2"><Icon name="trending-up" size={18}/> 4. Contas a Receber (Provisão)</h3><h4 className="text-4xl font-black text-emerald-600 mb-3">{formatMoney(transactions.filter(t=>t.type==='entrada'&&t.status==='pendente'&&getTransactionDates(t, accounts.find(a=>a.name===t.account)).clearanceDate?.startsWith(filterMonth)).reduce((acc,t)=>acc+p(t.amount),0))}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar no caixa neste mês.</p></div></div>
+                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-red-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-red-600 mb-6 flex items-center gap-2"><Icon name="trending-down" size={18}/> 3. Contas a Pagar (Provisão)</h3><h4 className="text-4xl font-black text-red-600 mb-3">{formatMoney(totalDespesasPendentes)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Soma de saídas pendentes e faturas de cartão.</p></div></div>
+                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-emerald-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-emerald-600 mb-6 flex items-center gap-2"><Icon name="trending-up" size={18}/> 4. Contas a Receber (Provisão)</h3><h4 className="text-4xl font-black text-emerald-600 mb-3">{formatMoney(totalReceitasPendentes)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar no caixa neste mês.</p></div></div>
                                 </div>
                                 <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-orange-500">
                                     <div className="flex justify-between items-center mb-6"><h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2"><Icon name="pie-chart" size={18}/> 5. Composição de Custos por Categoria</h3></div>
                                     {Object.keys(stats.catCosts).length === 0 ? <p className="text-[10px] text-slate-400 font-black uppercase text-center py-6">Nenhuma despesa.</p> : (
                                         <div className="space-y-5 bg-white/40 p-6 rounded-[2rem] border">
                                             {Object.entries(stats.catCosts).sort((a,b)=>b[1]-a[1]).map(([catName, valor]) => {
-                                                const pct = Object.values(stats.catCosts).reduce((a,b)=>a+b,0) > 0 ? (valor / Object.values(stats.catCosts).reduce((a,b)=>a+b,0)) * 100 : 0;
+                                                const pct = somaDespesasCategoria > 0 ? (valor / somaDespesasCategoria) * 100 : 0;
                                                 return <div key={catName} className="flex flex-col gap-2"><div className="flex justify-between items-end"><div className="flex items-center gap-2"><span className="text-xs font-black uppercase text-slate-700">{catName}</span><span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[8px] font-black">{pct.toFixed(1)}%</span></div><span className="text-red-500 font-black text-sm">{formatMoney(valor)}</span></div><div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner"><div className="h-full bg-orange-400 rounded-full" style={{ width: `${pct}%` }}></div></div></div>;
                                             })}
                                         </div>
@@ -1202,7 +1244,7 @@
                                              <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Impostos (%)</label><input type="number" step="0.1" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-black" value={cmvSettings.tax} onChange={e=>setCmvSettings({...cmvSettings, tax: e.target.value})} /></div>
                                              <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Cartões (%)</label><input type="number" step="0.1" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-black" value={cmvSettings.card} onChange={e=>setCmvSettings({...cmvSettings, card: e.target.value})} /></div>
                                              <div className="space-y-1"><label className="text-[9px] font-black uppercase text-red-500 ml-1">Taxa iFood (%)</label><input type="number" step="0.1" className="w-full p-4 bg-red-50/30 border border-red-100 rounded-2xl font-bold text-xs text-red-600 outline-none focus:border-red-500" value={cmvSettings.ifoodTax} onChange={e=>setCmvSettings({...cmvSettings, ifoodTax: e.target.value})} /></div>
-                                             <div className="col-span-2 space-y-1"><label className="text-[9px] font-black uppercase text-blue-500 ml-1">Meta Vendas Mensal (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-blue-50 border border-blue-100 rounded-2xl font-bold text-xs outline-none focus:border-blue-500" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} /></div>
+                                             <div className="space-y-1"><label className="text-[9px] font-black uppercase text-blue-500 ml-1">Meta Vendas Mensal (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-blue-50 border border-blue-100 rounded-2xl font-bold text-xs outline-none focus:border-blue-500" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} /></div>
                                          </div>
                                          <button onClick={async()=>{if(!user)return; await saveCMVDoc('settings', {...cmvSettings, targetCMV:p(cmvSettings.targetCMV), tax:p(cmvSettings.tax), apps:p(cmvSettings.apps), card:p(cmvSettings.card), ifoodTax:p(cmvSettings.ifoodTax)}); await saveMeta(metaVendas); alert('Parâmetros Guardados!');}} className="w-full bg-[#1A202C] text-[#F8CC82] p-4 rounded-2xl font-black uppercase text-[10px] shadow-lg hover:bg-black transition-all">Salvar Parâmetros Gerais</button>
                                      </div>
