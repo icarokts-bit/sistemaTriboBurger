@@ -21,9 +21,11 @@
         body, input:not([type="password"]), select, button, textarea, option, span, p, h1, h2, h3, h4, th, td { text-transform: uppercase !important; }
         input::placeholder, textarea::placeholder { text-transform: uppercase !important; }
         .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(226, 232, 240, 0.6); }
+        .tab-active { background-color: #1A202C; color: #F8CC82; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .tab-cmv-active { background-color: #F27A18; color: #000; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .fade-in { animation: fadeIn 0.4s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         
         .btn-primary { background-color: #000; color: #F8CC82; font-weight: 900; text-transform: uppercase; transition: all 0.2s; }
         .btn-accent { background-color: #F27A18; color: #000; font-weight: 900; text-transform: uppercase; transition: all 0.2s; }
@@ -36,7 +38,7 @@
 
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem; }
         .scale-up-center { animation: scale-up-center 0.2s cubic-bezier(0.390, 0.575, 0.565, 1.000) both; }
-        @keyframes scale-up-center { 0% { transform: scale(0.5); } 100% { transform: scale(1); } }
+        @keyframes scale-up-center { 0% { transform: scale(0.95); } 100% { transform: scale(1); } }
 
         @media print {
             body { background-color: white !important; color: black !important; }
@@ -50,7 +52,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo, useRef } = React;
+        const { useState, useEffect, useMemo, useRef, memo } = React;
 
         const firebaseConfig = {
             apiKey: "AIzaSyCL0o0TQYbPXoo7Yo_qJpc1oa7jib8KBcc",
@@ -65,7 +67,8 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        const Icon = ({ name, size = 20, className = "" }) => {
+        // 🚀 OTIMIZAÇÃO 1: Ícones em Cache (Não pesam mais a cada clique)
+        const Icon = memo(({ name, size = 20, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
                 if (window.lucide && containerRef.current) {
@@ -74,42 +77,23 @@
                 }
             }, [name, size, className]);
             return <span ref={containerRef} className="inline-flex items-center justify-center"></span>;
-        };
-
-        const safeIcons = [
-            'Utensils', 'Sprout', 'Edit', 'Edit2', 'Trash', 'Trash2', 'Plus', 'Check', 'Search', 
-            'Bell', 'Calendar', 'CreditCard', 'TrendingUp', 'CheckSquare', 'PlusCircle', 
-            'CalendarDays', 'ShoppingCart', 'CheckCircle', 'Lock', 'ShieldCheck', 'Copy', 'Download', 'CloudLightning',
-            'Target', 'TrendingDown', 'AlertTriangle', 'FileText', 'PieChart', 'Printer', 'Wallet', 'Star', 'Menu', 'X'
-        ];
-        
-        const IconComponents = {};
-        safeIcons.forEach(iconName => {
-            const normalized = iconName.toLowerCase()
-                .replace('2', '-2')
-                .replace('square', '-square')
-                .replace('circle', '-circle')
-                .replace('days', '-days')
-                .replace('card', '-card')
-                .replace('up', '-up')
-                .replace('down', '-down')
-                .replace('check', '-check')
-                .replace('lightning', '-lightning')
-                .replace('triangle', '-triangle')
-                .replace('text', '-text')
-                .replace('chart', '-chart');
-                
-            IconComponents[iconName] = (props) => (
-                <Icon name={normalized} size={props.size || 20} className={props.className || ""} />
-            );
         });
 
-        const { 
-            Utensils, Sprout, Edit, Edit2, Trash, Trash2, Plus, Check, Search, Bell, Calendar, 
-            CreditCard, TrendingUp, CheckSquare, PlusCircle, CalendarDays, ShoppingCart, 
-            CheckCircle, Lock, ShieldCheck, Copy, Download, CloudLightning, Target, TrendingDown, AlertTriangle,
-            FileText, PieChart, Printer, Wallet, Star, Menu, X
-        } = IconComponents;
+        // 🚀 OTIMIZAÇÃO 2: Células de Digitação Ultra Rápidas (Aba Vendas)
+        // Só comunica com o Firebase quando o usuário clica fora (onBlur), mantendo a digitação sem atrasos.
+        const DailyInput = memo(({ dateStr, field, initialValue, activeUid, className, placeholder }) => {
+            const [val, setVal] = useState(initialValue || '');
+            
+            useEffect(() => { setVal(initialValue || ''); }, [initialValue]);
+            
+            const handleBlur = () => {
+                if (val !== (initialValue || '')) {
+                    db.collection(`artifacts/tribo-burger-financeiro/users/${activeUid}/dailyRecords`).doc(dateStr).set({[field]: val}, {merge:true});
+                }
+            };
+
+            return <input className={`table-input ${className || ''}`} value={val} onChange={e=>setVal(e.target.value)} onBlur={handleBlur} placeholder={placeholder || "0,00"} />;
+        });
 
         const parseDateUTC = (dateStr) => {
             if (!dateStr || dateStr.includes('NaN')) return new Date();
@@ -166,11 +150,9 @@
             const [searchQuery, setSearchQuery] = useState('');
             const [typeFilter, setTypeFilter] = useState('todos');
             
-            // Formulários Financeiros
             const [txForm, setTxForm] = useState({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1 });
             const [newDayDate, setNewDayDate] = useState(new Date().toISOString().split('T')[0]);
             
-            // Modais e Cadastros Financeiros
             const [supForm, setSupForm] = useState('');
             const [catForm, setCatForm] = useState('');
             const [accForm, setAccForm] = useState({ name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' });
@@ -187,7 +169,7 @@
             const [complements, setComplements] = useState([]);
             const [combos, setCombos] = useState([]);
             const [fixedCosts, setFixedCosts] = useState([]);
-            const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12, baseRevenue: 0, targetRevenue: 0 });
+            const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12 });
             
             const [ingCats, setIngCats] = useState(['Proteínas', 'Pães', 'Queijos', 'Molhos', 'Vegetais/Hortifrúti', 'Embalagens', 'Outros']);
             const [recCats, setRecCats] = useState(['Hambúrgueres', 'Acompanhamentos', 'Bebidas', 'Sobremesas', 'Molhos Caseiros', 'Outros', 'Smash']);
@@ -226,7 +208,7 @@
                     if(s.exists) {
                         const d = s.data();
                         setIngredients(d.ingredients || []); setRecipes(d.recipes || []); setComplements(d.complements || []); setCombos(d.combos || []); setFixedCosts(d.fixedCosts || []);
-                        setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12, baseRevenue: 0, targetRevenue: 0 });
+                        setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12 });
                         if(d.ingredientCategories) setIngCats(d.ingredientCategories); if(d.recipeCategories) setRecCats(d.recipeCategories);
                         if(d.complementCategories) setCompCats(d.complementCategories); if(d.comboCategories) setComboCats(d.comboCategories);
                         if(d.fixedCostCategories) setFcCats(d.fixedCostCategories);
@@ -239,7 +221,7 @@
             const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-            // ================= LÓGICA FINANCEIRA COMPUTADA =================
+            // ================= LOGICA FINANCEIRA COMPUTADA =================
             const filteredDashboard = useMemo(() => transactions.filter(t => {
                 if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
                 const { clearanceDate, billingMonth } = getTransactionDates(t, accounts.find(a => a.name === t.account));
@@ -265,6 +247,11 @@
             const totalPatrimony = useMemo(() => accounts.filter(a => a.type === 'corrente').reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0), [accounts, accountBalances]);
 
             const stats = useMemo(() => {
+                if (!['vendas', 'dre', 'resultados', 'relatorios', 'analise'].includes(activeTab)) {
+                    // Otimização: Se não estiver numa aba que exige todos os cálculos complexos de data, devolve vazio.
+                    // Mas o painel Resultados e Analise precisam do stats.rb.
+                }
+
                 let rb = 0; let custos = 0; let catCosts = {}; let diasAtivos = 0; let totalPedidos = 0;
                 let entradas = 0; let contasPagas = 0;
 
@@ -347,9 +334,8 @@
                 return { 
                     rb, totalCosts: operCosts + custos, lucro: lucroDRE, catCosts, diasAtivos, totalPedidos, ticketDiario: diasAtivos > 0 ? rb / diasAtivos : 0, ticketPedido: totalPedidos > 0 ? rb / totalPedidos : 0, entradas, contasPagas, lucroCaixa, projecaoMensal, metaDiaria, margemDRE: rb > 0 ? (lucroDRE / rb) * 100 : 0, margemCaixa: entradas > 0 ? (lucroCaixa / entradas) * 100 : 0, weeklyCurrent, weeklyPrev, weekdayAverages, diasUteisRestantes: Math.max(0, diasUteisTotaisMes - diasUteisPassados)
                 };
-            }, [dailyRecords, transactions, filterMonth, metaVendas, accounts]);
+            }, [dailyRecords, transactions, filterMonth, metaVendas, accounts, activeTab]);
 
-            // ================= COMPUTAÇÃO DE TOTAIS DA ABA VENDAS =================
             const columnTotals = useMemo(() => {
                 const days = Object.keys(dailyRecords).filter(d => d.startsWith(filterMonth));
                 const totals = { totalDia: 0, pedidos: 0, pix: 0, pixOnline: 0, fiado: 0, dinheiro: 0, ifood: 0, debito: 0, credito: 0, vr: 0, ticket: 0, alelo: 0, taxaEntrega: 0, motoboy: 0 };
@@ -364,7 +350,6 @@
                 return totals;
             }, [dailyRecords, filterMonth]);
 
-            // ================= COMPUTAÇÃO DE TOTAIS RELATÓRIOS BLINDADA =================
             const totalDespesasPendentes = useMemo(() => {
                 const pendings = transactions.filter(t => t.type === 'saida' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao');
                 const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
@@ -544,7 +529,6 @@
 
             return (
                 <div className="min-h-screen flex flex-col fade-in">
-                    
                     {/* ================= MODAIS FINANCEIROS NA ROOT ================= */}
                     {liqModal && (
                         <div className="modal-overlay">
@@ -601,7 +585,7 @@
                         </div>
                     )}
 
-                    {/* ================= HEADER ================= */}
+                    {/* ================= HEADER SUPERIOR (COM MENU HAMBÚRGUER) ================= */}
                     <header className="bg-[#1A202C] text-white p-4 sticky top-0 z-50 shadow-xl print:hidden flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <button onClick={() => setIsMenuOpen(true)} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-colors">
@@ -618,14 +602,14 @@
                         <button onClick={()=>auth.signOut()} className="text-[10px] font-black uppercase text-slate-400 hover:text-white">Sair</button>
                     </header>
 
-                    {/* ================= SIDEBAR MENU LATERAL ================= */}
+                    {/* ================= SIDEBAR (MENU LATERAL) ================= */}
                     {isMenuOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] transition-opacity print:hidden" onClick={() => setIsMenuOpen(false)}></div>}
 
                     <div className={`fixed inset-y-0 left-0 z-[95] w-72 bg-[#1A202C] shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col print:hidden ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                         <div className="p-6 border-b border-white/10 flex justify-between items-center">
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black text-sm shadow">TB</div>
-                                <span className="font-black text-[#F8CC82] uppercase tracking-widest">Menu</span>
+                                <span className="font-black text-[#F8CC82] uppercase tracking-widest">Menu Principal</span>
                             </div>
                             <button onClick={() => setIsMenuOpen(false)} className="text-slate-400 hover:text-white p-2 bg-white/5 rounded-lg"><X size={16}/></button>
                         </div>
@@ -745,7 +729,6 @@
                                         <h3 className="text-5xl font-black drop-shadow-xl">{formatMoney(currentAccounts.reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0))}</h3>
                                     </div>
 
-                                    {/* Destaques Principais */}
                                     {highlighted.length > 0 && (
                                         <div className="space-y-4">
                                             <h2 className="text-sm font-black uppercase text-slate-800 border-b-2 pb-2 flex items-center gap-2"><Star size={18} className="text-[#D97757]" /> Contas Principais</h2>
@@ -760,7 +743,6 @@
                                         </div>
                                     )}
 
-                                    {/* Fundos e Aplicações */}
                                     {funds.length > 0 && (
                                         <div className="space-y-4">
                                             <h2 className="text-sm font-black uppercase text-slate-800 border-b-2 pb-2 flex items-center gap-2"><TrendingUp size={18} className="text-emerald-600" /> Fundos & Aplicações</h2>
@@ -775,7 +757,6 @@
                                         </div>
                                     )}
 
-                                    {/* Outras Contas */}
                                     {others.length > 0 && (
                                         <div className="space-y-4">
                                             <h2 className="text-sm font-black uppercase text-slate-800 border-b-2 pb-2 flex items-center gap-2"><Wallet size={18} className="text-slate-500" /> Outras Contas Operacionais</h2>
@@ -824,11 +805,11 @@
                                                     <tr key={d} className="hover:bg-slate-50 h-12">
                                                         <td className="p-0 border-r bg-white sticky left-0">{d.split('-').reverse().join('/')}</td>
                                                         <td className="p-4 bg-yellow-50 font-black">{formatMoney(total)}</td>
-                                                        <td className="p-0 border-r bg-blue-50/30"><input className="table-input" value={r.qtdPedidos||''} onChange={e=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(d).set({qtdPedidos:e.target.value},{merge:true})} /></td>
+                                                        <td className="p-0 border-r bg-blue-50/30"><DailyInput dateStr={d} field="qtdPedidos" initialValue={r.qtdPedidos} activeUid={user.uid} className="!text-blue-700" placeholder="0" /></td>
                                                         <td className="p-4 bg-blue-50/50 font-black text-blue-900">{formatMoney(p(r.qtdPedidos) > 0 ? total / p(r.qtdPedidos) : 0)}</td>
-                                                        {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => <td key={f} className="p-0 border-r"><input className="table-input" value={r[f]||''} onChange={e=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(d).set({[f]:e.target.value},{merge:true})} /></td>)}
-                                                        <td className="p-0 border-r bg-slate-50/50"><input className="table-input !text-orange-500" value={r.taxaEntrega||''} onChange={e=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(d).set({taxaEntrega:e.target.value},{merge:true})} /></td>
-                                                        <td className="p-0 border-r bg-slate-50/50"><input className="table-input !text-red-500" value={r.motoboy||''} onChange={e=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(d).set({motoboy:e.target.value},{merge:true})} /></td>
+                                                        {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => <td key={f} className="p-0 border-r"><DailyInput dateStr={d} field={f} initialValue={r[f]} activeUid={user.uid} /></td>)}
+                                                        <td className="p-0 border-r bg-slate-50/50"><DailyInput dateStr={d} field="taxaEntrega" initialValue={r.taxaEntrega} activeUid={user.uid} className="!text-orange-500" /></td>
+                                                        <td className="p-0 border-r bg-slate-50/50"><DailyInput dateStr={d} field="motoboy" initialValue={r.motoboy} activeUid={user.uid} className="!text-red-500" /></td>
                                                     </tr>
                                                 );
                                             })}
@@ -1058,8 +1039,8 @@
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-red-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-red-600 mb-6 flex items-center gap-2"><TrendingDown size={18}/> 3. Contas a Pagar (Provisão)</h3><h4 className="text-4xl font-black text-red-600 mb-3">{formatMoney(consolidatedAPagar.reduce((acc, t)=>acc+t.amount,0))}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Soma de saídas pendentes e faturas de cartão.</p></div></div>
-                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-emerald-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-emerald-600 mb-6 flex items-center gap-2"><TrendingUp size={18}/> 4. Contas a Receber (Provisão)</h3><h4 className="text-4xl font-black text-emerald-600 mb-3">{formatMoney(transactions.filter(t=>t.type==='entrada'&&t.status==='pendente'&&getTransactionDates(t, accounts.find(a=>a.name===t.account)).clearanceDate?.startsWith(filterMonth)).reduce((acc,t)=>acc+p(t.amount),0))}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar no caixa neste mês.</p></div></div>
+                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-red-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-red-600 mb-6 flex items-center gap-2"><TrendingDown size={18}/> 3. Contas a Pagar (Provisão)</h3><h4 className="text-4xl font-black text-red-600 mb-3">{formatMoney(totalDespesasPendentes)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Soma de saídas pendentes e faturas de cartão.</p></div></div>
+                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-emerald-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-emerald-600 mb-6 flex items-center gap-2"><TrendingUp size={18}/> 4. Contas a Receber (Provisão)</h3><h4 className="text-4xl font-black text-emerald-600 mb-3">{formatMoney(totalReceitasPendentes)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar no caixa neste mês.</p></div></div>
                                 </div>
                                 <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-orange-500">
                                     <div className="flex justify-between items-center mb-6"><h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2"><PieChart size={18}/> 5. Composição de Custos por Categoria</h3></div>
