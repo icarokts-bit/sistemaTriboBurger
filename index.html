@@ -67,7 +67,6 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        // INCLUSÃO DO ÍCONE DE ESTRELA (STAR) PARA OS DESTAQUES
         const Icon = ({ name, size = 20, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
@@ -1144,7 +1143,7 @@
                             <div className="space-y-6 fade-in">
                                 <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border shadow-sm">
                                     <div><h2 className="text-sm font-black uppercase text-slate-800">Insumos</h2><p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{ingredients.length} itens cadastrados</p></div>
-                                    <button onClick={() => {setIngForm({ id: '', name: '', category: ingCats[0], cost: '', unit: 'g', qty: '' }); setIsIngModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Icon name="plus" size={14}/> Novo Insumo</button>
+                                    <button onClick={() => {setIngForm({ id: '', name: '', category: ingCats[0], cost: '', unit: 'g', qty: '' }); setIsIngModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Plus size={14}/> Novo Insumo</button>
                                 </div>
                                 <div className="space-y-8">
                                     {ingCats.map(cat => {
@@ -1184,7 +1183,7 @@
                             <div className="space-y-6 fade-in">
                                 <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border shadow-sm">
                                     <div><h2 className="text-sm font-black uppercase text-slate-800">Fichas Técnicas</h2></div>
-                                    <button onClick={() => {setRecipeForm({ id: '', name: '', category: recCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsRecipeModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Icon name="plus" size={14}/> Criar Ficha</button>
+                                    <button onClick={() => {setRecipeForm({ id: '', name: '', category: recCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsRecipeModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Plus size={14}/> Criar Ficha</button>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {recipes.map(rec => {
@@ -1209,7 +1208,7 @@
                              <div className="space-y-6 fade-in">
                                  <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border shadow-sm">
                                      <div><h2 className="text-sm font-black uppercase text-slate-800">Complementos</h2></div>
-                                     <button onClick={() => {setCompForm({ id: '', name: '', category: compCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsCompModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Icon name="plus" size={14}/> Criar Adicional</button>
+                                     <button onClick={() => {setCompForm({ id: '', name: '', category: compCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsCompModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Plus size={14}/> Criar Adicional</button>
                                  </div>
                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                      {complements.map(comp => (
@@ -1230,7 +1229,7 @@
                              <div className="space-y-6 fade-in">
                                  <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border shadow-sm">
                                      <div><h2 className="text-sm font-black uppercase text-slate-800">Fichas de Combos</h2></div>
-                                     <button onClick={() => {setComboForm({ id: '', name: '', category: comboCats[0], sellingPrice: '', items: [], ignoreCMV: false }); setIsComboModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Icon name="plus" size={14}/> Criar Combo</button>
+                                     <button onClick={() => {setComboForm({ id: '', name: '', category: comboCats[0], sellingPrice: '', items: [], ignoreCMV: false }); setIsComboModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Plus size={14}/> Criar Combo</button>
                                  </div>
                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                      {combos.map(combo => {
@@ -1251,16 +1250,38 @@
                              </div>
                          )}
 
-                         {activeTab === 'analise' && (
+                         {activeTab === 'analise' && (() => {
+                            const totalFixedCosts = fixedCosts.reduce((s,c)=>s+p(c.value),0);
+                            const margemContribuicao = 1 - (p(cmvSettings.targetCMV)/100) - ((p(cmvSettings.tax) + p(cmvSettings.apps) + p(cmvSettings.card))/100);
+                            const pontoEquilibrio = margemContribuicao > 0 ? totalFixedCosts / margemContribuicao : 0;
+                            const faturamentoReal = stats.rb;
+                            const faltaParaPe = pontoEquilibrio - faturamentoReal;
+
+                            return (
                             <div className="space-y-6 fade-in print-area" id="print-area">
                                 <div className="flex justify-between items-center bg-[#1A202C] text-white p-8 rounded-[2rem] shadow-xl print:shadow-none print:text-black print:bg-white print:border-b-2 print:border-black print:rounded-none">
                                     <div><h2 className="text-2xl font-black uppercase tracking-widest">Relatório Consolidado CMV</h2><p className="text-[10px] font-bold text-[#F8CC82] uppercase mt-1 print:text-slate-500">Rentabilidade de Cardápio</p></div>
                                     <button onClick={()=>window.print()} className="bg-[#F27A18] text-black px-6 py-3 rounded-xl font-black text-[10px] uppercase print:hidden shadow-lg hover:scale-105 transition-transform"><Printer size={16} className="inline mr-2"/>Imprimir / PDF</button>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 print:hidden">
-                                    <div className="glass-card p-6 rounded-3xl shadow text-center border-l-4 border-blue-500"><p className="text-[9px] font-black uppercase text-slate-400">Faturamento Real (Vendas)</p><h3 className="text-2xl font-black text-slate-800 mt-2">{formatMoney(stats.rb)}</h3></div>
-                                    <div className="glass-card p-6 rounded-3xl shadow text-center border-l-4 border-red-500"><p className="text-[9px] font-black uppercase text-slate-400">Custos Fixos</p><h3 className="text-2xl font-black text-red-500 mt-2">{formatMoney(fixedCosts.reduce((s,c)=>s+p(c.value),0))}</h3><p className="text-[9px] font-bold text-slate-500 mt-1">{stats.rb>0 ? ((fixedCosts.reduce((s,c)=>s+p(c.value),0)/stats.rb)*100).toFixed(1) : 0}% do Faturamento</p></div>
-                                    <div className="glass-card p-6 rounded-3xl shadow text-center border-l-4 border-emerald-500"><p className="text-[9px] font-black uppercase text-slate-400">Ponto de Equilíbrio (Zero a Zero)</p><h3 className="text-2xl font-black text-emerald-600 mt-2">{formatMoney((1 - (cmvSettings.targetCMV/100) - ((cmvSettings.tax+cmvSettings.apps+cmvSettings.card)/100)) > 0 ? fixedCosts.reduce((s,c)=>s+p(c.value),0) / (1 - (cmvSettings.targetCMV/100) - ((cmvSettings.tax+cmvSettings.apps+cmvSettings.card)/100)) : 0)}</h3></div>
+                                    <div className="glass-card p-6 rounded-3xl shadow text-center border-l-4 border-blue-500 flex flex-col justify-center">
+                                        <p className="text-[9px] font-black uppercase text-slate-400">Faturamento Real (Vendas)</p>
+                                        <h3 className="text-2xl font-black text-slate-800 mt-2">{formatMoney(faturamentoReal)}</h3>
+                                    </div>
+                                    <div className="glass-card p-6 rounded-3xl shadow text-center border-l-4 border-red-500 flex flex-col justify-center">
+                                        <p className="text-[9px] font-black uppercase text-slate-400">Custos Fixos</p>
+                                        <h3 className="text-2xl font-black text-red-500 mt-2">{formatMoney(totalFixedCosts)}</h3>
+                                        <p className="text-[9px] font-bold text-slate-500 mt-1">{faturamentoReal > 0 ? ((totalFixedCosts/faturamentoReal)*100).toFixed(1) : 0}% do Faturamento</p>
+                                    </div>
+                                    <div className="glass-card p-6 rounded-3xl shadow text-center border-l-4 border-emerald-500 flex flex-col justify-center">
+                                        <p className="text-[9px] font-black uppercase text-slate-400">Ponto de Equilíbrio (Zero a Zero)</p>
+                                        <h3 className="text-2xl font-black text-emerald-600 mt-2">{formatMoney(pontoEquilibrio)}</h3>
+                                        {faltaParaPe > 0 ? (
+                                            <p className="text-[10px] font-black text-orange-600 mt-2 bg-orange-50 py-1.5 rounded-xl uppercase">Faltam {formatMoney(faltaParaPe)}</p>
+                                        ) : (
+                                            <p className="text-[10px] font-black text-emerald-600 mt-2 bg-emerald-50 py-1.5 rounded-xl uppercase flex items-center justify-center gap-1"><Icon name="check-circle" size={12}/> Atingido! (Lucro: {formatMoney(Math.abs(faltaParaPe))})</p>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="glass-card rounded-[2rem] overflow-hidden border shadow-sm">
                                     <table className="w-full text-left text-[11px] font-bold">
@@ -1286,13 +1307,14 @@
                                     </table>
                                 </div>
                             </div>
-                        )}
+                            );
+                        })()}
 
                         {activeTab === 'custos_fixos' && (
                              <div className="space-y-6 fade-in">
                                  <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border shadow-sm">
                                      <div><h2 className="text-sm font-black uppercase text-slate-800">Custos Fixos Operacionais</h2></div>
-                                     <button onClick={() => {setFcForm({ id: '', description: '', category: fcCats[0], value: '' }); setIsFcModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Icon name="plus" size={14}/> Nova Despesa</button>
+                                     <button onClick={() => {setFcForm({ id: '', description: '', category: fcCats[0], value: '' }); setIsFcModalOpen(true);}} className="btn-accent px-6 py-3 rounded-xl flex items-center gap-2 text-[10px]"><Plus size={14}/> Nova Despesa</button>
                                  </div>
                                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                      <div className="lg:col-span-2 glass-card rounded-[2rem] overflow-hidden border shadow-sm">
@@ -1387,7 +1409,7 @@
                                                     <div key={idx} className="flex gap-2 bg-slate-50 p-2 rounded-xl border">
                                                         <select className="flex-1 p-3 bg-white border rounded-lg font-bold text-[10px]" value={ingItem.ingredientId} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].ingredientId=e.target.value; setFormObj({...formObj, ingredients: arr});}}><option value="">Selecione...</option>{ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select>
                                                         <input type="number" step="0.001" placeholder="Qtd" className="w-24 p-3 bg-white border rounded-lg font-bold text-[10px] text-center" value={ingItem.qty} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].qty=e.target.value; setFormObj({...formObj, ingredients: arr});}} />
-                                                        <button onClick={()=>{const arr=[...formObj.ingredients]; arr.splice(idx,1); setFormObj({...formObj, ingredients: arr});}} className="bg-red-50 text-red-500 p-3 rounded-lg"><Trash2 size={14}/></button>
+                                                        <button onClick={()=>{const arr=[...formObj.ingredients]; arr.splice(idx,1); setFormObj({...formObj, ingredients: arr});}} className="bg-red-50 text-red-500 p-3 rounded-lg"><Icon name="trash-2" size={14}/></button>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1426,7 +1448,7 @@
                                                         {item.type==='ingredient' && ingredients.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
                                                     </select>
                                                     <input type="number" step="0.001" placeholder="Qtd" className="w-20 p-3 bg-white border rounded-lg font-bold text-[10px] text-center" value={item.qty} onChange={e=>{const arr=[...comboForm.items]; arr[idx].qty=e.target.value; setComboForm({...comboForm, items: arr});}} />
-                                                    <button onClick={()=>{const arr=[...comboForm.items]; arr.splice(idx,1); setComboForm({...comboForm, items: arr});}} className="bg-red-50 text-red-500 p-3 rounded-lg"><Trash2 size={14}/></button>
+                                                    <button onClick={()=>{const arr=[...comboForm.items]; arr.splice(idx,1); setComboForm({...comboForm, items: arr});}} className="bg-red-50 text-red-500 p-3 rounded-lg"><Icon name="trash-2" size={14}/></button>
                                                 </div>
                                             ))}
                                         </div>
