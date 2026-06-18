@@ -152,7 +152,7 @@
             const [complements, setComplements] = useState([]);
             const [combos, setCombos] = useState([]);
             const [fixedCosts, setFixedCosts] = useState([]);
-            const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12, baseRevenue: 0, targetRevenue: 0 });
+            const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12 });
             
             const [ingCats, setIngCats] = useState(['Proteínas', 'Pães', 'Queijos', 'Molhos', 'Vegetais/Hortifrúti', 'Embalagens', 'Outros']);
             const [recCats, setRecCats] = useState(['Hambúrgueres', 'Acompanhamentos', 'Bebidas', 'Sobremesas', 'Molhos Caseiros', 'Outros', 'Smash']);
@@ -191,7 +191,7 @@
                     if(s.exists) {
                         const d = s.data();
                         setIngredients(d.ingredients || []); setRecipes(d.recipes || []); setComplements(d.complements || []); setCombos(d.combos || []); setFixedCosts(d.fixedCosts || []);
-                        setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12, baseRevenue: 0, targetRevenue: 0 });
+                        setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12 });
                         if(d.ingredientCategories) setIngCats(d.ingredientCategories); if(d.recipeCategories) setRecCats(d.recipeCategories);
                         if(d.complementCategories) setCompCats(d.complementCategories); if(d.comboCategories) setComboCats(d.comboCategories);
                         if(d.fixedCostCategories) setFcCats(d.fixedCostCategories);
@@ -311,21 +311,6 @@
                     rb, totalCosts: operCosts + custos, lucro: lucroDRE, catCosts, diasAtivos, totalPedidos, ticketDiario: diasAtivos > 0 ? rb / diasAtivos : 0, ticketPedido: totalPedidos > 0 ? rb / totalPedidos : 0, entradas, contasPagas, lucroCaixa, projecaoMensal, metaDiaria, margemDRE: rb > 0 ? (lucroDRE / rb) * 100 : 0, margemCaixa: entradas > 0 ? (lucroCaixa / entradas) * 100 : 0, weeklyCurrent, weeklyPrev, weekdayAverages, diasUteisRestantes: Math.max(0, diasUteisTotaisMes - diasUteisPassados)
                 };
             }, [dailyRecords, transactions, filterMonth, metaVendas, accounts]);
-
-            // ================= COMPUTAÇÃO DE TOTAIS DA ABA VENDAS =================
-            const columnTotals = useMemo(() => {
-                const days = Object.keys(dailyRecords).filter(d => d.startsWith(filterMonth));
-                const totals = { totalDia: 0, pedidos: 0, pix: 0, pixOnline: 0, fiado: 0, dinheiro: 0, ifood: 0, debito: 0, credito: 0, vr: 0, ticket: 0, alelo: 0, taxaEntrega: 0, motoboy: 0 };
-                days.forEach(d => {
-                    const r = dailyRecords[d] || {};
-                    totals.totalDia += ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
-                    totals.pedidos += p(r.qtdPedidos);
-                    ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].forEach(f => { totals[f] += p(r[f]); });
-                    totals.taxaEntrega += p(r.taxaEntrega); totals.motoboy += p(r.motoboy);
-                });
-                totals.ticketMedio = totals.pedidos > 0 ? totals.totalDia / totals.pedidos : 0;
-                return totals;
-            }, [dailyRecords, filterMonth]);
 
             const consolidatedAPagar = useMemo(() => {
                 const pendings = transactions.filter(t => t.type === 'saida' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao');
@@ -649,45 +634,22 @@
                                 </div>
                                 <div className="glass-card rounded-[2.5rem] overflow-hidden border shadow-sm overflow-x-auto no-scrollbar">
                                     <table className="w-full text-center text-[11px] min-w-[1700px]">
-                                        <thead className="bg-[#1A202C] text-white uppercase text-[9px] tracking-widest border-b">
-                                            <tr>
-                                                <th className="p-4 sticky left-0 z-20 bg-[#1A202C]">Data</th>
-                                                <th className="p-4 bg-amber-500 text-black">Total Dia</th>
-                                                <th className="p-4 bg-blue-600 text-white">Pedidos</th>
-                                                <th className="p-4 bg-blue-800 text-white">Ticket Médio</th>
-                                                {['Pix','Pix Online','Fiado','Dinheiro','Ifood','Débito','Crédito','VR','Ticket','Alelo'].map(h=><th key={h} className="p-4">{h}</th>)}
-                                                <th className="p-4 text-orange-400 bg-orange-950">Taxa Entrega</th>
-                                                <th className="p-4 text-red-400 bg-red-950">Motoboy</th>
-                                            </tr>
-                                        </thead>
+                                        <thead><tr className="header-black text-white"><th className="p-4">Data</th><th className="p-4 bg-yellow-500 text-black">Total Dia</th><th className="p-4 bg-blue-600">Pedidos</th>{['Pix','Dinheiro','Ifood','Débito','Crédito'].map(h=><th key={h} className="p-4">{h}</th>)}<th className="p-4 text-orange-400 bg-orange-950">Taxa Entrega</th><th className="p-4 text-red-400 bg-red-950">Motoboy</th></tr></thead>
                                         <tbody className="divide-y font-bold">
                                             {Object.keys(dailyRecords).filter(d=>d.startsWith(filterMonth)).sort((a,b)=>new Date(b)-new Date(a)).map(d => {
-                                                const r = dailyRecords[d] || {}; 
-                                                const total = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
+                                                const r = dailyRecords[d] || {}; const total = ['pix','dinheiro','ifood','debito','credito'].reduce((acc,f)=>acc+p(r[f]), 0);
                                                 return (
                                                     <tr key={d} className="hover:bg-slate-50 h-12">
                                                         <td className="p-0 border-r bg-white sticky left-0">{d.split('-').reverse().join('/')}</td>
                                                         <td className="p-4 bg-yellow-50 font-black">{formatMoney(total)}</td>
                                                         <td className="p-0 border-r bg-blue-50/30"><input className="table-input" value={r.qtdPedidos||''} onChange={e=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(d).set({qtdPedidos:e.target.value},{merge:true})} /></td>
-                                                        <td className="p-4 bg-blue-50/50 font-black text-blue-900">{formatMoney(p(r.qtdPedidos) > 0 ? total / p(r.qtdPedidos) : 0)}</td>
-                                                        {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => <td key={f} className="p-0 border-r"><input className="table-input" value={r[f]||''} onChange={e=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(d).set({[f]:e.target.value},{merge:true})} /></td>)}
+                                                        {['pix','dinheiro','ifood','debito','credito'].map(f => <td key={f} className="p-0 border-r"><input className="table-input" value={r[f]||''} onChange={e=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(d).set({[f]:e.target.value},{merge:true})} /></td>)}
                                                         <td className="p-0 border-r bg-slate-50/50"><input className="table-input !text-orange-500" value={r.taxaEntrega||''} onChange={e=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(d).set({taxaEntrega:e.target.value},{merge:true})} /></td>
                                                         <td className="p-0 border-r bg-slate-50/50"><input className="table-input !text-red-500" value={r.motoboy||''} onChange={e=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(d).set({motoboy:e.target.value},{merge:true})} /></td>
                                                     </tr>
                                                 );
                                             })}
                                         </tbody>
-                                        <tfoot>
-                                            <tr className="bg-[#1A202C] text-white font-black uppercase text-[10px] border-t-4 border-[#D97757] h-12">
-                                                <td className="p-0 sticky left-0 bg-[#1A202C] z-10 text-center font-black text-amber-300">SOMA TOTAL</td>
-                                                <td className="p-4 bg-amber-500 text-black font-black text-xs">{formatMoney(columnTotals.totalDia)}</td>
-                                                <td className="p-4 bg-blue-600 text-white font-black text-xs">{columnTotals.pedidos}</td>
-                                                <td className="p-4 bg-blue-800 text-[#F8CC82] font-black text-xs">{formatMoney(columnTotals.ticketMedio)}</td>
-                                                {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => ( <td key={f} className="p-4 border-r bg-slate-800 text-xs font-black">{formatMoney(columnTotals[f])}</td> ))}
-                                                <td className="p-4 border-r text-orange-400 bg-orange-950/25 text-xs font-black">{formatMoney(columnTotals.taxaEntrega)}</td>
-                                                <td className="p-4 border-r text-red-400 bg-red-950/25 text-xs font-black">{formatMoney(columnTotals.motoboy)}</td>
-                                            </tr>
-                                        </tfoot>
                                     </table>
                                 </div>
                             </div>
@@ -737,7 +699,7 @@
                             </div>
                         )}
 
-                        {/* ================= ABA DE CARTÕES ATUALIZADA (COMPLETA) ================= */}
+                        {/* ================= ABA DE CARTÕES ================= */}
                         {activeTab === 'cartoes' && (
                             <div className="space-y-6 fade-in">
                                 <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border shadow-sm">
@@ -750,15 +712,8 @@
                                     {cardStats.length === 0 ? (
                                         <div className="col-span-full p-12 text-center text-slate-400 uppercase font-black text-xs glass-card rounded-[2.5rem] border-dashed">Nenhum cartão de crédito cadastrado. Vá em "Ajustes" para adicionar.</div>
                                     ) : cardStats.map(card => {
-                                        
-                                        const currentMonthTxs = transactions.filter(t => {
-                                            if (t.account !== card.name) return false;
-                                            const { billingMonth } = getTransactionDates(t, card);
-                                            return billingMonth === filterMonth && !isInvoicePayment(t);
-                                        });
-                                        
+                                        const currentMonthTxs = transactions.filter(t => t.account === card.name && getTransactionDates(t, card).billingMonth === filterMonth && !isInvoicePayment(t));
                                         const invoiceTotal = currentMonthTxs.reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                        
                                         const invoicePayments = transactions.filter(t => t.account === card.name && isInvoicePayment(t) && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
                                         const paidAmount = invoicePayments.reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
                                         const isPaid = paidAmount >= invoiceTotal && invoiceTotal > 0;
@@ -767,57 +722,30 @@
                                             <div key={card.id} className="glass-card rounded-[3rem] overflow-hidden shadow-xl border-t-8 border-[#1A202C] flex flex-col">
                                                 <div className="p-8 pb-6 bg-white">
                                                     <div className="flex justify-between items-start mb-6">
-                                                        <div>
-                                                            <h3 className="font-black text-2xl text-slate-900 uppercase">{card.name}</h3>
-                                                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Fecho: dia {card.closing} • Venc: dia {card.due}</p>
-                                                        </div>
+                                                        <div><h3 className="font-black text-2xl text-slate-900 uppercase">{card.name}</h3><p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Fecho: dia {card.closing} • Venc: dia {card.due}</p></div>
                                                         <Icon name="credit-card" size={32} className="text-slate-300" />
                                                     </div>
                                                     <div className="space-y-4">
                                                         <div>
-                                                            <div className="flex justify-between items-end mb-2">
-                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Limite Comprometido (Geral)</p>
-                                                                <span className="font-black text-sm text-slate-700">{formatMoney(card.currentBalance)}</span>
-                                                            </div>
-                                                            <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden shadow-inner">
-                                                                <div className="bg-[#D97757] h-full transition-all" style={{width: `${Math.min(100, (card.currentBalance/card.limit)*100)}%`}}></div>
-                                                            </div>
-                                                            <div className="flex justify-between text-[10px] font-black uppercase text-slate-500 mt-2">
-                                                                <span>Total: {formatMoney(card.limit)}</span>
-                                                                <span className="text-emerald-500">Disp: {formatMoney(card.available)}</span>
-                                                            </div>
+                                                            <div className="flex justify-between items-end mb-2"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Limite Comprometido (Geral)</p><span className="font-black text-sm text-slate-700">{formatMoney(card.currentBalance)}</span></div>
+                                                            <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden shadow-inner"><div className="bg-[#D97757] h-full transition-all" style={{width: `${Math.min(100, (card.currentBalance/card.limit)*100)}%`}}></div></div>
+                                                            <div className="flex justify-between text-[10px] font-black uppercase text-slate-500 mt-2"><span>Total: {formatMoney(card.limit)}</span><span className="text-emerald-500">Disp: {formatMoney(card.available)}</span></div>
                                                         </div>
                                                     </div>
                                                 </div>
                                                 
                                                 <div className="bg-slate-50 p-6 flex-1 flex flex-col border-t">
                                                     <div className="flex justify-between items-center mb-6">
-                                                        <div>
-                                                            <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Fatura Atual do Mês</p>
-                                                            <h4 className={"text-3xl font-black " + (isPaid ? "text-emerald-500" : "text-red-500")}>{formatMoney(invoiceTotal)}</h4>
-                                                        </div>
-                                                        {isPaid ? (
-                                                            <span className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-sm border border-emerald-200">Fatura Paga</span>
-                                                        ) : (
-                                                            invoiceTotal > 0 && (
-                                                                <button onClick={() => setInvoiceModal({ cardName: card.name, total: invoiceTotal })} className="bg-black text-[#F8CC82] px-6 py-3 rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all hover:bg-slate-800">Pagar Fatura</button>
-                                                            )
-                                                        )}
+                                                        <div><p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Fatura Atual do Mês</p><h4 className={"text-3xl font-black " + (isPaid ? "text-emerald-500" : "text-red-500")}>{formatMoney(invoiceTotal)}</h4></div>
+                                                        {isPaid ? <span className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-sm border border-emerald-200">Fatura Paga</span> : ( invoiceTotal > 0 && <button onClick={() => setInvoiceModal({ cardName: card.name, total: invoiceTotal })} className="bg-black text-[#F8CC82] px-6 py-3 rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all hover:bg-slate-800">Pagar Fatura</button> )}
                                                     </div>
                                                     
                                                     <div className="flex-1 bg-white rounded-3xl border shadow-sm overflow-hidden flex flex-col max-h-[350px]">
-                                                        <div className="p-4 bg-slate-100 border-b text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
-                                                            <Icon name="file-text" size={14}/> Lançamentos (Compras da Fatura)
-                                                        </div>
+                                                        <div className="p-4 bg-slate-100 border-b text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2"><Icon name="file-text" size={14}/> Lançamentos (Compras da Fatura)</div>
                                                         <div className="overflow-y-auto flex-1 divide-y p-2 no-scrollbar">
-                                                            {currentMonthTxs.length === 0 ? (
-                                                                <div className="p-10 text-center text-[10px] font-bold text-slate-400 uppercase">Nenhum gasto nesta fatura.</div>
-                                                            ) : currentMonthTxs.sort((a,b)=>a.date.localeCompare(b.date)).map(t => (
+                                                            {currentMonthTxs.length === 0 ? <div className="p-10 text-center text-[10px] font-bold text-slate-400 uppercase">Nenhum gasto nesta fatura.</div> : currentMonthTxs.sort((a,b)=>a.date.localeCompare(b.date)).map(t => (
                                                                 <div key={t.id} className="py-3 px-4 flex justify-between items-center hover:bg-slate-50 transition-colors rounded-xl">
-                                                                    <div>
-                                                                        <p className="text-xs font-black uppercase text-slate-800 leading-tight">{t.description}</p>
-                                                                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">{t.date.split('-').reverse().join('/')} • {t.category}</p>
-                                                                    </div>
+                                                                    <div><p className="text-xs font-black uppercase text-slate-800 leading-tight">{t.description}</p><p className="text-[9px] font-bold text-slate-400 uppercase mt-1">{t.date.split('-').reverse().join('/')} • {t.category}</p></div>
                                                                     <span className="text-sm font-black text-red-500">{formatMoney(t.amount)}</span>
                                                                 </div>
                                                             ))}
@@ -835,106 +763,45 @@
                             <div className="space-y-8 animate-in fade-in">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                                     <div className="glass-card p-10 rounded-[3rem] shadow-xl border-t-8 border-orange-500 text-center flex flex-col justify-between">
-                                        <div>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Meta de Vendas</p>
-                                            <div className="flex items-center justify-center gap-2"><span className="font-black text-slate-400">R$</span><input type="text" className="text-3xl font-black w-40 text-center bg-transparent border-b-2 outline-none focus:border-black" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} onBlur={e=>saveMeta(e.target.value)} /></div>
-                                        </div>
-                                        <div>
-                                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-4 mb-2"><div className="bg-green-500 h-full transition-all" style={{width: Math.min(100, (stats.rb/(metaVendas || 1))*100) + "%"}}></div></div>
-                                            <p className="text-[10px] font-black text-green-600">{((stats.rb/(metaVendas || 1))*100).toFixed(1)}% Atingido</p>
-                                        </div>
-                                        {stats.metaDiaria > 0 && stats.diasUteisRestantes > 0 && (
-                                            <div className="mt-4 p-3 bg-orange-50 rounded-2xl border border-orange-100">
-                                                <p className="text-[9px] font-black text-orange-600 uppercase">Faltam {stats.diasUteisRestantes} dias úteis</p>
-                                                <p className="text-xs font-black text-orange-800">Alvo: {formatMoney(stats.metaDiaria)} / dia</p>
-                                            </div>
-                                        )}
+                                        <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Meta de Vendas</p><div className="flex items-center justify-center gap-2"><span className="font-black text-slate-400">R$</span><input type="text" className="text-3xl font-black w-40 text-center bg-transparent border-b-2 outline-none focus:border-black" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} onBlur={e=>saveMeta(e.target.value)} /></div></div>
+                                        <div><div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-4 mb-2"><div className="bg-green-500 h-full transition-all" style={{width: Math.min(100, (stats.rb/(metaVendas || 1))*100) + "%"}}></div></div><p className="text-[10px] font-black text-green-600">{((stats.rb/(metaVendas || 1))*100).toFixed(1)}% Atingido</p></div>
+                                        {stats.metaDiaria > 0 && stats.diasUteisRestantes > 0 && <div className="mt-4 p-3 bg-orange-50 rounded-2xl border border-orange-100"><p className="text-[9px] font-black text-orange-600 uppercase">Faltam {stats.diasUteisRestantes} dias úteis</p><p className="text-xs font-black text-orange-800">Alvo: {formatMoney(stats.metaDiaria)} / dia</p></div>}
                                     </div>
-                                    
                                     <div className="glass-card p-10 rounded-[3rem] shadow-xl border-t-8 border-blue-500 flex flex-col justify-between">
-                                        <div className="text-center">
-                                            <div className="flex justify-center mb-2 text-blue-500"><Icon name="target" size={24} /></div>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Projeção (Qua-Dom)</p>
-                                        </div>
+                                        <div className="text-center"><div className="flex justify-center mb-2 text-blue-500"><Icon name="target" size={24} /></div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Projeção (Qua-Dom)</p></div>
                                         <h3 className="text-3xl font-black text-center text-slate-800 my-4">{formatMoney(stats.projecaoMensal)}</h3>
-                                        {stats.projecaoMensal > 0 && (
-                                            <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex items-center justify-center gap-2">
-                                                {stats.projecaoMensal >= (metaVendas || 1) ? (
-                                                    <span className="flex items-center gap-1 text-[9px] font-black text-green-600 uppercase"><Icon name="trending-up" size={12}/> Vai bater a meta!</span>
-                                                ) : (
-                                                    <span className="flex items-center gap-1 text-[9px] font-black text-red-500 uppercase"><Icon name="trending-down" size={12}/> Abaixo da meta</span>
-                                                )}
-                                            </div>
-                                        )}
+                                        {stats.projecaoMensal > 0 && <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 flex items-center justify-center gap-2">{stats.projecaoMensal >= (metaVendas || 1) ? <span className="flex items-center gap-1 text-[9px] font-black text-green-600 uppercase"><Icon name="trending-up" size={12}/> Vai bater a meta!</span> : <span className="flex items-center gap-1 text-[9px] font-black text-red-500 uppercase"><Icon name="trending-down" size={12}/> Abaixo da meta</span>}</div>}
                                     </div>
-
                                     <div className="glass-card p-10 rounded-[3rem] shadow-xl border-t-8 border-green-500 text-center flex flex-col justify-center">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Média Diária (Dia Ativo)</p>
-                                        <h3 className="text-3xl font-black text-green-600">{formatMoney(stats.ticketDiario)}</h3>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Média Diária (Dia Ativo)</p><h3 className="text-3xl font-black text-green-600">{formatMoney(stats.ticketDiario)}</h3>
                                     </div>
                                     <div className="glass-card p-10 rounded-[3rem] shadow-xl border-t-8 border-purple-500 text-center flex flex-col justify-center">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Ticket Médio (Pedidos)</p>
-                                        <h3 className="text-3xl font-black text-purple-600">{formatMoney(stats.ticketPedido)}</h3>
-                                        <p className="text-[8px] font-black text-slate-400 mt-2 uppercase">{stats.diasAtivos} DIAS • {(stats.totalPedidos || 0)} PEDIDOS</p>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Ticket Médio (Pedidos)</p><h3 className="text-3xl font-black text-purple-600">{formatMoney(stats.ticketPedido)}</h3><p className="text-[8px] font-black text-slate-400 mt-2 uppercase">{stats.diasAtivos} DIAS • {(stats.totalPedidos || 0)} PEDIDOS</p>
                                     </div>
                                 </div>
-                                
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                      <div className="glass-card p-10 rounded-[3rem] shadow-sm text-center border-t-8 border-green-500"><p className="text-[9px] font-black text-slate-400 uppercase">Entradas Caixa</p><h3 className="text-2xl font-black text-green-600">{formatMoney(stats.entradas)}</h3></div>
                                      <div className="glass-card p-10 rounded-[3rem] shadow-sm text-center border-t-8 border-red-500"><p className="text-[9px] font-black text-slate-400 uppercase">Contas Pagas</p><h3 className="text-2xl font-black text-red-600">{formatMoney(stats.contasPagas)}</h3></div>
-                                     <div className={"glass-card p-10 rounded-[3rem] shadow-sm text-center border-t-8 flex flex-col items-center justify-center " + (stats.lucroCaixa>=0?'border-blue-600':'border-red-600')}>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase">Lucro Líquido (Caixa)</p>
-                                        <h3 className={"text-2xl font-black mb-2 " + (stats.lucroCaixa>=0?'text-blue-600':'text-red-600')}>{formatMoney(stats.lucroCaixa)}</h3>
-                                        <span className={"text-[10px] font-black px-3 py-1 rounded-lg " + (stats.margemCaixa>=0?'bg-blue-50 text-blue-600':'bg-red-50 text-red-600')}>MARGEM: {stats.margemCaixa.toFixed(1)}%</span>
-                                     </div>
+                                     <div className={"glass-card p-10 rounded-[3rem] shadow-sm text-center border-t-8 flex flex-col items-center justify-center " + (stats.lucroCaixa>=0?'border-blue-600':'border-red-600')}><p className="text-[9px] font-black text-slate-400 uppercase">Lucro Líquido (Caixa)</p><h3 className={"text-2xl font-black mb-2 " + (stats.lucroCaixa>=0?'text-blue-600':'text-red-600')}>{formatMoney(stats.lucroCaixa)}</h3><span className={"text-[10px] font-black px-3 py-1 rounded-lg " + (stats.margemCaixa>=0?'bg-blue-50 text-blue-600':'bg-red-50 text-red-600')}>MARGEM: {stats.margemCaixa.toFixed(1)}%</span></div>
                                 </div>
-
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                     <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-4 border-slate-800">
                                         <h3 className="text-sm font-black uppercase text-slate-800 mb-6 flex items-center gap-2"><Icon name="calendar-days" size={18}/> Comparativo Semanal</h3>
                                         <div className="space-y-4">
                                             <div className="flex text-[9px] font-black text-slate-400 border-b pb-2 uppercase"><span className="w-16">Semana</span><span className="flex-1 text-center">Este Mês</span><span className="flex-1 text-center">Mês Passado</span><span className="w-16 text-right">Evolução</span></div>
                                             {[1, 2, 3, 4, 5].map(wk => {
-                                                const current = stats.weeklyCurrent[wk] || 0;
-                                                const prev = stats.weeklyPrev[wk] || 0;
-                                                const diff = current - prev;
-                                                const percent = prev > 0 ? (diff / prev) * 100 : (current > 0 ? 100 : 0);
-                                                return (
-                                                    <div key={wk} className="flex text-xs font-black items-center py-2 hover:bg-slate-50 rounded-xl transition-all px-2">
-                                                        <span className="w-16 text-slate-500 uppercase">Sem. {wk}</span>
-                                                        <span className="flex-1 text-center text-slate-800">{formatMoney(current)}</span>
-                                                        <span className="flex-1 text-center text-slate-400">{formatMoney(prev)}</span>
-                                                        <span className={"w-16 text-right text-[10px] " + (diff >= 0 ? 'text-green-500' : 'text-red-500')}>{diff >= 0 ? '+' : ''}{percent.toFixed(1)}%</span>
-                                                    </div>
-                                                );
+                                                const current = stats.weeklyCurrent[wk] || 0; const prev = stats.weeklyPrev[wk] || 0; const diff = current - prev; const percent = prev > 0 ? (diff / prev) * 100 : (current > 0 ? 100 : 0);
+                                                return <div key={wk} className="flex text-xs font-black items-center py-2 hover:bg-slate-50 rounded-xl transition-all px-2"><span className="w-16 text-slate-500 uppercase">Sem. {wk}</span><span className="flex-1 text-center text-slate-800">{formatMoney(current)}</span><span className="flex-1 text-center text-slate-400">{formatMoney(prev)}</span><span className={"w-16 text-right text-[10px] " + (diff >= 0 ? 'text-green-500' : 'text-red-500')}>{diff >= 0 ? '+' : ''}{percent.toFixed(1)}%</span></div>;
                                             })}
                                         </div>
                                     </div>
-
                                     <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-4 border-slate-800">
                                         <h3 className="text-sm font-black uppercase text-slate-800 mb-6 flex items-center gap-2"><Icon name="trending-up" size={18}/> Melhores Dias de Venda (Média)</h3>
                                         <div className="space-y-4">
                                             {stats.weekdayAverages.length === 0 ? <p className="text-[10px] text-slate-400 text-center font-black uppercase">Sem dados suficientes</p> : stats.weekdayAverages.map((day, idx) => {
-                                                const maxAvg = stats.weekdayAverages[0]?.avg || 1;
-                                                const width = Math.max(10, (day.avg / maxAvg) * 100);
-                                                let badgeClass = "text-slate-400";
-                                                if (idx === 0) badgeClass = "bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded";
-                                                else if (idx === 1) badgeClass = "bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded";
-                                                else if (idx === 2) badgeClass = "bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded";
-                                                return (
-                                                    <div key={day.name} className="space-y-1.5">
-                                                        <div className="flex justify-between items-center text-[10px] font-black uppercase">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className={badgeClass}>{idx + 1}º</span>
-                                                                <span className="text-slate-700">{day.name} <span className="text-[8px] text-slate-400 font-bold lowercase tracking-wider ml-1">({day.count} {day.count === 1 ? 'dia' : 'dias'})</span></span>
-                                                            </div>
-                                                            <span className="text-green-600">{formatMoney(day.avg)}</span>
-                                                        </div>
-                                                        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                                                            <div className={"h-full transition-all " + (idx === 0 ? 'bg-green-500' : 'bg-blue-400')} style={{width: width + "%"}}></div>
-                                                        </div>
-                                                    </div>
-                                                );
+                                                const maxAvg = stats.weekdayAverages[0]?.avg || 1; const width = Math.max(10, (day.avg / maxAvg) * 100);
+                                                let badgeClass = "text-slate-400"; if (idx === 0) badgeClass = "bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded"; else if (idx === 1) badgeClass = "bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded"; else if (idx === 2) badgeClass = "bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded";
+                                                return <div key={day.name} className="space-y-1.5"><div className="flex justify-between items-center text-[10px] font-black uppercase"><div className="flex items-center gap-2"><span className={badgeClass}>{idx + 1}º</span><span className="text-slate-700">{day.name} <span className="text-[8px] text-slate-400 font-bold lowercase tracking-wider ml-1">({day.count} {day.count === 1 ? 'dia' : 'dias'})</span></span></div><span className="text-green-600">{formatMoney(day.avg)}</span></div><div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden"><div className={"h-full transition-all " + (idx === 0 ? 'bg-green-500' : 'bg-blue-400')} style={{width: width + "%"}}></div></div></div>;
                                             })}
                                         </div>
                                     </div>
@@ -945,92 +812,34 @@
                         {activeTab === 'relatorios' && (
                             <div className="space-y-8 animate-in fade-in pb-10" id="printable-report">
                                 <div className="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-[2.5rem] border shadow-sm print:shadow-none print:border-b print:rounded-none gap-4">
-                                    <div>
-                                        <h2 className="text-xl font-black uppercase text-slate-800 flex items-center gap-2">
-                                            <Icon name="file-text" className="text-[#D97757]" size={24}/> Relatório Financeiro Gerencial
-                                        </h2>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Consolidado do Período: <span className="text-[#D97757] bg-orange-50 px-2 py-0.5 rounded">{filterMonth}</span></p>
-                                    </div>
-                                    <button onClick={() => window.print()} className="print:hidden bg-black text-[#F8CC82] px-6 py-3 rounded-2xl text-[10px] font-black uppercase flex items-center gap-2 hover:bg-slate-800 transition-all shadow-md active:scale-95">
-                                        <Icon name="printer" size={16}/> Imprimir / PDF
-                                    </button>
+                                    <div><h2 className="text-xl font-black uppercase text-slate-800 flex items-center gap-2"><Icon name="file-text" className="text-[#D97757]" size={24}/> Relatório Financeiro Gerencial</h2><p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Consolidado do Período: <span className="text-[#D97757] bg-orange-50 px-2 py-0.5 rounded">{filterMonth}</span></p></div>
+                                    <button onClick={() => window.print()} className="print:hidden bg-black text-[#F8CC82] px-6 py-3 rounded-2xl text-[10px] font-black uppercase flex items-center gap-2 hover:bg-slate-800 transition-all shadow-md active:scale-95"><Icon name="printer" size={16}/> Imprimir / PDF</button>
                                 </div>
-
                                 <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-blue-500">
                                     <h3 className="text-sm font-black uppercase text-slate-800 mb-6 flex items-center gap-2"><Icon name="trending-up" size={18}/> 1. Fluxo de Caixa (Realizado)</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <div className="bg-green-50 p-6 rounded-[2rem] text-center border border-green-100">
-                                            <p className="text-[9px] font-black text-green-600 uppercase mb-2 tracking-widest">Total de Entradas</p>
-                                            <h4 className="text-3xl font-black text-green-700">{formatMoney(stats.entradas)}</h4>
-                                        </div>
-                                        <div className="bg-red-50 p-6 rounded-[2rem] text-center border border-red-100">
-                                            <p className="text-[9px] font-black text-red-600 uppercase mb-2 tracking-widest">Contas Pagas (Saídas)</p>
-                                            <h4 className="text-3xl font-black text-red-700">{formatMoney(stats.contasPagas)}</h4>
-                                        </div>
-                                        <div className={"p-6 rounded-[2rem] text-center border shadow-sm " + (stats.lucroCaixa >= 0 ? "bg-blue-50 border-blue-200" : "bg-orange-50 border-orange-200")}>
-                                            <p className={"text-[9px] font-black uppercase mb-2 tracking-widest " + (stats.lucroCaixa >= 0 ? "text-blue-600" : "text-orange-600")}>Geração de Caixa Líquida</p>
-                                            <h4 className={"text-3xl font-black " + (stats.lucroCaixa >= 0 ? "text-blue-700" : "text-orange-700")}>{formatMoney(stats.lucroCaixa)}</h4>
-                                        </div>
+                                        <div className="bg-green-50 p-6 rounded-[2rem] text-center border border-green-100"><p className="text-[9px] font-black text-green-600 uppercase mb-2 tracking-widest">Total Entradas</p><h4 className="text-3xl font-black text-green-700">{formatMoney(stats.entradas)}</h4></div>
+                                        <div className="bg-red-50 p-6 rounded-[2rem] text-center border border-red-100"><p className="text-[9px] font-black text-red-600 uppercase mb-2 tracking-widest">Contas Pagas</p><h4 className="text-3xl font-black text-red-700">{formatMoney(stats.contasPagas)}</h4></div>
+                                        <div className={"p-6 rounded-[2rem] text-center border shadow-sm " + (stats.lucroCaixa >= 0 ? "bg-blue-50 border-blue-200" : "bg-orange-50 border-orange-200")}><p className={"text-[9px] font-black uppercase mb-2 tracking-widest " + (stats.lucroCaixa >= 0 ? "text-blue-600" : "text-orange-600")}>Geração Caixa Líquida</p><h4 className={"text-3xl font-black " + (stats.lucroCaixa >= 0 ? "text-blue-700" : "text-orange-700")}>{formatMoney(stats.lucroCaixa)}</h4></div>
                                     </div>
                                 </div>
-
                                 <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-slate-800">
-                                    <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4">
-                                        <h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2"><Icon name="wallet" size={18}/> 2. Posição Atual de Saldos</h3>
-                                        <span className="bg-slate-100 text-slate-800 font-black text-[10px] px-4 py-2 rounded-xl border uppercase tracking-widest">Patrimônio Líquido: {formatMoney(totalPatrimony)}</span>
-                                    </div>
+                                    <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4"><h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2"><Icon name="wallet" size={18}/> 2. Posição Atual de Saldos</h3><span className="bg-slate-100 text-slate-800 font-black text-[10px] px-4 py-2 rounded-xl border uppercase tracking-widest">Patrimônio: {formatMoney(totalPatrimony)}</span></div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                        {accounts.filter(a => a.type === 'corrente').length === 0 ? <p className="text-[10px] text-slate-400 uppercase font-black">Nenhuma conta cadastrada</p> : accounts.filter(a => a.type === 'corrente').map(acc => (
-                                            <div key={acc.id} className="flex justify-between items-center border p-5 rounded-2xl bg-white/60 hover:bg-white transition-all shadow-sm">
-                                                <span className="text-[10px] font-black uppercase text-slate-500 truncate max-w-[100px]" title={acc.name}>{acc.name}</span>
-                                                <span className={"text-sm font-black " + (accountBalances[acc.name] >= 0 ? 'text-slate-900' : 'text-red-500')}>{formatMoney(accountBalances[acc.name] || 0)}</span>
-                                            </div>
-                                        ))}
+                                        {accounts.filter(a => a.type === 'corrente').map(acc => <div key={acc.id} className="flex justify-between items-center border p-5 rounded-2xl bg-white/60 hover:bg-white transition-all shadow-sm"><span className="text-[10px] font-black uppercase text-slate-500 truncate">{acc.name}</span><span className={"text-sm font-black " + (accountBalances[acc.name] >= 0 ? 'text-slate-900' : 'text-red-500')}>{formatMoney(accountBalances[acc.name] || 0)}</span></div>)}
                                     </div>
                                 </div>
-
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-red-500 flex flex-col justify-between">
-                                        <div>
-                                            <h3 className="text-sm font-black uppercase text-red-600 mb-6 flex items-center gap-2"><Icon name="trending-down" size={18}/> 3. Contas a Pagar (Provisão)</h3>
-                                            <h4 className="text-4xl font-black text-red-600 mb-3">{formatMoney(consolidatedAPagar.reduce((acc, t)=>acc+t.amount,0))}</h4>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Soma de todas as saídas pendentes e faturas de cartão de crédito em aberto (ainda não pagas) para este mês.</p>
-                                        </div>
-                                    </div>
-                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-emerald-500 flex flex-col justify-between">
-                                        <div>
-                                            <h3 className="text-sm font-black uppercase text-emerald-600 mb-6 flex items-center gap-2"><Icon name="trending-up" size={18}/> 4. Contas a Receber (Provisão)</h3>
-                                            <h4 className="text-4xl font-black text-emerald-600 mb-3">{formatMoney(transactions.filter(t=>{ const accInfo = accounts.find(a => a.name === t.account); const { clearanceDate } = getTransactionDates(t, accInfo); return t.type==='entrada'&&t.status==='pendente'&&clearanceDate?.startsWith(filterMonth); }).reduce((acc,t)=>acc+p(t.amount),0))}</h4>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar no caixa neste mês (vendas a prazo, repasses não creditados, etc) que constam como pendentes.</p>
-                                        </div>
-                                    </div>
+                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-red-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-red-600 mb-6 flex items-center gap-2"><Icon name="trending-down" size={18}/> 3. Contas a Pagar (Provisão)</h3><h4 className="text-4xl font-black text-red-600 mb-3">{formatMoney(consolidatedAPagar.reduce((acc, t)=>acc+t.amount,0))}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Soma de saídas pendentes e faturas de cartão.</p></div></div>
+                                    <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-emerald-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-emerald-600 mb-6 flex items-center gap-2"><Icon name="trending-up" size={18}/> 4. Contas a Receber (Provisão)</h3><h4 className="text-4xl font-black text-emerald-600 mb-3">{formatMoney(transactions.filter(t=>t.type==='entrada'&&t.status==='pendente'&&getTransactionDates(t, accounts.find(a=>a.name===t.account)).clearanceDate?.startsWith(filterMonth)).reduce((acc,t)=>acc+p(t.amount),0))}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar no caixa neste mês.</p></div></div>
                                 </div>
-
                                 <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-orange-500">
-                                    <div className="flex justify-between items-center mb-6">
-                                        <h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2"><Icon name="pie-chart" size={18}/> 5. Composição de Custos por Categoria</h3>
-                                    </div>
-                                    {Object.keys(stats.catCosts).length === 0 ? (
-                                        <p className="text-[10px] text-slate-400 font-black uppercase text-center py-6 border-dashed border-2 rounded-2xl">Nenhuma despesa registrada e paga neste mês.</p>
-                                    ) : (
+                                    <div className="flex justify-between items-center mb-6"><h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2"><Icon name="pie-chart" size={18}/> 5. Composição de Custos por Categoria</h3></div>
+                                    {Object.keys(stats.catCosts).length === 0 ? <p className="text-[10px] text-slate-400 font-black uppercase text-center py-6">Nenhuma despesa.</p> : (
                                         <div className="space-y-5 bg-white/40 p-6 rounded-[2rem] border">
                                             {Object.entries(stats.catCosts).sort((a,b)=>b[1]-a[1]).map(([catName, valor]) => {
-                                                const somaCategorias = Object.values(stats.catCosts).reduce((a,b)=>a+b,0);
-                                                const percentual = somaCategorias > 0 ? (valor / somaCategorias) * 100 : 0;
-                                                return (
-                                                    <div key={catName} className="flex flex-col gap-2">
-                                                        <div className="flex justify-between items-end">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-xs font-black uppercase text-slate-700">{catName}</span>
-                                                                <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[8px] font-black">{percentual.toFixed(1)}%</span>
-                                                            </div>
-                                                            <span className="text-red-500 font-black text-sm">{formatMoney(valor)}</span>
-                                                        </div>
-                                                        <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                                                            <div className="h-full bg-orange-400 rounded-full" style={{ width: `${percentual}%` }}></div>
-                                                        </div>
-                                                    </div>
-                                                );
+                                                const pct = Object.values(stats.catCosts).reduce((a,b)=>a+b,0) > 0 ? (valor / Object.values(stats.catCosts).reduce((a,b)=>a+b,0)) * 100 : 0;
+                                                return <div key={catName} className="flex flex-col gap-2"><div className="flex justify-between items-end"><div className="flex items-center gap-2"><span className="text-xs font-black uppercase text-slate-700">{catName}</span><span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[8px] font-black">{pct.toFixed(1)}%</span></div><span className="text-red-500 font-black text-sm">{formatMoney(valor)}</span></div><div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner"><div className="h-full bg-orange-400 rounded-full" style={{ width: `${pct}%` }}></div></div></div>;
                                             })}
                                         </div>
                                     )}
@@ -1254,8 +1063,8 @@
                                     <button onClick={()=>window.print()} className="bg-[#F27A18] text-black px-6 py-3 rounded-xl font-black text-[10px] uppercase print:hidden shadow-lg hover:scale-105 transition-transform"><Icon name="printer" size={16} className="inline mr-2"/>Imprimir / PDF</button>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 print:hidden">
-                                    <div className="glass-card p-6 rounded-3xl shadow text-center border-l-4 border-blue-500"><p className="text-[9px] font-black uppercase text-slate-400">Faturamento Base (Mês)</p><h3 className="text-2xl font-black text-slate-800 mt-2">{formatMoney(cmvSettings.baseRevenue)}</h3></div>
-                                    <div className="glass-card p-6 rounded-3xl shadow text-center border-l-4 border-red-500"><p className="text-[9px] font-black uppercase text-slate-400">Custos Fixos</p><h3 className="text-2xl font-black text-red-500 mt-2">{formatMoney(fixedCosts.reduce((s,c)=>s+p(c.value),0))}</h3><p className="text-[9px] font-bold text-slate-500 mt-1">{cmvSettings.baseRevenue>0 ? ((fixedCosts.reduce((s,c)=>s+p(c.value),0)/cmvSettings.baseRevenue)*100).toFixed(1) : 0}% do Faturamento</p></div>
+                                    <div className="glass-card p-6 rounded-3xl shadow text-center border-l-4 border-blue-500"><p className="text-[9px] font-black uppercase text-slate-400">Faturamento Real (Vendas)</p><h3 className="text-2xl font-black text-slate-800 mt-2">{formatMoney(stats.rb)}</h3></div>
+                                    <div className="glass-card p-6 rounded-3xl shadow text-center border-l-4 border-red-500"><p className="text-[9px] font-black uppercase text-slate-400">Custos Fixos</p><h3 className="text-2xl font-black text-red-500 mt-2">{formatMoney(fixedCosts.reduce((s,c)=>s+p(c.value),0))}</h3><p className="text-[9px] font-bold text-slate-500 mt-1">{stats.rb>0 ? ((fixedCosts.reduce((s,c)=>s+p(c.value),0)/stats.rb)*100).toFixed(1) : 0}% do Faturamento</p></div>
                                     <div className="glass-card p-6 rounded-3xl shadow text-center border-l-4 border-emerald-500"><p className="text-[9px] font-black uppercase text-slate-400">Ponto de Equilíbrio (Zero a Zero)</p><h3 className="text-2xl font-black text-emerald-600 mt-2">{formatMoney((1 - (cmvSettings.targetCMV/100) - ((cmvSettings.tax+cmvSettings.apps+cmvSettings.card)/100)) > 0 ? fixedCosts.reduce((s,c)=>s+p(c.value),0) / (1 - (cmvSettings.targetCMV/100) - ((cmvSettings.tax+cmvSettings.apps+cmvSettings.card)/100)) : 0)}</h3></div>
                                 </div>
                                 <div className="glass-card rounded-[2rem] overflow-hidden border shadow-sm">
@@ -1309,6 +1118,37 @@
                                      <div className="glass-card rounded-[2rem] p-8 border text-center h-fit bg-[#1A202C] text-white">
                                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Soma das Despesas Mensais</p>
                                          <h3 className="text-4xl font-black text-red-400">{formatMoney(fixedCosts.reduce((s,c)=>s+p(c.value),0))}</h3>
+                                     </div>
+                                 </div>
+                             </div>
+                        )}
+
+                        {activeTab === 'ajustes' && (
+                             <div className="space-y-8 fade-in">
+                                 <div className="glass-card p-8 rounded-[3rem] border-t-8 border-[#D97757] shadow-xl grid grid-cols-1 md:grid-cols-2 gap-8">
+                                     <div className="space-y-6">
+                                         <div><h3 className="font-black uppercase text-slate-800 text-lg">Parâmetros & Taxas</h3><p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Configurações para os cálculos de precificação do cardápio e Financeiro</p></div>
+                                         <div className="grid grid-cols-2 gap-4">
+                                             <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Meta CMV (%)</label><input type="number" step="0.1" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-black" value={cmvSettings.targetCMV} onChange={e=>setCmvSettings({...cmvSettings, targetCMV: e.target.value})} /></div>
+                                             <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Impostos (%)</label><input type="number" step="0.1" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-black" value={cmvSettings.tax} onChange={e=>setCmvSettings({...cmvSettings, tax: e.target.value})} /></div>
+                                             <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Cartões (%)</label><input type="number" step="0.1" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:border-black" value={cmvSettings.card} onChange={e=>setCmvSettings({...cmvSettings, card: e.target.value})} /></div>
+                                             <div className="space-y-1"><label className="text-[9px] font-black uppercase text-red-500 ml-1">Taxa iFood (%)</label><input type="number" step="0.1" className="w-full p-4 bg-red-50/30 border border-red-100 rounded-2xl font-bold text-xs text-red-600 outline-none focus:border-red-500" value={cmvSettings.ifoodTax} onChange={e=>setCmvSettings({...cmvSettings, ifoodTax: e.target.value})} /></div>
+                                             <div className="col-span-2 space-y-1"><label className="text-[9px] font-black uppercase text-blue-500 ml-1">Meta Vendas Mensal (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-blue-50 border border-blue-100 rounded-2xl font-bold text-xs outline-none focus:border-blue-500" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} /></div>
+                                         </div>
+                                         <button onClick={async()=>{if(!user)return; await saveCMVDoc('settings', {...cmvSettings, targetCMV:p(cmvSettings.targetCMV), tax:p(cmvSettings.tax), apps:p(cmvSettings.apps), card:p(cmvSettings.card), ifoodTax:p(cmvSettings.ifoodTax)}); await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/settings/config`).set({meta: p(metaVendas)}, {merge:true}); alert('Parâmetros Guardados!');}} className="w-full bg-[#1A202C] text-[#F8CC82] p-4 rounded-2xl font-black uppercase text-[10px] shadow-lg hover:bg-black transition-all">Salvar Parâmetros Gerais</button>
+                                     </div>
+                                     
+                                     <div className="space-y-6">
+                                         <div><h3 className="font-black uppercase text-slate-800 text-lg">Cadastros Rápidos</h3><p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Gestão de Contas Financeiras e Categorias</p></div>
+                                         <div className="space-y-3">
+                                            <form onSubmit={addCat} className="flex gap-2"><input type="text" placeholder="Nova Categoria Financeira..." className="flex-1 p-3 bg-slate-50 border rounded-xl font-bold text-xs outline-none" value={catForm} onChange={e=>setCatForm(e.target.value)} required /><button className="bg-black text-[#F8CC82] px-4 rounded-xl text-[9px] font-black">Add</button></form>
+                                            <form onSubmit={addAcc} className="flex gap-2 flex-wrap bg-slate-50 p-3 rounded-xl border">
+                                                <input type="text" placeholder="Nome Conta/Cartão" className="flex-1 p-2 bg-white border rounded-lg font-bold text-[10px] outline-none min-w-[120px]" value={accForm.name} onChange={e=>setAccForm({...accForm, name: e.target.value})} required />
+                                                <select className="p-2 bg-white border rounded-lg font-bold text-[10px] outline-none" value={accForm.type} onChange={e=>setAccForm({...accForm, type: e.target.value})}><option value="corrente">Corrente</option><option value="cartao">Cartão</option></select>
+                                                {accForm.type === 'cartao' && <><input type="number" placeholder="Limite" className="w-20 p-2 bg-white border rounded-lg font-bold text-[10px]" value={accForm.limit} onChange={e=>setAccForm({...accForm, limit: e.target.value})} /><input type="number" placeholder="Fecho" className="w-16 p-2 bg-white border rounded-lg font-bold text-[10px]" value={accForm.closing} onChange={e=>setAccForm({...accForm, closing: e.target.value})} /><input type="number" placeholder="Venc" className="w-16 p-2 bg-white border rounded-lg font-bold text-[10px]" value={accForm.due} onChange={e=>setAccForm({...accForm, due: e.target.value})} /></>}
+                                                <button className="w-full bg-[#1A202C] text-white py-2 rounded-lg text-[9px] font-black uppercase mt-1">Add Conta</button>
+                                            </form>
+                                         </div>
                                      </div>
                                  </div>
                              </div>
