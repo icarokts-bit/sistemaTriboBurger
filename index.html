@@ -79,6 +79,7 @@
             return <span ref={containerRef} className={`inline-flex items-center justify-center ${className}`}></span>;
         });
 
+        // Input Otimizado (DailyRecords)
         const DailyInput = memo(({ dateStr, field, initialValue, activeUid, className, placeholder }) => {
             const [val, setVal] = useState(initialValue || '');
             useEffect(() => { setVal(initialValue || ''); }, [initialValue]);
@@ -165,6 +166,7 @@
             const [activeTab, setActiveTab] = useState('fin_dashboard');
             const [isMenuOpen, setIsMenuOpen] = useState(false);
             
+            // ESTADOS GERAIS
             const [transactions, setTransactions] = useState([]);
             const [dailyRecords, setDailyRecords] = useState({});
             const [accounts, setAccounts] = useState([]);
@@ -176,9 +178,11 @@
             const [searchQuery, setSearchQuery] = useState('');
             const [typeFilter, setTypeFilter] = useState('todos');
             
+            // Formulários Financeiros
             const [txForm, setTxForm] = useState({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1 });
             const [newDayDate, setNewDayDate] = useState(new Date().toISOString().split('T')[0]);
             
+            // Modais e Cadastros Financeiros
             const [supForm, setSupForm] = useState('');
             const [catForm, setCatForm] = useState('');
             const [accForm, setAccForm] = useState({ name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' });
@@ -189,12 +193,13 @@
             const [invoicePartialVal, setInvoicePartialVal] = useState('');
             const [invoiceSourceAcc, setInvoiceSourceAcc] = useState('');
 
+            // ESTADOS CMV
             const [ingredients, setIngredients] = useState([]);
             const [recipes, setRecipes] = useState([]);
             const [complements, setComplements] = useState([]);
             const [combos, setCombos] = useState([]);
             const [fixedCosts, setFixedCosts] = useState([]);
-            const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12 });
+            const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12, baseRevenue: 0, targetRevenue: 0 });
             
             const [ingCats, setIngCats] = useState(['Proteínas', 'Pães', 'Queijos', 'Molhos', 'Vegetais/Hortifrúti', 'Embalagens', 'Outros']);
             const [recCats, setRecCats] = useState(['Hambúrgueres', 'Acompanhamentos', 'Bebidas', 'Sobremesas', 'Molhos Caseiros', 'Outros', 'Smash']);
@@ -213,6 +218,7 @@
             const [isFcModalOpen, setIsFcModalOpen] = useState(false);
             const [fcForm, setFcForm] = useState({ id: '', description: '', category: 'Operacional', value: '' });
 
+            // Estados de Expansão (Categorias)
             const [recipeCollapsed, setRecipeCollapsed] = useState({});
             const [compCollapsed, setCompCollapsed] = useState({});
             const [comboCollapsed, setComboCollapsed] = useState({});
@@ -238,7 +244,7 @@
                     if(s.exists) {
                         const d = s.data();
                         setIngredients(d.ingredients || []); setRecipes(d.recipes || []); setComplements(d.complements || []); setCombos(d.combos || []); setFixedCosts(d.fixedCosts || []);
-                        setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12 });
+                        setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12, baseRevenue: 0, targetRevenue: 0 });
                         if(d.ingredientCategories) setIngCats(d.ingredientCategories); if(d.recipeCategories) setRecCats(d.recipeCategories);
                         if(d.complementCategories) setCompCats(d.complementCategories); if(d.comboCategories) setComboCats(d.comboCategories);
                         if(d.fixedCostCategories) setFcCats(d.fixedCostCategories);
@@ -251,6 +257,7 @@
             const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
+            // ================= LÓGICA FINANCEIRA COMPUTADA =================
             const filteredDashboard = useMemo(() => transactions.filter(t => {
                 if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
                 const { clearanceDate, billingMonth } = getTransactionDates(t, accounts.find(a => a.name === t.account));
@@ -358,6 +365,55 @@
                 };
             }, [dailyRecords, transactions, filterMonth, metaVendas, accounts]);
 
+            const columnTotals = useMemo(() => {
+                const days = Object.keys(dailyRecords).filter(d => d.startsWith(filterMonth));
+                const totals = { totalDia: 0, pedidos: 0, pix: 0, pixOnline: 0, fiado: 0, dinheiro: 0, ifood: 0, debito: 0, credito: 0, vr: 0, ticket: 0, alelo: 0, taxaEntrega: 0, motoboy: 0 };
+                days.forEach(d => {
+                    const r = dailyRecords[d] || {};
+                    totals.totalDia += ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
+                    totals.pedidos += p(r.qtdPedidos);
+                    ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].forEach(f => { totals[f] += p(r[f]); });
+                    totals.taxaEntrega += p(r.taxaEntrega); totals.motoboy += p(r.motoboy);
+                });
+                totals.ticketMedio = totals.pedidos > 0 ? totals.totalDia / totals.pedidos : 0;
+                return totals;
+            }, [dailyRecords, filterMonth]);
+
+            // ================= INVOICE & CARD STATS COMPUTADOS (FILTRADOS POR VENCIMENTO CORRETO) =================
+            const consolidatedAPagar = useMemo(() => {
+                const pendings = transactions.filter(t => {
+                    const accInfo = accounts.find(a => a.name === t.account);
+                    const { clearanceDate } = getTransactionDates(t, accInfo);
+                    return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accInfo?.type !== 'cartao';
+                });
+                
+                const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
+                    const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
+                    const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                    const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                    const remaining = totalPurchases - totalPaid;
+                    return remaining > 0.01 ? { id: "card-" + card.name, description: "Fatura " + card.name, amount: remaining, account: card.name, clearanceDate: filterMonth + "-" + String(card.due || card.dueDay || 10).padStart(2, '0'), isInvoice: true, category: 'Cartão de Crédito' } : null;
+                }).filter(Boolean);
+                
+                return [...pendings, ...invoices].sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
+            }, [transactions, accounts, filterMonth]);
+
+            const consolidatedAReceber = useMemo(() => transactions.filter(t => {
+                const accInfo = accounts.find(a => a.name === t.account);
+                const { clearanceDate } = getTransactionDates(t, accInfo);
+                return t.type === 'entrada' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth);
+            }).sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || "")), [transactions, accounts, filterMonth]);
+
+            const cardStats = useMemo(() => accounts.filter(a => a.type === 'cartao').map(card => {
+                const txs = transactions.filter(t => t.account === card.name);
+                const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                const currentBalance = totalPurchases - totalPaid;
+                const limit = p(card.limit || 0); const available = limit > 0 ? limit - currentBalance : 0;
+                return { ...card, currentBalance, limit, available };
+            }), [transactions, accounts]);
+
+            // ================= LÓGICA CMV COMPUTADA =================
             const getIngCost = (id, q) => { const i = ingredients.find(x => x.id === id); return i ? (i.cost / i.qty) * (p(q) * (i.unit==='kg'||i.unit==='L'?0.001:1)) : 0; };
             const calcItemCost = (ings) => (ings||[]).reduce((t, r) => t + getIngCost(r.ingredientId, r.qty), 0);
             const calcComboCost = (items) => (items||[]).reduce((t, i) => {
@@ -366,6 +422,7 @@
                 return t + getIngCost(i.itemId, i.qty);
             }, 0);
 
+            // ================= ACTIONS =================
             const saveCMVDoc = async (field, data) => await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/cmv_data/state`).set({ [field]: data }, { merge: true });
             const saveMeta = async (v) => { if (!user) return; await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/settings/config`).set({ meta: p(v) }, { merge: true }); };
 
@@ -392,6 +449,11 @@
                 setTxForm({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1 });
             };
 
+            const openLiquidation = (t) => {
+                if (t.isInvoice) { setActiveTab('cartoes'); return; }
+                setLiqModal({ id: t.id, description: t.description || '', amount: String(t.amount || 0).replace('.', ','), date: new Date().toISOString().split('T')[0], account: t.account || '' });
+            };
+
             const executeLiquidation = async () => {
                 if (!user || !liqModal) return;
                 try {
@@ -403,47 +465,21 @@
             const handleExecuteInvoicePayment = async () => {
                 if (!user || !invoiceModal || !invoiceSourceAcc) return;
                 try {
-                    const activeUid = user.uid;
-                    const path = "artifacts/tribo-burger-financeiro/users/" + activeUid + "/transactions";
-                    const totalInvoiceAmount = invoiceModal.total;
-                    const paidAmount = invoicePayType === 'integral' ? totalInvoiceAmount : p(invoicePartialVal);
-
+                    const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/transactions";
+                    const totalInvoiceAmount = invoiceModal.total; const paidAmount = invoicePayType === 'integral' ? totalInvoiceAmount : p(invoicePartialVal);
                     if (paidAmount <= 0) return; 
 
-                    const todayStr = new Date().toISOString().split('T')[0];
-                    const batch = db.batch();
-
-                    const paymentPayload = {
-                        description: "Baixa Fatura " + invoiceModal.cardName + " (" + invoicePayType.toUpperCase() + ")",
-                        amount: paidAmount, type: 'saida', status: 'pago', date: todayStr, clearanceDate: todayStr,
-                        billingMonth: filterMonth, account: invoiceSourceAcc, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString()
-                    };
-                    batch.set(db.collection(path).doc(), paymentPayload);
-
-                    const cardCreditPayload = {
-                        description: "Pagamento de Fatura Mês " + filterMonth,
-                        amount: paidAmount, type: 'entrada', status: 'pago', date: todayStr, clearanceDate: filterMonth + "-28", 
-                        billingMonth: filterMonth, account: invoiceModal.cardName, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString()
-                    };
-                    batch.set(db.collection(path).doc(), cardCreditPayload);
+                    const todayStr = new Date().toISOString().split('T')[0]; const batch = db.batch();
+                    batch.set(db.collection(path).doc(), { description: "Baixa Fatura " + invoiceModal.cardName + " (" + invoicePayType.toUpperCase() + ")", amount: paidAmount, type: 'saida', status: 'pago', date: todayStr, clearanceDate: todayStr, billingMonth: filterMonth, account: invoiceSourceAcc, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString() });
+                    batch.set(db.collection(path).doc(), { description: "Pagamento de Fatura Mês " + filterMonth, amount: paidAmount, type: 'entrada', status: 'pago', date: todayStr, clearanceDate: filterMonth + "-28", billingMonth: filterMonth, account: invoiceModal.cardName, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString() });
 
                     if (invoicePayType === 'parcial' && (totalInvoiceAmount - paidAmount) > 0.01) {
-                        const remainingAmount = totalInvoiceAmount - paidAmount;
-                        const parts = filterMonth.split('-');
-                        let nextM = parseInt(parts[1]) + 1; let nextY = parseInt(parts[0]);
-                        if (nextM > 12) { nextM = 1; nextY += 1; }
+                        const parts = filterMonth.split('-'); let nextM = parseInt(parts[1]) + 1; let nextY = parseInt(parts[0]); if (nextM > 12) { nextM = 1; nextY += 1; }
                         const nextMonthStr = nextY + "-" + String(nextM).padStart(2, '0');
-
-                        const rolloverPayload = {
-                            description: "Saldo Restante Fatura Anterior " + filterMonth,
-                            amount: remainingAmount, type: 'saida', status: 'pendente', date: nextMonthStr + "-01", clearanceDate: nextMonthStr + "-10", 
-                            billingMonth: nextMonthStr, account: invoiceModal.cardName, category: 'Saldo Fatura Anterior', supplier: '', timestamp: new Date().toISOString()
-                        };
-                        batch.set(db.collection(path).doc(), rolloverPayload);
+                        batch.set(db.collection(path).doc(), { description: "Saldo Restante Fatura Anterior " + filterMonth, amount: totalInvoiceAmount - paidAmount, type: 'saida', status: 'pendente', date: nextMonthStr + "-01", clearanceDate: nextMonthStr + "-10", billingMonth: nextMonthStr, account: invoiceModal.cardName, category: 'Saldo Fatura Anterior', supplier: '', timestamp: new Date().toISOString() });
                     }
 
-                    await batch.commit();
-                    setInvoiceModal(null); setInvoicePartialVal(''); setInvoiceSourceAcc('');
+                    await batch.commit(); setInvoiceModal(null); setInvoicePartialVal(''); setInvoiceSourceAcc('');
                 } catch(e) { console.error(e); }
             };
 
@@ -462,6 +498,8 @@
                 if (index > -1) list[index] = record; else list.push(record);
                 await saveCMVDoc(collectionStr, list); setModalOpen(false);
             };
+
+            const delActionCMV = async (collectionStr, stateArr, id) => { if(window.confirm("Confirmar exclusão?")) await saveCMVDoc(collectionStr, stateArr.filter(x => x.id !== id)); };
 
             if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase tracking-widest">Iniciando ERP Unificado...</div>;
             if (!user || user.isAnonymous) return (
@@ -560,13 +598,17 @@
                     </div>
 
                     <main className="p-4 max-w-7xl mx-auto w-full flex-1 space-y-6">
+                        {/* MÊS GLOBAL */}
                         {['fin_dashboard', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'dre', 'analise', 'resultados', 'relatorios'].includes(activeTab) && (
                             <div className="flex justify-center print:hidden fade-in">
-                                <div className="glass-card px-6 py-2 rounded-full flex items-center gap-4 border shadow-sm"><span className="text-[9px] font-black uppercase text-slate-400">Mês Base:</span><input type="month" value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} className="bg-transparent border-0 outline-none font-black text-[#D97757] text-sm cursor-pointer" /></div>
+                                <div className="glass-card px-6 py-2 rounded-full flex items-center gap-4 border shadow-sm">
+                                    <span className="text-[9px] font-black uppercase text-slate-400">Mês Base:</span>
+                                    <input type="month" value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} className="bg-transparent border-0 outline-none font-black text-[#D97757] text-sm cursor-pointer" />
+                                </div>
                             </div>
                         )}
 
-                        {/* MÓDULO FINANCEIRO */}
+                        {/* ================================= MÓDULO FINANCEIRO ================================= */}
                         {activeTab === 'fin_dashboard' && (
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 fade-in">
                                 <form onSubmit={handleSaveTx} className="lg:col-span-1 glass-card p-8 rounded-[3rem] shadow-sm space-y-4 border-t-4 border-black h-fit relative">
@@ -747,14 +789,30 @@
                         })()}
 
                         {activeTab === 'a_pagar' && (() => {
-                            const pendings = transactions.filter(t => t.type === 'saida' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao');
+                            const pendings = transactions.filter(t => {
+                                const accInfo = accounts.find(a => a.name === t.account);
+                                const { clearanceDate } = getTransactionDates(t, accInfo);
+                                return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accInfo?.type !== 'cartao';
+                            });
+                            
                             const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
                                 const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
                                 const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
                                 const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
                                 const remaining = totalPurchases - totalPaid;
-                                return remaining > 0.01 ? { id: "card-" + card.name, description: "Fatura " + card.name, amount: remaining, account: card.name, clearanceDate: filterMonth + "-" + String(card.due || 10).padStart(2, '0'), isInvoice: true, category: 'Cartão de Crédito' } : null;
+                                
+                                if (remaining <= 0.01) return null;
+                                const cardDueDay = card.due || card.dueDay || 10;
+                                return { 
+                                    id: "card-" + card.name, 
+                                    description: "Fatura " + card.name, 
+                                    amount: remaining, 
+                                    account: card.name, 
+                                    clearanceDate: filterMonth + "-" + String(cardDueDay).padStart(2, '0'), 
+                                    isInvoice: true 
+                                };
                             }).filter(Boolean);
+                            
                             const combined = [...pendings, ...invoices].sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
                             
                             return (
@@ -781,7 +839,16 @@
                         })()}
 
                         {activeTab === 'a_receber' && (() => {
-                            const list = transactions.filter(t => t.type === 'entrada' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth)).sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
+                            const list = transactions.filter(t => {
+                                const accInfo = accounts.find(a => a.name === t.account);
+                                const { clearanceDate } = getTransactionDates(t, accInfo);
+                                return t.type === 'entrada' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth);
+                            }).sort((a,b) => {
+                                const accA = accounts.find(acc => acc.name === a.account);
+                                const accB = accounts.find(acc => acc.name === b.account);
+                                return (getTransactionDates(a, accA).clearanceDate||"").localeCompare(getTransactionDates(b, accB).clearanceDate||"");
+                            });
+
                             return (
                                 <div className="space-y-6 fade-in">
                                     <div className="stat-banner !border-black !bg-green-500"><p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-80 mb-2">Total A Receber ({filterMonth})</p><h3 className="text-5xl font-black drop-shadow-xl">{formatMoney(list.reduce((sum, t) => sum + p(t.amount), 0))}</h3></div>
@@ -789,15 +856,19 @@
                                         <table className="w-full text-left text-xs">
                                             <thead className="bg-slate-100 text-slate-500 uppercase font-black text-[9px] tracking-widest border-b"><tr><th className="p-4">Previsão</th><th className="p-4">Descrição</th><th className="p-4">Conta Destino</th><th className="p-4 text-right">Valor</th><th className="p-4 text-center">Ação</th></tr></thead>
                                             <tbody className="divide-y font-bold text-slate-700">
-                                                {list.length === 0 ? <tr><td colSpan="5" className="p-12 text-center text-slate-400">Nenhum recebimento pendente.</td></tr> : list.map((t) => (
-                                                    <tr key={t.id} className="hover:bg-slate-50">
-                                                        <td className="p-4">{t.clearanceDate.split('-').reverse().join('/')}</td>
-                                                        <td className="p-4 uppercase">{t.description}</td>
-                                                        <td className="p-4 uppercase"><span className="bg-slate-200 px-2 py-1 rounded text-[9px]">{t.account}</span></td>
-                                                        <td className="p-4 text-right text-green-600 font-black">{formatMoney(t.amount)}</td>
-                                                        <td className="p-4 text-center"><button onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-green-200">Confirmar Rec.</button></td>
-                                                    </tr>
-                                                ))}
+                                                {list.length === 0 ? <tr><td colSpan="5" className="p-12 text-center text-slate-400">Nenhum recebimento pendente.</td></tr> : list.map((t) => {
+                                                    const accInfo = accounts.find(a => a.name === t.account);
+                                                    const { clearanceDate } = getTransactionDates(t, accInfo);
+                                                    return (
+                                                        <tr key={t.id} className="hover:bg-slate-50">
+                                                            <td className="p-4">{clearanceDate?.split('-').reverse().join('/')}</td>
+                                                            <td className="p-4 uppercase">{t.description}</td>
+                                                            <td className="p-4 uppercase"><span className="bg-slate-200 px-2 py-1 rounded text-[9px]">{t.account}</span></td>
+                                                            <td className="p-4 text-right text-green-600 font-black">{formatMoney(t.amount)}</td>
+                                                            <td className="p-4 text-center"><button onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-green-200">Confirmar Rec.</button></td>
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>
@@ -822,7 +893,7 @@
                                     </div>
                                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                                         {cStats.length === 0 ? <div className="col-span-full p-12 text-center text-slate-400 uppercase font-black text-xs glass-card rounded-[2.5rem] border-dashed">Nenhum cartão cadastrado. Vá em "Ajustes" para adicionar.</div> : cStats.map(card => {
-                                            const currentMonthTxs = transactions.filter(t => { if (t.account !== card.name) return false; const { billingMonth } = getTransactionDates(t, card); return billingMonth === filterMonth && !isInvoicePayment(t); });
+                                            const currentMonthTxs = transactions.filter(t => { if (t.account !== card.name) return false; const { clearanceDate } = getTransactionDates(t, card); return clearanceDate?.startsWith(filterMonth) && !isInvoicePayment(t); });
                                             const invoiceTotal = currentMonthTxs.reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
                                             const invoicePayments = transactions.filter(t => t.account === card.name && isInvoicePayment(t) && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
                                             const paidAmount = invoicePayments.reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
@@ -913,7 +984,12 @@
                         )}
 
                         {activeTab === 'relatorios' && (() => {
-                            const pendings = transactions.filter(t => t.type === 'saida' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao');
+                            const pendings = transactions.filter(t => {
+                                const accInfo = accounts.find(a => a.name === t.account);
+                                const { clearanceDate } = getTransactionDates(t, accInfo);
+                                return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accInfo?.type !== 'cartao';
+                            });
+                            
                             const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
                                 const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
                                 const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
@@ -925,7 +1001,12 @@
                             const sumInvoices = invoices.reduce((acc, val) => acc + val, 0);
                             const totalAPagar = sumPendings + sumInvoices;
 
-                            const totalAReceber = transactions.filter(t => t.type === 'entrada' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth)).reduce((acc, t) => acc + p(t.amount), 0);
+                            const totalAReceber = transactions.filter(t => {
+                                const accInfo = accounts.find(a => a.name === t.account);
+                                const { clearanceDate } = getTransactionDates(t, accInfo);
+                                return t.type === 'entrada' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth);
+                            }).reduce((acc, t) => acc + p(t.amount), 0);
+                            
                             const somaDespesasCategoria = Object.values(stats.catCosts).reduce((a, b) => a + b, 0);
 
                             return (
@@ -938,7 +1019,7 @@
                                         <h3 className="text-sm font-black uppercase text-slate-800 mb-6 flex items-center gap-2"><TrendingUp size={18}/> 1. Fluxo de Caixa (Realizado)</h3>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                             <div className="bg-green-50 p-6 rounded-[2rem] text-center border border-green-100"><p className="text-[9px] font-black text-green-600 uppercase mb-2 tracking-widest">Total Entradas</p><h4 className="text-3xl font-black text-green-700">{formatMoney(stats.entradas)}</h4></div>
-                                            <div className="bg-red-50 p-6 rounded-[2rem] text-center border border-red-100"><p className="text-[9px] font-black text-red-600 uppercase mb-2 tracking-widest">Contas Pagas (Saídas)</p><h4 className="text-3xl font-black text-red-700">{formatMoney(stats.contasPagas)}</h4></div>
+                                            <div className="bg-red-50 p-6 rounded-[2rem] text-center border border-red-100"><p className="text-[9px] font-black text-red-600 uppercase mb-2 tracking-widest">Contas Pagas</p><h4 className="text-3xl font-black text-red-700">{formatMoney(stats.contasPagas)}</h4></div>
                                             <div className={"p-6 rounded-[2rem] text-center border shadow-sm " + (stats.lucroCaixa >= 0 ? "bg-blue-50 border-blue-200" : "bg-orange-50 border-orange-200")}><p className={"text-[9px] font-black uppercase mb-2 tracking-widest " + (stats.lucroCaixa >= 0 ? "text-blue-600" : "text-orange-600")}>Geração Caixa Líquida</p><h4 className={"text-3xl font-black " + (stats.lucroCaixa >= 0 ? "text-blue-700" : "text-orange-700")}>{formatMoney(stats.lucroCaixa)}</h4></div>
                                         </div>
                                     </div>
@@ -950,7 +1031,7 @@
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-red-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-red-600 mb-6 flex items-center gap-2"><TrendingDown size={18}/> 3. Contas a Pagar (Provisão)</h3><h4 className="text-4xl font-black text-red-600 mb-3">{formatMoney(totalAPagar)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Soma de saídas pendentes e faturas de cartão.</p></div></div>
-                                        <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-emerald-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-emerald-600 mb-6 flex items-center gap-2"><TrendingUp size={18}/> 4. Contas a Receber (Provisão)</h3><h4 className="text-4xl font-black text-emerald-600 mb-3">{formatMoney(totalAReceber)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar no caixa neste mês.</p></div></div>
+                                        <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-emerald-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-emerald-600 mb-6 flex items-center gap-2"><TrendingUp size={18}/> 4. Contas a Receber (Provisão)</h3><h4 className="text-4xl font-black text-emerald-600 mb-3">{formatMoney(totalReceitasPendentes)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar no caixa neste mês.</p></div></div>
                                     </div>
                                     <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-orange-500">
                                         <div className="flex justify-between items-center mb-6"><h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2"><PieChart size={18}/> 5. Composição de Custos por Categoria</h3></div>
@@ -1102,7 +1183,7 @@
                                                                             <button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 p-2"><Edit2 size={14}/></button>
                                                                             <button onClick={()=>delActionCMV('ingredients', ingredients, ing.id)} className="text-red-400 p-2"><Trash2 size={14}/></button>
                                                                         </td>
-                                                                    </tr>
+                                                                </tr>
                                                                 ))}
                                                             </tbody>
                                                         </table>
