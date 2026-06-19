@@ -40,6 +40,9 @@
         .scale-up-center { animation: scale-up-center 0.2s cubic-bezier(0.390, 0.575, 0.565, 1.000) both; }
         @keyframes scale-up-center { 0% { transform: scale(0.95); } 100% { transform: scale(1); } }
 
+        .delete-confirm { background-color: #EF4444 !important; color: white !important; animation: pulse 1s infinite; font-size: 9px !important; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
         @media print {
             body { background-color: white !important; color: black !important; }
             .print\:hidden, header, .sidebar { display: none !important; }
@@ -67,7 +70,6 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        // Ícones em Cache
         const Icon = memo(({ name, size = 20, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
@@ -79,7 +81,6 @@
             return <span ref={containerRef} className={`inline-flex items-center justify-center ${className}`}></span>;
         });
 
-        // Input Otimizado (DailyRecords)
         const DailyInput = memo(({ dateStr, field, initialValue, activeUid, className, placeholder }) => {
             const [val, setVal] = useState(initialValue || '');
             useEffect(() => { setVal(initialValue || ''); }, [initialValue]);
@@ -185,13 +186,15 @@
             // Modais e Cadastros Financeiros
             const [supForm, setSupForm] = useState('');
             const [catForm, setCatForm] = useState('');
-            const [accForm, setAccForm] = useState({ name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' });
+            const [accForm, setAccForm] = useState({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' });
             
             const [liqModal, setLiqModal] = useState(null);
             const [invoiceModal, setInvoiceModal] = useState(null);
             const [invoicePayType, setInvoicePayType] = useState('integral'); 
             const [invoicePartialVal, setInvoicePartialVal] = useState('');
             const [invoiceSourceAcc, setInvoiceSourceAcc] = useState('');
+            
+            const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
             // ESTADOS CMV
             const [ingredients, setIngredients] = useState([]);
@@ -257,7 +260,7 @@
             const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-            // ================= LÓGICA FINANCEIRA COMPUTADA =================
+            // ================= LOGICA FINANCEIRA COMPUTADA =================
             const filteredDashboard = useMemo(() => transactions.filter(t => {
                 if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
                 const { clearanceDate, billingMonth } = getTransactionDates(t, accounts.find(a => a.name === t.account));
@@ -365,54 +368,6 @@
                 };
             }, [dailyRecords, transactions, filterMonth, metaVendas, accounts]);
 
-            const columnTotals = useMemo(() => {
-                const days = Object.keys(dailyRecords).filter(d => d.startsWith(filterMonth));
-                const totals = { totalDia: 0, pedidos: 0, pix: 0, pixOnline: 0, fiado: 0, dinheiro: 0, ifood: 0, debito: 0, credito: 0, vr: 0, ticket: 0, alelo: 0, taxaEntrega: 0, motoboy: 0 };
-                days.forEach(d => {
-                    const r = dailyRecords[d] || {};
-                    totals.totalDia += ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
-                    totals.pedidos += p(r.qtdPedidos);
-                    ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].forEach(f => { totals[f] += p(r[f]); });
-                    totals.taxaEntrega += p(r.taxaEntrega); totals.motoboy += p(r.motoboy);
-                });
-                totals.ticketMedio = totals.pedidos > 0 ? totals.totalDia / totals.pedidos : 0;
-                return totals;
-            }, [dailyRecords, filterMonth]);
-
-            // ================= INVOICE & CARD STATS COMPUTADOS (FILTRADOS POR VENCIMENTO CORRETO) =================
-            const consolidatedAPagar = useMemo(() => {
-                const pendings = transactions.filter(t => {
-                    const accInfo = accounts.find(a => a.name === t.account);
-                    const { clearanceDate } = getTransactionDates(t, accInfo);
-                    return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accInfo?.type !== 'cartao';
-                });
-                
-                const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
-                    const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
-                    const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                    const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                    const remaining = totalPurchases - totalPaid;
-                    return remaining > 0.01 ? { id: "card-" + card.name, description: "Fatura " + card.name, amount: remaining, account: card.name, clearanceDate: filterMonth + "-" + String(card.due || card.dueDay || 10).padStart(2, '0'), isInvoice: true, category: 'Cartão de Crédito' } : null;
-                }).filter(Boolean);
-                
-                return [...pendings, ...invoices].sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
-            }, [transactions, accounts, filterMonth]);
-
-            const consolidatedAReceber = useMemo(() => transactions.filter(t => {
-                const accInfo = accounts.find(a => a.name === t.account);
-                const { clearanceDate } = getTransactionDates(t, accInfo);
-                return t.type === 'entrada' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth);
-            }).sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || "")), [transactions, accounts, filterMonth]);
-
-            const cardStats = useMemo(() => accounts.filter(a => a.type === 'cartao').map(card => {
-                const txs = transactions.filter(t => t.account === card.name);
-                const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                const currentBalance = totalPurchases - totalPaid;
-                const limit = p(card.limit || 0); const available = limit > 0 ? limit - currentBalance : 0;
-                return { ...card, currentBalance, limit, available };
-            }), [transactions, accounts]);
-
             // ================= LÓGICA CMV COMPUTADA =================
             const getIngCost = (id, q) => { const i = ingredients.find(x => x.id === id); return i ? (i.cost / i.qty) * (p(q) * (i.unit==='kg'||i.unit==='L'?0.001:1)) : 0; };
             const calcItemCost = (ings) => (ings||[]).reduce((t, r) => t + getIngCost(r.ingredientId, r.qty), 0);
@@ -423,6 +378,17 @@
             }, 0);
 
             // ================= ACTIONS =================
+            const executeDelete = async (collectionName, id) => {
+                if (!user) return;
+                if (deleteConfirmId === id) {
+                    await db.collection("artifacts/tribo-burger-financeiro/users/" + user.uid + "/" + collectionName).doc(id).delete();
+                    setDeleteConfirmId(null);
+                } else {
+                    setDeleteConfirmId(id);
+                    setTimeout(() => setDeleteConfirmId(null), 3000);
+                }
+            };
+
             const saveCMVDoc = async (field, data) => await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/cmv_data/state`).set({ [field]: data }, { merge: true });
             const saveMeta = async (v) => { if (!user) return; await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/settings/config`).set({ meta: p(v) }, { merge: true }); };
 
@@ -465,27 +431,60 @@
             const handleExecuteInvoicePayment = async () => {
                 if (!user || !invoiceModal || !invoiceSourceAcc) return;
                 try {
-                    const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/transactions";
-                    const totalInvoiceAmount = invoiceModal.total; const paidAmount = invoicePayType === 'integral' ? totalInvoiceAmount : p(invoicePartialVal);
+                    const activeUid = user.uid;
+                    const path = "artifacts/tribo-burger-financeiro/users/" + activeUid + "/transactions";
+                    const totalInvoiceAmount = invoiceModal.total;
+                    const paidAmount = invoicePayType === 'integral' ? totalInvoiceAmount : p(invoicePartialVal);
+
                     if (paidAmount <= 0) return; 
 
-                    const todayStr = new Date().toISOString().split('T')[0]; const batch = db.batch();
-                    batch.set(db.collection(path).doc(), { description: "Baixa Fatura " + invoiceModal.cardName + " (" + invoicePayType.toUpperCase() + ")", amount: paidAmount, type: 'saida', status: 'pago', date: todayStr, clearanceDate: todayStr, billingMonth: filterMonth, account: invoiceSourceAcc, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString() });
-                    batch.set(db.collection(path).doc(), { description: "Pagamento de Fatura Mês " + filterMonth, amount: paidAmount, type: 'entrada', status: 'pago', date: todayStr, clearanceDate: filterMonth + "-28", billingMonth: filterMonth, account: invoiceModal.cardName, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString() });
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const batch = db.batch();
+
+                    const paymentPayload = {
+                        description: "Baixa Fatura " + invoiceModal.cardName + " (" + invoicePayType.toUpperCase() + ")",
+                        amount: paidAmount, type: 'saida', status: 'pago', date: todayStr, clearanceDate: todayStr,
+                        billingMonth: filterMonth, account: invoiceSourceAcc, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString()
+                    };
+                    batch.set(db.collection(path).doc(), paymentPayload);
+
+                    const cardCreditPayload = {
+                        description: "Pagamento de Fatura Mês " + filterMonth,
+                        amount: paidAmount, type: 'entrada', status: 'pago', date: todayStr, clearanceDate: filterMonth + "-28", 
+                        billingMonth: filterMonth, account: invoiceModal.cardName, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString()
+                    };
+                    batch.set(db.collection(path).doc(), cardCreditPayload);
 
                     if (invoicePayType === 'parcial' && (totalInvoiceAmount - paidAmount) > 0.01) {
-                        const parts = filterMonth.split('-'); let nextM = parseInt(parts[1]) + 1; let nextY = parseInt(parts[0]); if (nextM > 12) { nextM = 1; nextY += 1; }
+                        const remainingAmount = totalInvoiceAmount - paidAmount;
+                        const parts = filterMonth.split('-');
+                        let nextM = parseInt(parts[1]) + 1; let nextY = parseInt(parts[0]);
+                        if (nextM > 12) { nextM = 1; nextY += 1; }
                         const nextMonthStr = nextY + "-" + String(nextM).padStart(2, '0');
-                        batch.set(db.collection(path).doc(), { description: "Saldo Restante Fatura Anterior " + filterMonth, amount: totalInvoiceAmount - paidAmount, type: 'saida', status: 'pendente', date: nextMonthStr + "-01", clearanceDate: nextMonthStr + "-10", billingMonth: nextMonthStr, account: invoiceModal.cardName, category: 'Saldo Fatura Anterior', supplier: '', timestamp: new Date().toISOString() });
+
+                        const rolloverPayload = {
+                            description: "Saldo Restante Fatura Anterior " + filterMonth,
+                            amount: remainingAmount, type: 'saida', status: 'pendente', date: nextMonthStr + "-01", clearanceDate: nextMonthStr + "-10", 
+                            billingMonth: nextMonthStr, account: invoiceModal.cardName, category: 'Saldo Fatura Anterior', supplier: '', timestamp: new Date().toISOString()
+                        };
+                        batch.set(db.collection(path).doc(), rolloverPayload);
                     }
 
-                    await batch.commit(); setInvoiceModal(null); setInvoicePartialVal(''); setInvoiceSourceAcc('');
+                    await batch.commit();
+                    setInvoiceModal(null); setInvoicePartialVal(''); setInvoiceSourceAcc('');
                 } catch(e) { console.error(e); }
             };
 
             const addSupplier = async (e) => { e.preventDefault(); if(supForm) { await db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/suppliers`).add({name: supForm}); setSupForm(''); } };
             const addCat = async (e) => { e.preventDefault(); if(catForm) { await db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/categories`).add({name: catForm}); setCatForm(''); } };
-            const addAcc = async (e) => { e.preventDefault(); if(accForm.name) { await db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/accounts`).add(accForm); setAccForm({ name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' }); alert('Conta/Cartão adicionado!');} };
+            
+            const handleSaveAccount = async () => {
+                if (!accForm.name || !user) return;
+                const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/accounts";
+                if (accForm.id) await db.collection(path).doc(accForm.id).update(accForm); 
+                else await db.collection(path).add(accForm);
+                setAccForm({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' });
+            };
 
             const crudActionCMV = async (collectionStr, stateArr, formObj, setModalOpen) => {
                 if (!user) return;
@@ -499,8 +498,6 @@
                 await saveCMVDoc(collectionStr, list); setModalOpen(false);
             };
 
-            const delActionCMV = async (collectionStr, stateArr, id) => { if(window.confirm("Confirmar exclusão?")) await saveCMVDoc(collectionStr, stateArr.filter(x => x.id !== id)); };
-
             if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase tracking-widest">Iniciando ERP Unificado...</div>;
             if (!user || user.isAnonymous) return (
                 <div className="min-h-screen flex items-center justify-center bg-[#1A202C] p-4">
@@ -513,7 +510,7 @@
 
             return (
                 <div className="min-h-screen flex flex-col fade-in">
-                    {/* MODAIS GERAIS */}
+                    {/* ================= MODAIS FINANCEIROS NA ROOT ================= */}
                     {liqModal && (
                         <div className="modal-overlay">
                             <div className="glass-card w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl border-t-8 border-green-500 flex flex-col gap-6 scale-up-center">
@@ -655,7 +652,7 @@
                                                     <p className={"font-black text-sm " + (t.type==='entrada'?'text-green-600':'text-slate-800')}>{formatMoney(t.amount)}</p>
                                                     <div className="flex gap-1">
                                                         <button onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-400 p-2"><Edit2 size={14}/></button>
-                                                        <button onClick={() => {if(window.confirm('Excluir?')) db.collection("artifacts/tribo-burger-financeiro/users/"+user.uid+"/transactions").doc(t.id).delete()}} className="text-red-400 p-2"><Trash2 size={14}/></button>
+                                                        <button onClick={() => executeDelete('transactions', t.id)} className="text-red-400 p-2"><Trash2 size={14}/></button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1064,7 +1061,7 @@
                                             {suppliers.length === 0 ? <tr><td colSpan="2" className="p-12 text-center text-slate-400">Nenhum fornecedor.</td></tr> : suppliers.sort((a,b)=>a.name.localeCompare(b.name)).map(s => (
                                                 <tr key={s.id} className="hover:bg-slate-50">
                                                     <td className="p-4 uppercase">{s.name}</td>
-                                                    <td className="p-4 text-right"><button onClick={()=>{if(window.confirm('Excluir?')) db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/suppliers`).doc(s.id).delete()}} className="text-red-400 p-2"><Trash2 size={14}/></button></td>
+                                                    <td className="p-4 text-right"><button onClick={()=>executeDelete('suppliers', s.id)} className={"transition-all p-2 rounded-lg " + (deleteConfirmId === s.id ? 'delete-confirm' : 'text-red-400')}>{deleteConfirmId === s.id ? <span className="text-[8px] font-black uppercase">Sim</span> : <Trash2 size={14}/>}</button></td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -1183,7 +1180,7 @@
                                                                             <button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 p-2"><Edit2 size={14}/></button>
                                                                             <button onClick={()=>delActionCMV('ingredients', ingredients, ing.id)} className="text-red-400 p-2"><Trash2 size={14}/></button>
                                                                         </td>
-                                                                </tr>
+                                                                    </tr>
                                                                 ))}
                                                             </tbody>
                                                         </table>
@@ -1439,13 +1436,47 @@
                                          <div><h3 className="font-black uppercase text-slate-800 text-lg">Cadastros Rápidos</h3><p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Gestão de Contas Financeiras e Categorias</p></div>
                                          <div className="space-y-3">
                                             <form onSubmit={addCat} className="flex gap-2"><input type="text" placeholder="Nova Categoria Financeira..." className="flex-1 p-3 bg-slate-50 border rounded-xl font-bold text-xs outline-none" value={catForm} onChange={e=>setCatForm(e.target.value)} required /><button className="bg-black text-[#F8CC82] px-4 rounded-xl text-[9px] font-black">Add</button></form>
-                                            <form onSubmit={addAcc} className="flex gap-2 flex-wrap bg-slate-50 p-3 rounded-xl border">
-                                                <input type="text" placeholder="Nome Conta/Cartão" className="flex-1 p-2 bg-white border rounded-lg font-bold text-[10px] outline-none min-w-[120px]" value={accForm.name} onChange={e=>setAccForm({...accForm, name: e.target.value})} required />
-                                                <select className="p-2 bg-white border rounded-lg font-bold text-[10px] outline-none" value={accForm.type} onChange={e=>setAccForm({...accForm, type: e.target.value})}><option value="corrente">Corrente</option><option value="cartao">Cartão</option></select>
-                                                {accForm.type === 'cartao' && <><input type="number" placeholder="Limite" className="w-20 p-2 bg-white border rounded-lg font-bold text-[10px]" value={accForm.limit} onChange={e=>setAccForm({...accForm, limit: e.target.value})} /><input type="number" placeholder="Fecho" className="w-16 p-2 bg-white border rounded-lg font-bold text-[10px]" value={accForm.closing} onChange={e=>setAccForm({...accForm, closing: e.target.value})} /><input type="number" placeholder="Venc" className="w-16 p-2 bg-white border rounded-lg font-bold text-[10px]" value={accForm.due} onChange={e=>setAccForm({...accForm, due: e.target.value})} /></>}
-                                                <button className="w-full bg-[#1A202C] text-white py-2 rounded-lg text-[9px] font-black uppercase mt-1">Add Conta</button>
-                                            </form>
                                          </div>
+                                     </div>
+                                 </div>
+
+                                 <div className="glass-card p-8 rounded-[3rem] border-t-8 border-orange-500 shadow-xl space-y-6">
+                                     <div><h3 className="font-black uppercase text-slate-800 text-lg">Gestão de Contas & Cartões</h3><p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Adicione, edite ou exclua as contas bancárias e cartões de crédito</p></div>
+                                     <div className="space-y-4 bg-slate-50 p-6 rounded-[2rem] border-2 border-dashed">
+                                         <h2 className="text-xs font-black uppercase text-slate-700 mb-2">{accForm.id ? 'Editar Conta/Cartão' : 'Nova Conta/Cartão'}</h2>
+                                         <input type="text" className="w-full p-4 border rounded-2xl font-bold text-xs outline-none focus:border-black" placeholder="Nome da Conta ou Cartão" value={accForm.name} onChange={e=>setAccForm(Object.assign({}, accForm, { name: e.target.value }))} />
+                                         <div className="flex gap-2">
+                                             <button type="button" onClick={()=>setAccForm(Object.assign({}, accForm, { type: 'corrente' }))} className={"flex-1 p-3 rounded-xl text-[9px] font-black " + (accForm.type === "corrente" ? "bg-black text-[#F8CC82]" : "bg-white border text-slate-500")}>CONTA CORRENTE</button>
+                                             <button type="button" onClick={()=>setAccForm(Object.assign({}, accForm, { type: 'cartao' }))} className={"flex-1 p-3 rounded-xl text-[9px] font-black " + (accForm.type === "cartao" ? "bg-orange-500 text-white" : "bg-white border text-slate-500")}>CARTÃO DE CRÉDITO</button>
+                                         </div>
+                                         {accForm.type === 'cartao' && (
+                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 fade-in">
+                                                 <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-2">Dia de Fechamento</label><input type="number" min="1" max="31" className="w-full p-4 border rounded-2xl font-bold text-xs bg-white outline-none focus:border-black" placeholder="Ex: 18" value={accForm.closing || ''} onChange={e=>setAccForm(Object.assign({}, accForm, { closing: e.target.value }))} /></div>
+                                                 <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-2">Dia de Vencimento</label><input type="number" min="1" max="31" className="w-full p-4 border rounded-2xl font-bold text-xs bg-white outline-none focus:border-black" placeholder="Ex: 25" value={accForm.due || ''} onChange={e=>setAccForm(Object.assign({}, accForm, { due: e.target.value }))} /></div>
+                                                 <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-2">Limite do Cartão (R$)</label><input type="number" className="w-full p-4 border rounded-2xl font-bold text-xs bg-white outline-none focus:border-black" placeholder="Ex: 5000" value={accForm.limit || ''} onChange={e=>setAccForm(Object.assign({}, accForm, { limit: e.target.value }))} /></div>
+                                             </div>
+                                         )}
+                                         <div className="flex gap-2 mt-4">
+                                             <button type="button" onClick={async () => { if (!accForm.name) return; const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/accounts"; if (accForm.id) await db.collection(path).doc(accForm.id).update(accForm); else await db.collection(path).add(accForm); setAccForm({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' }); }} className="flex-1 bg-black text-[#F8CC82] p-4 rounded-2xl font-black uppercase text-[10px] shadow-lg">{accForm.id ? 'Atualizar Conta' : 'Adicionar Conta'}</button>
+                                             {accForm.id && <button type="button" onClick={()=>setAccForm({id:null, name:'', type:'corrente', group:'operacional', limit:'', closing:'', due:''})} className="bg-slate-200 text-slate-600 px-6 rounded-2xl font-black uppercase text-[10px]">Cancelar</button>}
+                                         </div>
+                                     </div>
+                                     <div className="space-y-2 overflow-y-auto max-h-[400px] divide-y border rounded-[2rem] p-4 bg-white">
+                                         {accounts.length === 0 ? <p className="text-center text-[10px] font-black uppercase text-slate-400 p-4">Nenhuma conta cadastrada</p> : accounts.sort((a,b)=>a.name.localeCompare(b.name)).map(a => (
+                                             <div key={a.id} className="p-4 flex flex-col md:flex-row justify-between md:items-center gap-4 bg-slate-50 hover:bg-slate-100 rounded-2xl transition-all border border-transparent hover:border-slate-200">
+                                                 <div>
+                                                     <p className="font-black text-xs uppercase leading-none text-slate-800 flex items-center gap-2">
+                                                         <Icon name={a.type === 'cartao' ? 'credit-card' : 'wallet'} size={14} className={a.type === 'cartao' ? 'text-orange-500' : 'text-blue-500'} />
+                                                         {a.name}
+                                                     </p>
+                                                     <p className="text-[9px] font-bold text-slate-400 uppercase mt-1.5 ml-5">{a.type} {a.type === 'cartao' && ` • Limite: ${formatMoney(a.limit)} • Fecho: dia ${a.closing || a.closingDay || '25'} • Venc: dia ${a.due || a.dueDay || '10'}`}</p>
+                                                 </div>
+                                                 <div className="flex gap-2 items-center">
+                                                     <button type="button" onClick={()=>setAccForm(Object.assign({}, a, { closing: a.closing || a.closingDay || '', due: a.due || a.dueDay || '' }))} className="bg-white border text-blue-500 p-2 px-3 rounded-xl hover:bg-blue-50"><Edit2 size={14}/></button>
+                                                     <button type="button" onClick={() => executeDelete('accounts', a.id)} className={"transition-all p-2 px-3 rounded-xl border bg-white text-red-400 hover:bg-red-50"} title="Excluir"><Trash2 size={14}/></button>
+                                                 </div>
+                                             </div>
+                                         ))}
                                      </div>
                                  </div>
                              </div>
