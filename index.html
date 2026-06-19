@@ -67,6 +67,7 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
+        // Ícones em Cache
         const Icon = memo(({ name, size = 20, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
@@ -164,7 +165,6 @@
             const [activeTab, setActiveTab] = useState('fin_dashboard');
             const [isMenuOpen, setIsMenuOpen] = useState(false);
             
-            // ESTADOS GERAIS
             const [transactions, setTransactions] = useState([]);
             const [dailyRecords, setDailyRecords] = useState({});
             const [accounts, setAccounts] = useState([]);
@@ -189,7 +189,6 @@
             const [invoicePartialVal, setInvoicePartialVal] = useState('');
             const [invoiceSourceAcc, setInvoiceSourceAcc] = useState('');
 
-            // ESTADOS CMV
             const [ingredients, setIngredients] = useState([]);
             const [recipes, setRecipes] = useState([]);
             const [complements, setComplements] = useState([]);
@@ -214,10 +213,10 @@
             const [isFcModalOpen, setIsFcModalOpen] = useState(false);
             const [fcForm, setFcForm] = useState({ id: '', description: '', category: 'Operacional', value: '' });
 
-            // Estados de Expansão (Categorias)
             const [recipeCollapsed, setRecipeCollapsed] = useState({});
             const [compCollapsed, setCompCollapsed] = useState({});
             const [comboCollapsed, setComboCollapsed] = useState({});
+            const [ingCollapsed, setIngCollapsed] = useState({});
 
             useEffect(() => {
                 const unsubscribe = auth.onAuthStateChanged(u => { setUser(u); setLoading(false); });
@@ -252,7 +251,6 @@
             const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-            // ================= LOGICA FINANCEIRA COMPUTADA =================
             const filteredDashboard = useMemo(() => transactions.filter(t => {
                 if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
                 const { clearanceDate, billingMonth } = getTransactionDates(t, accounts.find(a => a.name === t.account));
@@ -309,6 +307,7 @@
 
                 Object.keys(dailyRecords).forEach(d => {
                     const r = dailyRecords[d]; const totalDia = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((s,f)=>s+p(r[f]), 0);
+                    
                     if (d.startsWith(filterMonth)) {
                         if (totalDia > 0) diasAtivos++; rb += totalDia; custos += p(r.motoboy) + p(r.taxaEntrega); totalPedidos += p(r.qtdPedidos);
                         if(currentMonthWeeks[d]) weeklyCurrent[currentMonthWeeks[d]] += totalDia;
@@ -330,6 +329,7 @@
 
                 let diasUteisTotaisMes = 0; let diasUteisPassados = 0; 
                 const ultimoDiaMes = new Date(anoFiltro, mesFiltro + 1, 0).getDate(); const hoje = new Date();
+                
                 for (let dia = 1; dia <= ultimoDiaMes; dia++) {
                     const diaDaSemana = new Date(anoFiltro, mesFiltro, dia).getDay(); 
                     if (diaDaSemana !== 1 && diaDaSemana !== 2) { 
@@ -358,16 +358,6 @@
                 };
             }, [dailyRecords, transactions, filterMonth, metaVendas, accounts]);
 
-            // ================= AGRUPAMENTOS CMV COMPUTADOS =================
-            const groupedRecipes = useMemo(() => recipes.reduce((acc, r) => { const c = r.category || 'Outros'; if (!acc[c]) acc[c] = []; acc[c].push(r); return acc; }, {}), [recipes]);
-            const sortedRecCats = useMemo(() => Object.keys(groupedRecipes).sort(), [groupedRecipes]);
-
-            const groupedComplements = useMemo(() => complements.reduce((acc, r) => { const c = r.category || 'Outros'; if (!acc[c]) acc[c] = []; acc[c].push(r); return acc; }, {}), [complements]);
-            const sortedCompCats = useMemo(() => Object.keys(groupedComplements).sort(), [groupedComplements]);
-
-            const groupedCombos = useMemo(() => combos.reduce((acc, r) => { const c = r.category || 'Outros'; if (!acc[c]) acc[c] = []; acc[c].push(r); return acc; }, {}), [combos]);
-            const sortedComboCats = useMemo(() => Object.keys(groupedCombos).sort(), [groupedCombos]);
-
             const getIngCost = (id, q) => { const i = ingredients.find(x => x.id === id); return i ? (i.cost / i.qty) * (p(q) * (i.unit==='kg'||i.unit==='L'?0.001:1)) : 0; };
             const calcItemCost = (ings) => (ings||[]).reduce((t, r) => t + getIngCost(r.ingredientId, r.qty), 0);
             const calcComboCost = (items) => (items||[]).reduce((t, i) => {
@@ -376,7 +366,6 @@
                 return t + getIngCost(i.itemId, i.qty);
             }, 0);
 
-            // ================= ACTIONS GERAIS =================
             const saveCMVDoc = async (field, data) => await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/cmv_data/state`).set({ [field]: data }, { merge: true });
             const saveMeta = async (v) => { if (!user) return; await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/settings/config`).set({ meta: p(v) }, { merge: true }); };
 
@@ -385,21 +374,22 @@
                 const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/transactions";
                 const batch = db.batch();
                 const numInst = txForm.type === 'transferencia' ? 1 : parseInt(txForm.inst || 1);
+                
                 for (let i = 0; i < numInst; i++) {
                     const d = new Date(txForm.date); d.setMonth(d.getMonth() + i); const dateStr = d.toISOString().split('T')[0];
                     const c = new Date(txForm.clearance); c.setMonth(c.getMonth() + i); const clearStr = c.toISOString().split('T')[0];
                     const payload = {
-                        description: numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc, amount: p(txForm.val) / numInst, type: txForm.type, status: txForm.status, date: dateStr, clearanceDate: clearStr, billingMonth: dateStr.slice(0, 7), account: txForm.acc, destinationAccount: txForm.destAcc, category: txForm.type === 'transferencia' ? 'Transferência' : (txForm.cat || 'Geral'), supplier: txForm.sup, timestamp: new Date().toISOString()
+                        description: numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc,
+                        amount: p(txForm.val) / numInst, type: txForm.type, status: txForm.status,
+                        date: dateStr, clearanceDate: clearStr, billingMonth: dateStr.slice(0, 7),
+                        account: txForm.acc, destinationAccount: txForm.destAcc, category: txForm.type === 'transferencia' ? 'Transferência' : (txForm.cat || 'Geral'),
+                        supplier: txForm.sup, timestamp: new Date().toISOString()
                     };
-                    if (txForm.id && i === 0) batch.update(db.collection(path).doc(txForm.id), payload); else batch.set(db.collection(path).doc(), payload);
+                    if (txForm.id && i === 0) batch.update(db.collection(path).doc(txForm.id), payload);
+                    else batch.set(db.collection(path).doc(), payload);
                 }
                 await batch.commit(); 
                 setTxForm({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1 });
-            };
-
-            const openLiquidation = (t) => {
-                if (t.isInvoice) { setActiveTab('cartoes'); return; }
-                setLiqModal({ id: t.id, description: t.description || '', amount: String(t.amount || 0).replace('.', ','), date: new Date().toISOString().split('T')[0], account: t.account || '' });
             };
 
             const executeLiquidation = async () => {
@@ -413,18 +403,47 @@
             const handleExecuteInvoicePayment = async () => {
                 if (!user || !invoiceModal || !invoiceSourceAcc) return;
                 try {
-                    const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/transactions";
-                    const totalInvoiceAmount = invoiceModal.total; const paidAmount = invoicePayType === 'integral' ? totalInvoiceAmount : p(invoicePartialVal);
+                    const activeUid = user.uid;
+                    const path = "artifacts/tribo-burger-financeiro/users/" + activeUid + "/transactions";
+                    const totalInvoiceAmount = invoiceModal.total;
+                    const paidAmount = invoicePayType === 'integral' ? totalInvoiceAmount : p(invoicePartialVal);
+
                     if (paidAmount <= 0) return; 
-                    const todayStr = new Date().toISOString().split('T')[0]; const batch = db.batch();
-                    batch.set(db.collection(path).doc(), { description: "Baixa Fatura " + invoiceModal.cardName + " (" + invoicePayType.toUpperCase() + ")", amount: paidAmount, type: 'saida', status: 'pago', date: todayStr, clearanceDate: todayStr, billingMonth: filterMonth, account: invoiceSourceAcc, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString() });
-                    batch.set(db.collection(path).doc(), { description: "Pagamento de Fatura Mês " + filterMonth, amount: paidAmount, type: 'entrada', status: 'pago', date: todayStr, clearanceDate: filterMonth + "-28", billingMonth: filterMonth, account: invoiceModal.cardName, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString() });
+
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const batch = db.batch();
+
+                    const paymentPayload = {
+                        description: "Baixa Fatura " + invoiceModal.cardName + " (" + invoicePayType.toUpperCase() + ")",
+                        amount: paidAmount, type: 'saida', status: 'pago', date: todayStr, clearanceDate: todayStr,
+                        billingMonth: filterMonth, account: invoiceSourceAcc, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString()
+                    };
+                    batch.set(db.collection(path).doc(), paymentPayload);
+
+                    const cardCreditPayload = {
+                        description: "Pagamento de Fatura Mês " + filterMonth,
+                        amount: paidAmount, type: 'entrada', status: 'pago', date: todayStr, clearanceDate: filterMonth + "-28", 
+                        billingMonth: filterMonth, account: invoiceModal.cardName, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString()
+                    };
+                    batch.set(db.collection(path).doc(), cardCreditPayload);
+
                     if (invoicePayType === 'parcial' && (totalInvoiceAmount - paidAmount) > 0.01) {
-                        const parts = filterMonth.split('-'); let nextM = parseInt(parts[1]) + 1; let nextY = parseInt(parts[0]); if (nextM > 12) { nextM = 1; nextY += 1; }
+                        const remainingAmount = totalInvoiceAmount - paidAmount;
+                        const parts = filterMonth.split('-');
+                        let nextM = parseInt(parts[1]) + 1; let nextY = parseInt(parts[0]);
+                        if (nextM > 12) { nextM = 1; nextY += 1; }
                         const nextMonthStr = nextY + "-" + String(nextM).padStart(2, '0');
-                        batch.set(db.collection(path).doc(), { description: "Saldo Restante Fatura Anterior " + filterMonth, amount: totalInvoiceAmount - paidAmount, type: 'saida', status: 'pendente', date: nextMonthStr + "-01", clearanceDate: nextMonthStr + "-10", billingMonth: nextMonthStr, account: invoiceModal.cardName, category: 'Saldo Fatura Anterior', supplier: '', timestamp: new Date().toISOString() });
+
+                        const rolloverPayload = {
+                            description: "Saldo Restante Fatura Anterior " + filterMonth,
+                            amount: remainingAmount, type: 'saida', status: 'pendente', date: nextMonthStr + "-01", clearanceDate: nextMonthStr + "-10", 
+                            billingMonth: nextMonthStr, account: invoiceModal.cardName, category: 'Saldo Fatura Anterior', supplier: '', timestamp: new Date().toISOString()
+                        };
+                        batch.set(db.collection(path).doc(), rolloverPayload);
                     }
-                    await batch.commit(); setInvoiceModal(null); setInvoicePartialVal(''); setInvoiceSourceAcc('');
+
+                    await batch.commit();
+                    setInvoiceModal(null); setInvoicePartialVal(''); setInvoiceSourceAcc('');
                 } catch(e) { console.error(e); }
             };
 
@@ -443,7 +462,6 @@
                 if (index > -1) list[index] = record; else list.push(record);
                 await saveCMVDoc(collectionStr, list); setModalOpen(false);
             };
-            const delActionCMV = async (collectionStr, stateArr, id) => { if(window.confirm("Confirmar exclusão?")) await saveCMVDoc(collectionStr, stateArr.filter(x => x.id !== id)); };
 
             if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase tracking-widest">Iniciando ERP Unificado...</div>;
             if (!user || user.isAnonymous) return (
@@ -457,29 +475,58 @@
 
             return (
                 <div className="min-h-screen flex flex-col fade-in">
-                    {/* MODAIS GERAIS (INVISÍVEIS ATÉ ABERTURA) */}
+                    {/* MODAIS GERAIS */}
                     {liqModal && (
                         <div className="modal-overlay">
                             <div className="glass-card w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl border-t-8 border-green-500 flex flex-col gap-6 scale-up-center">
-                                <div className="text-center"><h3 className="text-sm font-black uppercase text-slate-400 mb-1 tracking-widest">Confirmar Liquidação</h3><p className="font-black text-lg text-slate-800 uppercase leading-tight">{liqModal.description}</p></div>
+                                <div className="text-center">
+                                    <h3 className="text-sm font-black uppercase text-slate-400 mb-1 tracking-widest">Confirmar Liquidação</h3>
+                                    <p className="font-black text-lg text-slate-800 uppercase leading-tight">{liqModal.description}</p>
+                                </div>
                                 <div className="space-y-4">
                                     <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-2">Data da Liquidação</label><input type="date" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-sm outline-none" value={liqModal.date} onChange={e=>setLiqModal({...liqModal, date: e.target.value})} /></div>
-                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-2">Conta / Cartão</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={liqModal.account} onChange={e=>setLiqModal({...liqModal, account: e.target.value})}><option value="">Selecione a conta...</option>{accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}</select></div>
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black uppercase text-slate-400 ml-2">Conta / Cartão</label>
+                                        <select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={liqModal.account} onChange={e=>setLiqModal({...liqModal, account: e.target.value})}>
+                                            <option value="">Selecione a conta...</option>
+                                            {accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+                                        </select>
+                                    </div>
                                     <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-2">Valor Final (R$)</label><input type="text" className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-xl text-center text-green-600 outline-none" value={liqModal.amount} onChange={e=>setLiqModal({...liqModal, amount: e.target.value})} /></div>
                                 </div>
-                                <div className="flex flex-col gap-2"><button onClick={executeLiquidation} className="w-full bg-black text-[#F8CC82] p-5 rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">Confirmar e Liquidar</button><button onClick={()=>setLiqModal(null)} className="w-full text-slate-400 p-2 text-[9px] font-black uppercase hover:text-red-500">Cancelar</button></div>
+                                <div className="flex flex-col gap-2">
+                                    <button onClick={executeLiquidation} className="w-full bg-black text-[#F8CC82] p-5 rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">Confirmar e Liquidar</button>
+                                    <button onClick={()=>setLiqModal(null)} className="w-full text-slate-400 p-2 text-[9px] font-black uppercase hover:text-red-500">Cancelar</button>
+                                </div>
                             </div>
                         </div>
                     )}
+
                     {invoiceModal && (
                         <div className="modal-overlay">
                             <div className="glass-card w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl border-t-8 border-orange-500 flex flex-col gap-5 scale-up-center">
-                                <div className="text-center"><h3 className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">PAGAMENTO DE FATURA</h3><p className="font-black text-xl text-slate-800 uppercase">{invoiceModal.cardName}</p><p className="text-[10px] font-bold text-[#D97757] uppercase bg-orange-50 rounded-full px-3 py-1 inline-block mt-1">Mês Base: {filterMonth}</p></div>
+                                <div className="text-center">
+                                    <h3 className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">PAGAMENTO DE FATURA</h3>
+                                    <p className="font-black text-xl text-slate-800 uppercase">{invoiceModal.cardName}</p>
+                                    <p className="text-[10px] font-bold text-[#D97757] uppercase bg-orange-50 rounded-full px-3 py-1 inline-block mt-1">Mês Base: {filterMonth}</p>
+                                </div>
                                 <div className="bg-slate-50 p-4 rounded-2xl border flex justify-between items-center"><span className="text-xs font-black uppercase text-slate-500">Valor Total Fechado:</span><span className="text-xl font-black text-slate-900">{formatMoney(invoiceModal.total)}</span></div>
                                 <div className="space-y-2"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Modalidade de Pagamento</label><div className="flex gap-2 bg-slate-100 p-1 rounded-xl"><button onClick={()=>setInvoicePayType('integral')} className={"flex-1 py-2 rounded-lg font-black text-[10px] uppercase transition-all " + (invoicePayType === "integral" ? "bg-black text-[#F8CC82] shadow" : "text-slate-400")}>INTEGRAL (TOTAL)</button><button onClick={()=>setInvoicePayType('parcial')} className={"flex-1 py-2 rounded-lg font-black text-[10px] uppercase transition-all " + (invoicePayType === "parcial" ? "bg-orange-500 text-white shadow" : "text-slate-400")}>PARCIAL</button></div></div>
-                                {invoicePayType === 'parcial' && (<div className="space-y-1 fade-in"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Quanto deseja pagar agora? (R$)</label><input type="text" className="w-full p-4 bg-white border-2 border-orange-100 rounded-2xl font-black text-lg text-center text-orange-600 outline-none" placeholder="0,00" value={invoicePartialVal} onChange={e=>setInvoicePartialVal(e.target.value)} />{p(invoicePartialVal) > 0 && <p className="text-[9px] font-bold text-red-500 text-center uppercase mt-1">* Restante de {formatMoney(invoiceModal.total - p(invoicePartialVal))} rolará para o próximo mês!</p>}</div>)}
-                                <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Origem do Dinheiro (Conta Débito)</label><select className="w-full p-4 bg-white border rounded-2xl font-black text-xs outline-none" value={invoiceSourceAcc} onChange={e=>setInvoiceSourceAcc(e.target.value)} required><option value="">Selecione a conta...</option>{accounts.filter(a => a.type === 'corrente').map(a=><option key={a.id} value={a.name}>{a.name} (Saldo: {formatMoney(accountBalances[a.name]||0)})</option>)}</select></div>
-                                <div className="flex flex-col gap-2 pt-2"><button onClick={handleExecuteInvoicePayment} className="w-full bg-black text-[#F8CC82] p-5 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Confirmar e Dar Baixa</button><button onClick={()=>{setInvoiceModal(null); setInvoicePartialVal('');}} className="w-full text-slate-400 p-1 text-[9px] font-black uppercase hover:text-red-500">Voltar</button></div>
+                                {invoicePayType === 'parcial' && (
+                                    <div className="space-y-1 fade-in">
+                                        <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Quanto deseja pagar agora? (R$)</label>
+                                        <input type="text" className="w-full p-4 bg-white border-2 border-orange-100 rounded-2xl font-black text-lg text-center text-orange-600 outline-none" placeholder="0,00" value={invoicePartialVal} onChange={e=>setInvoicePartialVal(e.target.value)} />
+                                        {p(invoicePartialVal) > 0 && <p className="text-[9px] font-bold text-red-500 text-center uppercase mt-1">* Restante de {formatMoney(invoiceModal.total - p(invoicePartialVal))} rolará para o próximo mês!</p>}
+                                    </div>
+                                )}
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Origem do Dinheiro (Conta Débito)</label>
+                                    <select className="w-full p-4 bg-white border rounded-2xl font-black text-xs outline-none" value={invoiceSourceAcc} onChange={e=>setInvoiceSourceAcc(e.target.value)} required><option value="">Selecione a conta...</option>{accounts.filter(a => a.type === 'corrente').map(a=><option key={a.id} value={a.name}>{a.name} (Saldo: {formatMoney(accountBalances[a.name]||0)})</option>)}</select>
+                                </div>
+                                <div className="flex flex-col gap-2 pt-2">
+                                    <button onClick={handleExecuteInvoicePayment} className="w-full bg-black text-[#F8CC82] p-5 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Confirmar e Dar Baixa</button>
+                                    <button onClick={()=>{setInvoiceModal(null); setInvoicePartialVal('');}} className="w-full text-slate-400 p-1 text-[9px] font-black uppercase hover:text-red-500">Voltar</button>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -590,6 +637,7 @@
                                         <p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-80 mb-2">Patrimônio Líquido Disponível</p>
                                         <h3 className="text-5xl font-black drop-shadow-xl">{formatMoney(currentAccounts.reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0))}</h3>
                                     </div>
+
                                     {highlighted.length > 0 && (
                                         <div className="space-y-4">
                                             <h2 className="text-sm font-black uppercase text-slate-800 border-b-2 pb-2 flex items-center gap-2"><Star size={18} className="text-[#D97757]" /> Contas Principais</h2>
@@ -603,6 +651,7 @@
                                             </div>
                                         </div>
                                     )}
+
                                     {funds.length > 0 && (
                                         <div className="space-y-4">
                                             <h2 className="text-sm font-black uppercase text-slate-800 border-b-2 pb-2 flex items-center gap-2"><TrendingUp size={18} className="text-emerald-600" /> Fundos & Aplicações</h2>
@@ -616,6 +665,7 @@
                                             </div>
                                         </div>
                                     )}
+
                                     {others.length > 0 && (
                                         <div className="space-y-4">
                                             <h2 className="text-sm font-black uppercase text-slate-800 border-b-2 pb-2 flex items-center gap-2"><Wallet size={18} className="text-slate-500" /> Outras Contas Operacionais</h2>
@@ -888,7 +938,7 @@
                                         <h3 className="text-sm font-black uppercase text-slate-800 mb-6 flex items-center gap-2"><TrendingUp size={18}/> 1. Fluxo de Caixa (Realizado)</h3>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                             <div className="bg-green-50 p-6 rounded-[2rem] text-center border border-green-100"><p className="text-[9px] font-black text-green-600 uppercase mb-2 tracking-widest">Total Entradas</p><h4 className="text-3xl font-black text-green-700">{formatMoney(stats.entradas)}</h4></div>
-                                            <div className="bg-red-50 p-6 rounded-[2rem] text-center border border-red-100"><p className="text-[9px] font-black text-red-600 uppercase mb-2 tracking-widest">Contas Pagas</p><h4 className="text-3xl font-black text-red-700">{formatMoney(stats.contasPagas)}</h4></div>
+                                            <div className="bg-red-50 p-6 rounded-[2rem] text-center border border-red-100"><p className="text-[9px] font-black text-red-600 uppercase mb-2 tracking-widest">Contas Pagas (Saídas)</p><h4 className="text-3xl font-black text-red-700">{formatMoney(stats.contasPagas)}</h4></div>
                                             <div className={"p-6 rounded-[2rem] text-center border shadow-sm " + (stats.lucroCaixa >= 0 ? "bg-blue-50 border-blue-200" : "bg-orange-50 border-orange-200")}><p className={"text-[9px] font-black uppercase mb-2 tracking-widest " + (stats.lucroCaixa >= 0 ? "text-blue-600" : "text-orange-600")}>Geração Caixa Líquida</p><h4 className={"text-3xl font-black " + (stats.lucroCaixa >= 0 ? "text-blue-700" : "text-orange-700")}>{formatMoney(stats.lucroCaixa)}</h4></div>
                                         </div>
                                     </div>
@@ -900,7 +950,7 @@
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-red-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-red-600 mb-6 flex items-center gap-2"><TrendingDown size={18}/> 3. Contas a Pagar (Provisão)</h3><h4 className="text-4xl font-black text-red-600 mb-3">{formatMoney(totalAPagar)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Soma de saídas pendentes e faturas de cartão.</p></div></div>
-                                        <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-emerald-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-emerald-600 mb-6 flex items-center gap-2"><TrendingUp size={18}/> 4. Contas a Receber (Provisão)</h3><h4 className="text-4xl font-black text-emerald-600 mb-3">{formatMoney(totalReceitasPendentes)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar no caixa neste mês.</p></div></div>
+                                        <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-emerald-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-emerald-600 mb-6 flex items-center gap-2"><TrendingUp size={18}/> 4. Contas a Receber (Provisão)</h3><h4 className="text-4xl font-black text-emerald-600 mb-3">{formatMoney(totalAReceber)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar no caixa neste mês.</p></div></div>
                                     </div>
                                     <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-orange-500">
                                         <div className="flex justify-between items-center mb-6"><h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2"><PieChart size={18}/> 5. Composição de Custos por Categoria</h3></div>
@@ -916,28 +966,6 @@
                                 </div>
                             );
                         })()}
-
-                        {activeTab === 'dre' && (
-                            <div className="max-w-3xl mx-auto glass-card rounded-[3rem] p-10 shadow-2xl border-t-8 border-[#D97757] animate-in fade-in print-area" id="print-area">
-                                <div className="flex justify-between items-center mb-8 border-b pb-4 print:border-b-2 print:border-black">
-                                    <h2 className="text-xl font-black uppercase text-center w-full">DRE Operacional - {filterMonth}</h2>
-                                    <button onClick={()=>window.print()} className="bg-slate-100 text-slate-600 p-3 rounded-xl absolute right-16 print:hidden hover:bg-slate-200"><Printer size={16}/></button>
-                                </div>
-                                <div className="space-y-4">
-                                    <div className="flex justify-between p-4 bg-green-50 rounded-2xl font-black text-[10px] uppercase"><span>(+) Receita Bruta</span><span>{formatMoney(stats.rb)}</span></div>
-                                    <div className="py-4 border-b">
-                                        <h3 className="text-[10px] font-black uppercase text-slate-400 mb-2 px-4">Despesas Operacionais</h3>
-                                        {Object.entries(stats.catCosts).map(([c, v]) => (
-                                            <div key={c} className="flex justify-between px-4 py-2 text-[10px] font-bold text-slate-600 uppercase"><span>(-) {c}</span><span className="text-red-400 font-black">{formatMoney(v)}</span></div>
-                                        ))}
-                                    </div>
-                                    <div className={"flex justify-between items-center p-8 rounded-[2.5rem] mt-6 shadow-xl " + (stats.lucro>=0?'bg-[#1A202C] text-[#F8CC82]':'bg-red-600 text-white')}>
-                                        <div><h3 className="text-xl font-black uppercase">Resultado Líquido</h3><p className="text-[9px] font-black uppercase opacity-70 mt-1">Margem: {stats.margemDRE.toFixed(1)}%</p></div>
-                                        <span className="text-4xl font-black">{formatMoney(stats.lucro)}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
 
                         {activeTab === 'fornecedores' && (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 fade-in">
@@ -960,6 +988,28 @@
                                             ))}
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'dre' && (
+                            <div className="max-w-3xl mx-auto glass-card rounded-[3rem] p-10 shadow-2xl border-t-8 border-[#D97757] animate-in fade-in print-area" id="print-area">
+                                <div className="flex justify-between items-center mb-8 border-b pb-4 print:border-b-2 print:border-black">
+                                    <h2 className="text-xl font-black uppercase text-center w-full">DRE Operacional - {filterMonth}</h2>
+                                    <button onClick={()=>window.print()} className="bg-slate-100 text-slate-600 p-3 rounded-xl absolute right-16 print:hidden hover:bg-slate-200"><Printer size={16}/></button>
+                                </div>
+                                <div className="space-y-4">
+                                    <div className="flex justify-between p-4 bg-green-50 rounded-2xl font-black text-[10px] uppercase"><span>(+) Receita Bruta</span><span>{formatMoney(stats.rb)}</span></div>
+                                    <div className="py-4 border-b">
+                                        <h3 className="text-[10px] font-black uppercase text-slate-400 mb-2 px-4">Despesas Operacionais</h3>
+                                        {Object.entries(stats.catCosts).map(([c, v]) => (
+                                            <div key={c} className="flex justify-between px-4 py-2 text-[10px] font-bold text-slate-600 uppercase"><span>(-) {c}</span><span className="text-red-400 font-black">{formatMoney(v)}</span></div>
+                                        ))}
+                                    </div>
+                                    <div className={"flex justify-between items-center p-8 rounded-[2.5rem] mt-6 shadow-xl " + (stats.lucro>=0?'bg-[#1A202C] text-[#F8CC82]':'bg-red-600 text-white')}>
+                                        <div><h3 className="text-xl font-black uppercase">Resultado Líquido</h3><p className="text-[9px] font-black uppercase opacity-70 mt-1">Margem: {stats.margemDRE.toFixed(1)}%</p></div>
+                                        <span className="text-4xl font-black">{formatMoney(stats.lucro)}</span>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1037,26 +1087,26 @@
                                                     {isCollapsed ? <ChevronDown size={20} className="text-slate-400 mr-2"/> : <ChevronUp size={20} className="text-slate-400 mr-2"/>}
                                                 </div>
                                                 {!isCollapsed && (
-                                                <div className="glass-card rounded-[2rem] overflow-hidden border shadow-sm">
-                                                    <table className="w-full text-left text-xs">
-                                                        <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b">
-                                                            <tr><th className="p-4">Ingrediente</th><th className="p-4">Preço Pacote</th><th className="p-4">Custo Unitário</th><th className="p-4 text-right">Ações</th></tr>
-                                                        </thead>
-                                                        <tbody className="divide-y font-bold text-slate-700">
-                                                            {catIngs.sort((a,b)=>a.name.localeCompare(b.name)).map(ing => (
-                                                                <tr key={ing.id} className="hover:bg-slate-50">
-                                                                    <td className="p-4 text-slate-900">{ing.name}</td>
-                                                                    <td className="p-4">{formatMoney(ing.cost)} <span className="text-[9px] text-slate-400">/ {ing.qty}{ing.unit}</span></td>
-                                                                    <td className="p-4 text-emerald-600">{formatMoney(getIngCost(ing.id, ing.unit==='kg'||ing.unit==='L'?1000:1))} <span className="text-[9px] text-slate-400">/ {ing.unit==='kg'?'g':ing.unit==='L'?'ml':ing.unit}</span></td>
-                                                                    <td className="p-4 text-right">
-                                                                        <button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 p-2"><Edit2 size={14}/></button>
-                                                                        <button onClick={()=>delActionCMV('ingredients', ingredients, ing.id)} className="text-red-400 p-2"><Trash2 size={14}/></button>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
+                                                    <div className="glass-card rounded-[2rem] overflow-hidden border shadow-sm">
+                                                        <table className="w-full text-left text-xs">
+                                                            <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b">
+                                                                <tr><th className="p-4">Ingrediente</th><th className="p-4">Preço Pacote</th><th className="p-4">Custo Unitário</th><th className="p-4 text-right">Ações</th></tr>
+                                                            </thead>
+                                                            <tbody className="divide-y font-bold text-slate-700">
+                                                                {catIngs.sort((a,b)=>a.name.localeCompare(b.name)).map(ing => (
+                                                                    <tr key={ing.id} className="hover:bg-slate-50">
+                                                                        <td className="p-4 text-slate-900">{ing.name}</td>
+                                                                        <td className="p-4">{formatMoney(ing.cost)} <span className="text-[9px] text-slate-400">/ {ing.qty}{ing.unit}</span></td>
+                                                                        <td className="p-4 text-emerald-600">{formatMoney(getIngCost(ing.id, ing.unit==='kg'||ing.unit==='L'?1000:1))} <span className="text-[9px] text-slate-400">/ {ing.unit==='kg'?'g':ing.unit==='L'?'ml':ing.unit}</span></td>
+                                                                        <td className="p-4 text-right">
+                                                                            <button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 p-2"><Edit2 size={14}/></button>
+                                                                            <button onClick={()=>delActionCMV('ingredients', ingredients, ing.id)} className="text-red-400 p-2"><Trash2 size={14}/></button>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
                                                 )}
                                             </div>
                                         );
