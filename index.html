@@ -17,59 +17,37 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;600;800&display=swap');
-        
-        /* ================= ESCALA COMPACTA (LETRAS MENORES) ================= */
-        html { font-size: 11px; } /* Reduz a escala base do Tailwind */
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #FDFCF9; color: #1A202C; overflow: hidden; }
-        body, input:not([type="password"]), select, button, textarea, option, span, p, h1, h2, h3, h4, th, td { text-transform: uppercase !important; font-size: 9px; }
-        
-        /* Redução Forçada de Classes do Tailwind */
-        .text-xs { font-size: 8px !important; line-height: 10px !important; }
-        .text-sm { font-size: 9px !important; line-height: 12px !important; }
-        .text-base { font-size: 10px !important; line-height: 14px !important; }
-        .text-lg { font-size: 11px !important; line-height: 14px !important; }
-        .text-xl { font-size: 13px !important; line-height: 16px !important; }
-        .text-2xl { font-size: 16px !important; line-height: 18px !important; }
-        .text-3xl { font-size: 20px !important; line-height: 22px !important; }
-        .text-4xl { font-size: 24px !important; line-height: 26px !important; }
-        .text-5xl { font-size: 28px !important; line-height: 30px !important; }
-        
-        /* Forçando Tamanhos Específicos */
-        .text-\\[11px\\] { font-size: 9px !important; }
-        .text-\\[10px\\] { font-size: 8px !important; }
-        .text-\\[9px\\] { font-size: 7px !important; }
-        .text-\\[8px\\] { font-size: 7px !important; }
-
-        /* Redução de Preenchimentos (Paddings) e Bordas Redondas */
-        .p-10 { padding: 1.25rem !important; }
-        .p-8 { padding: 1rem !important; }
-        .p-6 { padding: 0.75rem !important; }
-        .rounded-\\[3rem\\], .rounded-\\[2\\.5rem\\], .rounded-\\[2rem\\] { border-radius: 1rem !important; }
-        .gap-8 { gap: 1rem !important; }
-
-        input::placeholder, textarea::placeholder { text-transform: uppercase !important; font-size: 8px !important; }
-        .glass-card { background: rgba(255, 255, 255, 0.95); border: 1px solid rgba(226, 232, 240, 0.6); }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #FDFCF9; color: #1A202C; overflow-x: hidden; }
+        body, input:not([type="password"]), select, button, textarea, option, span, p, h1, h2, h3, h4, th, td { text-transform: uppercase !important; }
+        input::placeholder, textarea::placeholder { text-transform: uppercase !important; }
+        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(226, 232, 240, 0.6); }
+        .tab-active { background-color: #1A202C; color: #F8CC82; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .tab-cmv-active { background-color: #F27A18; color: #000; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .fade-in { animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         
-        .table-input { width: 100%; height: 100%; text-align: center; background: transparent; border: none; font-weight: 800; font-size: 9px !important; outline: none; padding: 4px; }
+        .btn-primary { background-color: #000; color: #F8CC82; font-weight: 900; text-transform: uppercase; transition: all 0.2s; }
+        .btn-accent { background-color: #F27A18; color: #000; font-weight: 900; text-transform: uppercase; transition: all 0.2s; }
+        
+        .table-input { width: 100%; height: 100%; text-align: center; background: transparent; border: none; font-weight: 800; font-size: 11px; outline: none; padding: 4px; }
         .table-input:focus { background-color: rgba(211, 226, 152, 0.2); }
-        .header-black { background-color: #000; color: #FFF; font-weight: 800; border: 1px solid #333; }
-        .stat-banner { background: #1A202C; border-bottom: 4px solid #D97757; color: white; padding: 1.5rem; border-radius: 1rem; text-align: center; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-        .status-badge { font-size: 7px; font-weight: 900; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.05em; }
+        .header-black { background-color: #000; color: #FFF; font-weight: 800; text-transform: uppercase; font-size: 10px; border: 1px solid #333; }
+        .stat-banner { background: #1A202C; border-bottom: 6px solid #D97757; color: white; padding: 2rem; border-radius: 2.5rem; text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+        .status-badge { font-size: 7px; font-weight: 900; padding: 2px 6px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
 
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem; }
         .scale-up-center { animation: scale-up-center 0.2s cubic-bezier(0.390, 0.575, 0.565, 1.000) both; }
         @keyframes scale-up-center { 0% { transform: scale(0.95); } 100% { transform: scale(1); } }
-        .delete-confirm { background-color: #EF4444 !important; color: white !important; animation: pulse 1s infinite; }
+
+        .delete-confirm { background-color: #EF4444 !important; color: white !important; animation: pulse 1s infinite; font-size: 9px !important; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
 
         @media print {
-            body { background-color: white !important; color: black !important; overflow: auto; }
-            .print\:hidden, aside { display: none !important; }
+            body { background-color: white !important; color: black !important; }
+            .print\:hidden, header, .sidebar { display: none !important; }
             .glass-card { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
-            main { padding: 0 !important; margin: 0 !important; max-width: 100% !important; height: auto !important; overflow: visible !important; }
+            main { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
         }
     </style>
 </head>
@@ -92,7 +70,7 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        const Icon = memo(({ name, size = 14, className = "" }) => {
+        const Icon = memo(({ name, size = 20, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
                 if (window.lucide && containerRef.current) {
@@ -116,16 +94,37 @@
             'Utensils', 'Sprout', 'Edit', 'Edit2', 'Trash', 'Trash2', 'Plus', 'Check', 'Search', 
             'Bell', 'Calendar', 'CreditCard', 'TrendingUp', 'CheckSquare', 'PlusCircle', 
             'CalendarDays', 'ShoppingCart', 'CheckCircle', 'Lock', 'ShieldCheck', 'Copy', 'Download', 'CloudLightning',
-            'Target', 'TrendingDown', 'AlertTriangle', 'FileText', 'PieChart', 'Printer', 'Wallet', 'Star', 'ChevronUp', 'ChevronDown', 'Box', 'Layers'
+            'Target', 'TrendingDown', 'AlertTriangle', 'FileText', 'PieChart', 'Printer', 'Wallet', 'Star', 'Menu', 'X',
+            'ChevronUp', 'ChevronDown', 'Box', 'Layers'
         ];
         
         const IconComponents = {};
         safeIcons.forEach(iconName => {
-            const normalized = iconName.toLowerCase().replace('2', '-2').replace('square', '-square').replace('circle', '-circle').replace('days', '-days').replace('card', '-card').replace('up', '-up').replace('down', '-down').replace('check', '-check').replace('lightning', '-lightning').replace('triangle', '-triangle').replace('text', '-text').replace('chart', '-chart');
-            IconComponents[iconName] = (props) => <Icon name={normalized} size={props.size || 14} className={props.className || ""} />;
+            const normalized = iconName.toLowerCase()
+                .replace('2', '-2')
+                .replace('square', '-square')
+                .replace('circle', '-circle')
+                .replace('days', '-days')
+                .replace('card', '-card')
+                .replace('up', '-up')
+                .replace('down', '-down')
+                .replace('check', '-check')
+                .replace('lightning', '-lightning')
+                .replace('triangle', '-triangle')
+                .replace('text', '-text')
+                .replace('chart', '-chart');
+                
+            IconComponents[iconName] = (props) => (
+                <Icon name={normalized} size={props.size || 20} className={props.className || ""} />
+            );
         });
 
-        const { Utensils, Edit2, Trash2, Plus, Search, CreditCard, TrendingUp, CalendarDays, CheckCircle, Target, TrendingDown, FileText, PieChart, Printer, Wallet, Star, ChevronUp, ChevronDown, Box, Layers, Lock } = IconComponents;
+        const { 
+            Utensils, Sprout, Edit, Edit2, Trash, Trash2, Plus, Check, Search, Bell, Calendar, 
+            CreditCard, TrendingUp, CheckSquare, PlusCircle, CalendarDays, ShoppingCart, 
+            CheckCircle, Lock, ShieldCheck, Copy, Download, CloudLightning, Target, TrendingDown, AlertTriangle,
+            FileText, PieChart, Printer, Wallet, Star, Menu, X, ChevronUp, ChevronDown, Box, Layers
+        } = IconComponents;
 
         const parseDateUTC = (dateStr) => {
             if (!dateStr || dateStr.includes('NaN')) return new Date();
@@ -143,28 +142,21 @@
             return (desc.includes("baixa fatura") || desc.includes("pagamento fatura") || desc.includes("pagamento de fatura") || desc.includes("baixa de fatura") || cat.includes("baixa fatura"));
         };
 
-        const getTransactionDates = (t, cardInfo) => {
+        const getTransactionDates = (t) => {
             if (!t) return { clearanceDate: '', billingMonth: '' };
-            if (isInvoicePayment(t) || !cardInfo || cardInfo.type !== 'cartao') {
-                return { clearanceDate: t.clearanceDate || t.date || '', billingMonth: t.billingMonth || (t.date ? t.date.slice(0, 7) : '') };
-            }
-            const closing = parseInt(cardInfo.closing || 25);
-            const due = parseInt(cardInfo.due || 10);
-            const d = parseDateUTC(t.date || t.timestamp?.slice(0, 10));
-            let billingDate = new Date(d.getTime()); billingDate.setUTCDate(1);
-            if (d.getUTCDate() > closing) billingDate.setUTCMonth(billingDate.getUTCMonth() + 1);
-            let dueDate = new Date(billingDate.getTime()); dueDate.setUTCDate(1);
-            if (due < closing) dueDate.setUTCMonth(dueDate.getUTCMonth() + 1);
-            dueDate.setUTCDate(due);
-            return { clearanceDate: dueDate.getUTCFullYear() + "-" + String(dueDate.getUTCMonth() + 1).padStart(2, '0') + "-" + String(dueDate.getUTCDate()).padStart(2, '0'), billingMonth: billingDate.getUTCFullYear() + "-" + String(billingDate.getUTCMonth() + 1).padStart(2, '0') };
+            return {
+                clearanceDate: t.clearanceDate || t.date || '',
+                billingMonth: t.billingMonth || (t.date ? t.date.slice(0, 7) : '')
+            };
         };
 
         function App() {
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('fin_dashboard');
+            const [isMenuOpen, setIsMenuOpen] = useState(false);
             
-            // FINANCEIRO
+            // ESTADOS GERAIS
             const [transactions, setTransactions] = useState([]);
             const [dailyRecords, setDailyRecords] = useState({});
             const [accounts, setAccounts] = useState([]);
@@ -190,13 +182,13 @@
             const [invoiceSourceAcc, setInvoiceSourceAcc] = useState('');
             const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
-            // CMV
+            // ESTADOS CMV
             const [ingredients, setIngredients] = useState([]);
             const [recipes, setRecipes] = useState([]);
             const [complements, setComplements] = useState([]);
             const [combos, setCombos] = useState([]);
             const [fixedCosts, setFixedCosts] = useState([]);
-            const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12 });
+            const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12, baseRevenue: 0, targetRevenue: 0 });
             
             const [ingCats, setIngCats] = useState(['Proteínas', 'Pães', 'Queijos', 'Molhos', 'Vegetais/Hortifrúti', 'Embalagens', 'Outros']);
             const [recCats, setRecCats] = useState(['Hambúrgueres', 'Acompanhamentos', 'Bebidas', 'Sobremesas', 'Molhos Caseiros', 'Outros', 'Smash']);
@@ -240,7 +232,7 @@
                     if(s.exists) {
                         const d = s.data();
                         setIngredients(d.ingredients || []); setRecipes(d.recipes || []); setComplements(d.complements || []); setCombos(d.combos || []); setFixedCosts(d.fixedCosts || []);
-                        setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12 });
+                        setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, card: 2.5, ifoodTax: 12, baseRevenue: 0, targetRevenue: 0 });
                         if(d.ingredientCategories) setIngCats(d.ingredientCategories); if(d.recipeCategories) setRecCats(d.recipeCategories);
                         if(d.complementCategories) setCompCats(d.complementCategories); if(d.comboCategories) setComboCats(d.comboCategories);
                         if(d.fixedCostCategories) setFcCats(d.fixedCostCategories);
@@ -253,14 +245,15 @@
             const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
+            // ================= LOGICA FINANCEIRA COMPUTADA =================
             const filteredDashboard = useMemo(() => transactions.filter(t => {
                 if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
-                const { clearanceDate, billingMonth } = getTransactionDates(t, accounts.find(a => a.name === t.account));
+                const { clearanceDate, billingMonth } = getTransactionDates(t);
                 const isMonth = (t.date?.startsWith(filterMonth) || clearanceDate?.startsWith(filterMonth) || billingMonth === filterMonth);
                 const matchSearch = (t.description || "").toLowerCase().includes(searchQuery.toLowerCase());
                 const matchType = typeFilter === 'todos' || t.type === typeFilter;
                 return isMonth && matchSearch && matchType;
-            }).sort((a,b) => (b.timestamp || "").localeCompare(a.timestamp || "")), [transactions, filterMonth, searchQuery, typeFilter, accounts]);
+            }).sort((a,b) => (b.timestamp || "").localeCompare(a.timestamp || "")), [transactions, filterMonth, searchQuery, typeFilter]);
 
             const accountBalances = useMemo(() => {
                 const bal = {}; accounts.forEach(a => bal[a.name] = 0);
@@ -278,26 +271,38 @@
             const totalPatrimony = useMemo(() => accounts.filter(a => a.type === 'corrente').reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0), [accounts, accountBalances]);
 
             const stats = useMemo(() => {
-                let rb = 0; let custos = 0; let catCosts = {}; let diasAtivos = 0; let totalPedidos = 0; let entradas = 0; let contasPagas = 0;
-                const parts = filterMonth.split('-'); const anoFiltro = parseInt(parts[0]); const mesFiltro = parseInt(parts[1]) - 1;
-                let prevMes = mesFiltro - 1; let prevAno = anoFiltro; if (prevMes < 0) { prevMes = 11; prevAno--; }
+                let rb = 0; let custos = 0; let catCosts = {}; let diasAtivos = 0; let totalPedidos = 0;
+                let entradas = 0; let contasPagas = 0;
+
+                const parts = filterMonth.split('-');
+                const anoFiltro = parseInt(parts[0]);
+                const mesFiltro = parseInt(parts[1]) - 1;
+
+                let prevMes = mesFiltro - 1; let prevAno = anoFiltro;
+                if (prevMes < 0) { prevMes = 11; prevAno--; }
                 const prevMonthStr = prevAno + "-" + String(prevMes + 1).padStart(2, '0');
 
                 const buildWeekMap = (ano, mes) => {
-                    const map = {}; const lastDay = new Date(ano, mes + 1, 0).getDate(); let currentWeek = 1; let seenWorkingDay = false;
+                    const map = {}; const lastDay = new Date(ano, mes + 1, 0).getDate();
+                    let currentWeek = 1; let seenWorkingDay = false;
                     for(let d = 1; d <= lastDay; d++) {
                         const wd = new Date(ano, mes, d).getDay(); 
-                        if (wd === 3) { if (seenWorkingDay) { currentWeek++; seenWorkingDay = false; } seenWorkingDay = true; } else if (wd === 0 || wd > 3) { seenWorkingDay = true; }
+                        if (wd === 3) { if (seenWorkingDay) { currentWeek++; seenWorkingDay = false; } seenWorkingDay = true; } 
+                        else if (wd === 0 || wd > 3) { seenWorkingDay = true; }
                         map[ano + "-" + String(mes+1).padStart(2, '0') + "-" + String(d).padStart(2,'0')] = currentWeek;
                     }
                     return map;
                 };
-                const currentMonthWeeks = buildWeekMap(anoFiltro, mesFiltro); const prevMonthWeeks = buildWeekMap(prevAno, prevMes);
+
+                const currentMonthWeeks = buildWeekMap(anoFiltro, mesFiltro);
+                const prevMonthWeeks = buildWeekMap(prevAno, prevMes);
+
                 let weeklyCurrent = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0}; let weeklyPrev = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
                 let weekdaySums = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0}; let weekdayCounts = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
 
                 Object.keys(dailyRecords).forEach(d => {
                     const r = dailyRecords[d]; const totalDia = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((s,f)=>s+p(r[f]), 0);
+                    
                     if (d.startsWith(filterMonth)) {
                         if (totalDia > 0) diasAtivos++; rb += totalDia; custos += p(r.motoboy) + p(r.taxaEntrega); totalPedidos += p(r.qtdPedidos);
                         if(currentMonthWeeks[d]) weeklyCurrent[currentMonthWeeks[d]] += totalDia;
@@ -309,8 +314,7 @@
                 });
 
                 transactions.forEach(t => {
-                    const accInfo = accounts.find(a => a.name === t.account);
-                    const { clearanceDate } = getTransactionDates(t, accInfo);
+                    const { clearanceDate } = getTransactionDates(t);
                     if (t.status === 'pago' && (t.date?.startsWith(filterMonth) || clearanceDate?.startsWith(filterMonth))) {
                         if (t.type === 'saida') { catCosts[t.category] = (catCosts[t.category] || 0) + p(t.amount); if (!isInvoicePayment(t)) contasPagas += p(t.amount); }
                         else if (t.type === 'entrada') { if (!isInvoicePayment(t)) entradas += p(t.amount); }
@@ -319,10 +323,12 @@
 
                 let diasUteisTotaisMes = 0; let diasUteisPassados = 0; 
                 const ultimoDiaMes = new Date(anoFiltro, mesFiltro + 1, 0).getDate(); const hoje = new Date();
+                
                 for (let dia = 1; dia <= ultimoDiaMes; dia++) {
                     const diaDaSemana = new Date(anoFiltro, mesFiltro, dia).getDay(); 
                     if (diaDaSemana !== 1 && diaDaSemana !== 2) { 
-                        diasUteisTotaisMes++; if (anoFiltro === hoje.getFullYear() && mesFiltro === hoje.getMonth() && dia <= hoje.getDate()) diasUteisPassados++;
+                        diasUteisTotaisMes++;
+                        if (anoFiltro === hoje.getFullYear() && mesFiltro === hoje.getMonth() && dia <= hoje.getDate()) diasUteisPassados++;
                     }
                 }
 
@@ -330,7 +336,8 @@
                 if (anoFiltro === hoje.getFullYear() && mesFiltro === hoje.getMonth()) {
                     const diasUteisRestantes = diasUteisTotaisMes - diasUteisPassados; const ticketDiarioAtual = diasAtivos > 0 ? rb / diasAtivos : 0;
                     if (diasUteisRestantes > 0) projecaoMensal = rb + (ticketDiarioAtual * diasUteisRestantes);
-                    const restanteMeta = p(metaVendas) - rb; if (restanteMeta > 0 && diasUteisRestantes > 0) metaDiaria = restanteMeta / diasUteisRestantes;
+                    const restanteMeta = p(metaVendas) - rb;
+                    if (restanteMeta > 0 && diasUteisRestantes > 0) metaDiaria = restanteMeta / diasUteisRestantes;
                 } else if (new Date(anoFiltro, mesFiltro, 1) > hoje) {
                     if (diasUteisTotaisMes > 0) metaDiaria = p(metaVendas) / diasUteisTotaisMes;
                 }
@@ -343,8 +350,51 @@
                 return { 
                     rb, totalCosts: operCosts + custos, lucro: lucroDRE, catCosts, diasAtivos, totalPedidos, ticketDiario: diasAtivos > 0 ? rb / diasAtivos : 0, ticketPedido: totalPedidos > 0 ? rb / totalPedidos : 0, entradas, contasPagas, lucroCaixa, projecaoMensal, metaDiaria, margemDRE: rb > 0 ? (lucroDRE / rb) * 100 : 0, margemCaixa: entradas > 0 ? (lucroCaixa / entradas) * 100 : 0, weeklyCurrent, weeklyPrev, weekdayAverages, diasUteisRestantes: Math.max(0, diasUteisTotaisMes - diasUteisPassados)
                 };
-            }, [dailyRecords, transactions, filterMonth, metaVendas, accounts]);
+            }, [dailyRecords, transactions, filterMonth, metaVendas]);
 
+            const salesDays = useMemo(() => Object.keys(dailyRecords).filter(d=>d.startsWith(filterMonth)).sort((a,b)=>new Date(b)-new Date(a)), [dailyRecords, filterMonth]);
+            const columnTotals = useMemo(() => {
+                const totals = { totalDia: 0, pedidos: 0, pix: 0, pixOnline: 0, fiado: 0, dinheiro: 0, ifood: 0, debito: 0, credito: 0, vr: 0, ticket: 0, alelo: 0, taxaEntrega: 0, motoboy: 0 };
+                salesDays.forEach(d => {
+                    const r = dailyRecords[d] || {};
+                    totals.totalDia += ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
+                    totals.pedidos += p(r.qtdPedidos);
+                    ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].forEach(f => { totals[f] += p(r[f]); });
+                    totals.taxaEntrega += p(r.taxaEntrega); totals.motoboy += p(r.motoboy);
+                });
+                totals.ticketMedio = totals.pedidos > 0 ? totals.totalDia / totals.pedidos : 0;
+                return totals;
+            }, [dailyRecords, salesDays]);
+
+            const consolidatedAPagar = useMemo(() => {
+                const pendings = transactions.filter(t => {
+                    const { clearanceDate } = getTransactionDates(t);
+                    return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao';
+                });
+                
+                const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
+                    const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
+                    const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                    const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                    const remaining = totalPurchases - totalPaid;
+                    return remaining > 0.01 ? { id: "card-" + card.name, description: "Fatura " + card.name, amount: remaining, account: card.name, clearanceDate: filterMonth + "-" + String(card.due || card.dueDay || 10).padStart(2, '0'), isInvoice: true, category: 'Cartão de Crédito' } : null;
+                }).filter(Boolean);
+                
+                return [...pendings, ...invoices].sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
+            }, [transactions, accounts, filterMonth]);
+
+            const consolidatedAReceber = useMemo(() => transactions.filter(t => t.type === 'entrada' && t.status === 'pendente' && getTransactionDates(t).clearanceDate?.startsWith(filterMonth)).sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || "")), [transactions, filterMonth]);
+
+            const cardStats = useMemo(() => accounts.filter(a => a.type === 'cartao').map(card => {
+                const txs = transactions.filter(t => t.account === card.name);
+                const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                const currentBalance = totalPurchases - totalPaid;
+                const limit = p(card.limit || 0); const available = limit > 0 ? limit - currentBalance : 0;
+                return { ...card, currentBalance, limit, available };
+            }), [transactions, accounts]);
+
+            // ================= LÓGICA CMV COMPUTADA =================
             const getIngCost = (id, q) => { const i = ingredients.find(x => x.id === id); return i ? (i.cost / i.qty) * (p(q) * (i.unit==='kg'||i.unit==='L'?0.001:1)) : 0; };
             const calcItemCost = (ings) => (ings||[]).reduce((t, r) => t + getIngCost(r.ingredientId, r.qty), 0);
             const calcComboCost = (items) => (items||[]).reduce((t, i) => {
@@ -353,30 +403,42 @@
                 return t + getIngCost(i.itemId, i.qty);
             }, 0);
 
-            const executeDelete = async (collectionName, id) => {
-                if (!user) return;
-                if (deleteConfirmId === id) { await db.collection("artifacts/tribo-burger-financeiro/users/" + user.uid + "/" + collectionName).doc(id).delete(); setDeleteConfirmId(null); } 
-                else { setDeleteConfirmId(id); setTimeout(() => setDeleteConfirmId(null), 3000); }
-            };
-
+            // ================= ACTIONS =================
             const saveCMVDoc = async (field, data) => await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/cmv_data/state`).set({ [field]: data }, { merge: true });
             const saveMeta = async (v) => { if (!user) return; await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/settings/config`).set({ meta: p(v) }, { merge: true }); };
 
             const handleSaveTx = async (e) => {
                 e.preventDefault(); if (!user || !txForm.val) return;
                 const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/transactions";
-                const batch = db.batch(); const numInst = txForm.type === 'transferencia' ? 1 : parseInt(txForm.inst || 1);
+                const batch = db.batch();
+                const numInst = txForm.type === 'transferencia' ? 1 : parseInt(txForm.inst || 1);
                 
                 for (let i = 0; i < numInst; i++) {
                     const d = new Date(txForm.date); d.setMonth(d.getMonth() + i); const dateStr = d.toISOString().split('T')[0];
                     const c = new Date(txForm.clearance); c.setMonth(c.getMonth() + i); const clearStr = c.toISOString().split('T')[0];
                     const payload = {
-                        description: numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc, amount: p(txForm.val) / numInst, type: txForm.type, status: txForm.status, date: dateStr, clearanceDate: clearStr, billingMonth: dateStr.slice(0, 7), account: txForm.acc, destinationAccount: txForm.destAcc, category: txForm.type === 'transferencia' ? 'Transferência' : (txForm.cat || 'Geral'), supplier: txForm.sup, timestamp: new Date().toISOString()
+                        description: numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc,
+                        amount: p(txForm.val) / numInst, type: txForm.type, status: txForm.status,
+                        date: dateStr, clearanceDate: clearStr, billingMonth: dateStr.slice(0, 7),
+                        account: txForm.acc, destinationAccount: txForm.destAcc, category: txForm.type === 'transferencia' ? 'Transferência' : (txForm.cat || 'Geral'),
+                        supplier: txForm.sup, timestamp: new Date().toISOString()
                     };
-                    if (txForm.id && i === 0) batch.update(db.collection(path).doc(txForm.id), payload); else batch.set(db.collection(path).doc(), payload);
+                    if (txForm.id && i === 0) batch.update(db.collection(path).doc(txForm.id), payload);
+                    else batch.set(db.collection(path).doc(), payload);
                 }
                 await batch.commit(); 
                 setTxForm({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1 });
+            };
+
+            const executeDelete = async (collectionName, id) => {
+                if (!user) return;
+                if (deleteConfirmId === id) {
+                    await db.collection("artifacts/tribo-burger-financeiro/users/" + user.uid + "/" + collectionName).doc(id).delete();
+                    setDeleteConfirmId(null);
+                } else {
+                    setDeleteConfirmId(id);
+                    setTimeout(() => setDeleteConfirmId(null), 3000);
+                }
             };
 
             const openLiquidation = (t) => {
@@ -386,26 +448,57 @@
 
             const executeLiquidation = async () => {
                 if (!user || !liqModal) return;
-                await db.collection('artifacts/tribo-burger-financeiro/users/' + user.uid + '/transactions').doc(liqModal.id).update({ status: 'pago', clearanceDate: liqModal.date, amount: p(liqModal.amount), account: liqModal.account });
-                setLiqModal(null);
+                try {
+                    await db.collection('artifacts/tribo-burger-financeiro/users/' + user.uid + '/transactions').doc(liqModal.id).update({ status: 'pago', clearanceDate: liqModal.date, amount: p(liqModal.amount), account: liqModal.account });
+                    setLiqModal(null);
+                } catch (e) { console.error(e); }
             };
 
             const handleExecuteInvoicePayment = async () => {
                 if (!user || !invoiceModal || !invoiceSourceAcc) return;
-                const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/transactions";
-                const totalInvoiceAmount = invoiceModal.total; const paidAmount = invoicePayType === 'integral' ? totalInvoiceAmount : p(invoicePartialVal);
-                if (paidAmount <= 0) return; 
+                try {
+                    const activeUid = user.uid;
+                    const path = "artifacts/tribo-burger-financeiro/users/" + activeUid + "/transactions";
+                    const totalInvoiceAmount = invoiceModal.total;
+                    const paidAmount = invoicePayType === 'integral' ? totalInvoiceAmount : p(invoicePartialVal);
 
-                const todayStr = new Date().toISOString().split('T')[0]; const batch = db.batch();
-                batch.set(db.collection(path).doc(), { description: "Baixa Fatura " + invoiceModal.cardName + " (" + invoicePayType.toUpperCase() + ")", amount: paidAmount, type: 'saida', status: 'pago', date: todayStr, clearanceDate: todayStr, billingMonth: filterMonth, account: invoiceSourceAcc, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString() });
-                batch.set(db.collection(path).doc(), { description: "Pagamento de Fatura Mês " + filterMonth, amount: paidAmount, type: 'entrada', status: 'pago', date: todayStr, clearanceDate: filterMonth + "-28", billingMonth: filterMonth, account: invoiceModal.cardName, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString() });
+                    if (paidAmount <= 0) return; 
 
-                if (invoicePayType === 'parcial' && (totalInvoiceAmount - paidAmount) > 0.01) {
-                    let [nextY, nextM] = filterMonth.split('-'); nextM = parseInt(nextM) + 1; nextY = parseInt(nextY); if (nextM > 12) { nextM = 1; nextY += 1; }
-                    const nextMonthStr = nextY + "-" + String(nextM).padStart(2, '0');
-                    batch.set(db.collection(path).doc(), { description: "Saldo Restante Fatura Anterior " + filterMonth, amount: totalInvoiceAmount - paidAmount, type: 'saida', status: 'pendente', date: nextMonthStr + "-01", clearanceDate: nextMonthStr + "-10", billingMonth: nextMonthStr, account: invoiceModal.cardName, category: 'Saldo Fatura Anterior', supplier: '', timestamp: new Date().toISOString() });
-                }
-                await batch.commit(); setInvoiceModal(null); setInvoicePartialVal(''); setInvoiceSourceAcc('');
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const batch = db.batch();
+
+                    const paymentPayload = {
+                        description: "Baixa Fatura " + invoiceModal.cardName + " (" + invoicePayType.toUpperCase() + ")",
+                        amount: paidAmount, type: 'saida', status: 'pago', date: todayStr, clearanceDate: todayStr,
+                        billingMonth: filterMonth, account: invoiceSourceAcc, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString()
+                    };
+                    batch.set(db.collection(path).doc(), paymentPayload);
+
+                    const cardCreditPayload = {
+                        description: "Pagamento de Fatura Mês " + filterMonth,
+                        amount: paidAmount, type: 'entrada', status: 'pago', date: todayStr, clearanceDate: filterMonth + "-28", 
+                        billingMonth: filterMonth, account: invoiceModal.cardName, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString()
+                    };
+                    batch.set(db.collection(path).doc(), cardCreditPayload);
+
+                    if (invoicePayType === 'parcial' && (totalInvoiceAmount - paidAmount) > 0.01) {
+                        const remainingAmount = totalInvoiceAmount - paidAmount;
+                        const parts = filterMonth.split('-');
+                        let nextM = parseInt(parts[1]) + 1; let nextY = parseInt(parts[0]);
+                        if (nextM > 12) { nextM = 1; nextY += 1; }
+                        const nextMonthStr = nextY + "-" + String(nextM).padStart(2, '0');
+
+                        const rolloverPayload = {
+                            description: "Saldo Restante Fatura Anterior " + filterMonth,
+                            amount: remainingAmount, type: 'saida', status: 'pendente', date: nextMonthStr + "-01", clearanceDate: nextMonthStr + "-10", 
+                            billingMonth: nextMonthStr, account: invoiceModal.cardName, category: 'Saldo Fatura Anterior', supplier: '', timestamp: new Date().toISOString()
+                        };
+                        batch.set(db.collection(path).doc(), rolloverPayload);
+                    }
+
+                    await batch.commit();
+                    setInvoiceModal(null); setInvoicePartialVal(''); setInvoiceSourceAcc('');
+                } catch(e) { console.error(e); }
             };
 
             const addSupplier = async (e) => { e.preventDefault(); if(supForm) { await db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/suppliers`).add({name: supForm}); setSupForm(''); } };
@@ -552,7 +645,7 @@
                     )}
                     {isFcModalOpen && (
                         <div className="modal-overlay">
-                            <div className="bg-white w-full max-w-sm p-6 rounded-2xl shadow-2xl flex flex-col gap-3 scale-up-center">
+                            <div className="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl flex flex-col gap-3 scale-up-center">
                                 <h3 className="font-black uppercase text-slate-800 border-b pb-2 mb-1">{fcForm.id ? 'Editar Custo' : 'Novo Custo Fixo'}</h3>
                                 <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Descrição</label><input type="text" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={fcForm.description} onChange={e=>setFcForm({...fcForm, description: e.target.value})} /></div>
                                 <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={fcForm.category} onChange={e=>setFcForm({...fcForm, category: e.target.value})}>{fcCats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
@@ -653,13 +746,16 @@
                                                     <div key={t.id} className="p-3 flex justify-between items-center hover:bg-slate-50 transition-all">
                                                         <div className="flex items-center gap-3">
                                                             <div className={"w-6 h-6 rounded flex items-center justify-center font-black " + (t.type === 'transferencia' ? 'bg-blue-100 text-blue-700' : (t.type === 'entrada' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'))}>{t.type === 'transferencia' ? 'TR' : (t.type === 'entrada' ? 'IN' : 'OUT')}</div>
-                                                            <div><div className="flex items-center gap-2"><p className="font-black uppercase leading-none">{t.description}</p><span className={"status-badge " + (t.status==='pago'?'bg-green-100 text-green-700':'bg-orange-100 text-orange-700')}>{t.status==='pago' ? 'Pago' : 'Pendente'}</span></div><p className="font-bold text-slate-400 uppercase mt-1">{t.account} • {t.category}</p></div>
+                                                            <div>
+                                                                <div className="flex items-center gap-2"><p className="font-black uppercase leading-none">{t.description}</p><span className={"status-badge " + (t.status==='pago'?'bg-green-100 text-green-700':'bg-orange-100 text-orange-700')}>{t.status==='pago' ? 'Pago' : 'Pendente'}</span></div>
+                                                                <p className="font-bold text-slate-400 uppercase mt-1 text-[8px]">Lanç: {t.date ? t.date.split('-').reverse().join('/') : '--'} • Venc: {t.clearanceDate ? t.clearanceDate.split('-').reverse().join('/') : '--'} • {t.account} • {t.category}</p>
+                                                            </div>
                                                         </div>
                                                         <div className="flex items-center gap-3">
                                                             <p className={"font-black " + (t.type==='entrada'?'text-green-600':'text-slate-800')}>{formatMoney(t.amount)}</p>
                                                             <div className="flex gap-1">
                                                                 <button onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1});}} className="text-blue-400 p-1.5"><Edit2 size={12}/></button>
-                                                                <button onClick={() => executeDelete('transactions', t.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === t.id ? 'delete-confirm' : 'text-red-400 hover:text-red-600')}>{deleteConfirmId === t.id ? <span className="font-black uppercase">Sim</span> : <Trash2 size={12}/>}</button>
+                                                                <button onClick={() => executeDelete('transactions', t.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === t.id ? 'delete-confirm' : 'text-red-400 hover:text-red-600')}>{deleteConfirmId === t.id ? <span className="font-black uppercase text-[8px]">Sim</span> : <Trash2 size={12}/>}</button>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -672,6 +768,7 @@
                                 {activeTab === 'saldos' && (() => {
                                     const highlightedNames = ['MERCADO PAGO', 'C6 BANK', 'IFOOD', 'CAIXA LOJA'];
                                     const fundKeywords = ['FUNDO', 'APLICAÇÃO', 'APLICACAO', 'INVESTIMENTO', 'RESERVA', 'POUPANÇA', 'POUPANCA'];
+                                    
                                     const highlighted = currentAccounts.filter(a => highlightedNames.includes((a.name||'').trim().toUpperCase()));
                                     const funds = currentAccounts.filter(a => !highlightedNames.includes((a.name||'').trim().toUpperCase()) && fundKeywords.some(k => (a.name||'').toUpperCase().includes(k)));
                                     const others = currentAccounts.filter(a => !highlightedNames.includes((a.name||'').trim().toUpperCase()) && !fundKeywords.some(k => (a.name||'').toUpperCase().includes(k)));
@@ -701,144 +798,208 @@
                                     );
                                 })()}
 
-                                {activeTab === 'vendas' && (
-                                    <div className="space-y-4 animate-in fade-in">
-                                        <div className="stat-banner !border-black !bg-[#D97757] p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Faturamento Mês</p><h3 className="text-2xl font-black">{formatMoney(stats.rb)}</h3></div>
-                                        <div className="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm">
-                                            <div className="flex items-center gap-2"><CalendarDays className="text-slate-400" /><h2 className="font-black uppercase tracking-widest">Caixa Diário</h2></div>
-                                            <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border"><input type="date" className="font-bold bg-transparent outline-none border-0" value={newDayDate} onChange={e=>setNewDayDate(e.target.value)} /><button onClick={()=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(newDayDate).set({initialized:true},{merge:true})} className="bg-black text-[#F8CC82] px-3 py-1.5 rounded-lg font-black uppercase">Abrir</button></div>
+                                {activeTab === 'vendas' && (() => {
+                                    const salesDays = Object.keys(dailyRecords).filter(d=>d.startsWith(filterMonth)).sort((a,b)=>new Date(b)-new Date(a));
+                                    const totals = { totalDia: 0, pedidos: 0, pix: 0, pixOnline: 0, fiado: 0, dinheiro: 0, ifood: 0, debito: 0, credito: 0, vr: 0, ticket: 0, alelo: 0, taxaEntrega: 0, motoboy: 0 };
+                                    salesDays.forEach(d => {
+                                        const r = dailyRecords[d] || {}; const total = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
+                                        totals.totalDia += total; totals.pedidos += p(r.qtdPedidos); ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].forEach(f => { totals[f] += p(r[f]); }); totals.taxaEntrega += p(r.taxaEntrega); totals.motoboy += p(r.motoboy);
+                                    });
+                                    return (
+                                        <div className="space-y-4 animate-in fade-in">
+                                            <div className="stat-banner !border-black !bg-[#D97757] p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Faturamento Mês</p><h3 className="text-2xl font-black">{formatMoney(stats.rb)}</h3></div>
+                                            <div className="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm">
+                                                <div className="flex items-center gap-2"><CalendarDays className="text-slate-400" /><h2 className="font-black uppercase tracking-widest">Caixa Diário</h2></div>
+                                                <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border"><input type="date" className="font-bold bg-transparent outline-none border-0" value={newDayDate} onChange={e=>setNewDayDate(e.target.value)} /><button onClick={()=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(newDayDate).set({initialized:true},{merge:true})} className="bg-black text-[#F8CC82] px-3 py-1.5 rounded-lg font-black uppercase">Abrir</button></div>
+                                            </div>
+                                            <div className="glass-card rounded-2xl overflow-hidden border shadow-sm overflow-x-auto no-scrollbar">
+                                                <table className="w-full text-center min-w-[1400px]">
+                                                    <thead className="bg-[#1A202C] text-white uppercase tracking-widest border-b">
+                                                        <tr>
+                                                            <th className="p-2 sticky left-0 z-20 bg-[#1A202C]">Data</th><th className="p-2 bg-amber-500 text-black">Total Dia</th><th className="p-2 bg-blue-600 text-white">Pedidos</th><th className="p-2 bg-blue-800 text-white">Ticket</th>
+                                                            {['Pix','Pix_On','Fiado','Dinh','Ifood','Débito','Crédito','VR','Ticket','Alelo'].map(h=><th key={h} className="p-2">{h}</th>)}
+                                                            <th className="p-2 text-orange-400 bg-orange-950">Entrega</th><th className="p-2 text-red-400 bg-red-950">Motoboy</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y font-bold">
+                                                        {salesDays.map(d => {
+                                                            const r = dailyRecords[d] || {}; const total = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
+                                                            return (
+                                                                <tr key={d} className="hover:bg-slate-50">
+                                                                    <td className="p-0 border-r bg-white sticky left-0">{d.split('-').reverse().join('/')}</td>
+                                                                    <td className="p-2 bg-yellow-50 font-black">{formatMoney(total)}</td>
+                                                                    <td className="p-0 border-r bg-blue-50/30"><DailyInput dateStr={d} field="qtdPedidos" initialValue={r.qtdPedidos} activeUid={user.uid} className="!text-blue-700" placeholder="0" /></td>
+                                                                    <td className="p-2 bg-blue-50/50 font-black text-blue-900">{formatMoney(p(r.qtdPedidos) > 0 ? total / p(r.qtdPedidos) : 0)}</td>
+                                                                    {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => <td key={f} className="p-0 border-r"><DailyInput dateStr={d} field={f} initialValue={r[f]} activeUid={user.uid} /></td>)}
+                                                                    <td className="p-0 border-r bg-slate-50/50"><DailyInput dateStr={d} field="taxaEntrega" initialValue={r.taxaEntrega} activeUid={user.uid} className="!text-orange-500" /></td>
+                                                                    <td className="p-0 border-r bg-slate-50/50"><DailyInput dateStr={d} field="motoboy" initialValue={r.motoboy} activeUid={user.uid} className="!text-red-500" /></td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                    <tfoot>
+                                                        <tr className="bg-[#1A202C] text-white font-black uppercase border-t-4 border-[#D97757]">
+                                                            <td className="p-0 sticky left-0 bg-[#1A202C] z-10 text-center text-amber-300">SOMA TOTAL</td>
+                                                            <td className="p-2 bg-amber-500 text-black">{formatMoney(totals.totalDia)}</td>
+                                                            <td className="p-2 bg-blue-600">{totals.pedidos}</td>
+                                                            <td className="p-2 bg-blue-800 text-[#F8CC82]">{formatMoney(totals.pedidos > 0 ? totals.totalDia / totals.pedidos : 0)}</td>
+                                                            {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => ( <td key={f} className="p-2 border-r bg-slate-800">{formatMoney(totals[f])}</td> ))}
+                                                            <td className="p-2 border-r text-orange-400 bg-orange-950/25">{formatMoney(totals.taxaEntrega)}</td>
+                                                            <td className="p-2 border-r text-red-400 bg-red-950/25">{formatMoney(totals.motoboy)}</td>
+                                                        </tr>
+                                                    </tfoot>
+                                                </table>
+                                            </div>
                                         </div>
-                                        <div className="glass-card rounded-2xl overflow-hidden border shadow-sm overflow-x-auto no-scrollbar">
-                                            <table className="w-full text-center min-w-[1400px]">
-                                                <thead className="bg-[#1A202C] text-white uppercase tracking-widest border-b">
-                                                    <tr>
-                                                        <th className="p-2 sticky left-0 z-20 bg-[#1A202C]">Data</th><th className="p-2 bg-amber-500 text-black">Total Dia</th><th className="p-2 bg-blue-600 text-white">Pedidos</th><th className="p-2 bg-blue-800 text-white">Ticket</th>
-                                                        {['Pix','Pix_On','Fiado','Dinh','Ifood','Débito','Crédito','VR','Ticket','Alelo'].map(h=><th key={h} className="p-2">{h}</th>)}
-                                                        <th className="p-2 text-orange-400 bg-orange-950">Entrega</th><th className="p-2 text-red-400 bg-red-950">Motoboy</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y font-bold">
-                                                    {salesDays.map(d => {
-                                                        const r = dailyRecords[d] || {}; const total = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
-                                                        return (
-                                                            <tr key={d} className="hover:bg-slate-50">
-                                                                <td className="p-0 border-r bg-white sticky left-0">{d.split('-').reverse().join('/')}</td>
-                                                                <td className="p-2 bg-yellow-50 font-black">{formatMoney(total)}</td>
-                                                                <td className="p-0 border-r bg-blue-50/30"><DailyInput dateStr={d} field="qtdPedidos" initialValue={r.qtdPedidos} activeUid={user.uid} className="!text-blue-700" placeholder="0" /></td>
-                                                                <td className="p-2 bg-blue-50/50 font-black text-blue-900">{formatMoney(p(r.qtdPedidos) > 0 ? total / p(r.qtdPedidos) : 0)}</td>
-                                                                {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => <td key={f} className="p-0 border-r"><DailyInput dateStr={d} field={f} initialValue={r[f]} activeUid={user.uid} /></td>)}
-                                                                <td className="p-0 border-r bg-slate-50/50"><DailyInput dateStr={d} field="taxaEntrega" initialValue={r.taxaEntrega} activeUid={user.uid} className="!text-orange-500" /></td>
-                                                                <td className="p-0 border-r bg-slate-50/50"><DailyInput dateStr={d} field="motoboy" initialValue={r.motoboy} activeUid={user.uid} className="!text-red-500" /></td>
+                                    );
+                                })()}
+
+                                {activeTab === 'a_pagar' && (() => {
+                                    const pendings = transactions.filter(t => {
+                                        const accInfo = accounts.find(a => a.name === t.account);
+                                        const { clearanceDate } = getTransactionDates(t, accInfo);
+                                        return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accInfo?.type !== 'cartao';
+                                    });
+                                    
+                                    const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
+                                        const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
+                                        const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                                        const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                                        const remaining = totalPurchases - totalPaid;
+                                        
+                                        if (remaining <= 0.01) return null;
+                                        const cardDueDay = card.due || card.dueDay || 10;
+                                        return { 
+                                            id: "card-" + card.name, 
+                                            description: "Fatura " + card.name, 
+                                            amount: remaining, 
+                                            account: card.name, 
+                                            clearanceDate: filterMonth + "-" + String(cardDueDay).padStart(2, '0'), 
+                                            isInvoice: true 
+                                        };
+                                    }).filter(Boolean);
+                                    
+                                    const combined = [...pendings, ...invoices].sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
+                                    
+                                    return (
+                                        <div className="space-y-4 fade-in">
+                                            <div className="stat-banner !border-black !bg-red-500 p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Total A Pagar ({filterMonth})</p><h3 className="text-3xl font-black">{formatMoney(combined.reduce((sum, t) => sum + p(t.amount), 0))}</h3></div>
+                                            <div className="glass-card rounded-2xl overflow-hidden border shadow-sm">
+                                                <table className="w-full text-left">
+                                                    <thead className="bg-slate-100 text-slate-500 uppercase font-black tracking-widest border-b"><tr><th className="p-3">Vencimento</th><th className="p-3">Descrição</th><th className="p-3">Conta/Cartão</th><th className="p-3 text-right">Valor</th><th className="p-3 text-center">Ação</th></tr></thead>
+                                                    <tbody className="divide-y font-bold text-slate-700">
+                                                        {combined.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400">Nenhuma conta pendente.</td></tr> : combined.map((t, idx) => (
+                                                            <tr key={idx} className="hover:bg-slate-50">
+                                                                <td className={"p-3 " + (new Date(t.clearanceDate) < new Date() ? 'text-red-500' : '')}>{t.clearanceDate.split('-').reverse().join('/')}</td>
+                                                                <td className="p-3 uppercase">{t.description}</td>
+                                                                <td className="p-3 uppercase"><span className="bg-slate-200 px-2 py-0.5 rounded">{t.account}</span></td>
+                                                                <td className="p-3 text-right text-red-500 font-black">{formatMoney(t.amount)}</td>
+                                                                <td className="p-3 text-center"><button onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-black uppercase hover:bg-green-200">Baixar Pgt</button></td>
                                                             </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                                <tfoot>
-                                                    <tr className="bg-[#1A202C] text-white font-black uppercase border-t-4 border-[#D97757]">
-                                                        <td className="p-0 sticky left-0 bg-[#1A202C] z-10 text-center text-amber-300">SOMA TOTAL</td>
-                                                        <td className="p-2 bg-amber-500 text-black">{formatMoney(columnTotals.totalDia)}</td>
-                                                        <td className="p-2 bg-blue-600">{columnTotals.pedidos}</td>
-                                                        <td className="p-2 bg-blue-800 text-[#F8CC82]">{formatMoney(columnTotals.ticketMedio)}</td>
-                                                        {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => ( <td key={f} className="p-2 border-r bg-slate-800">{formatMoney(columnTotals[f])}</td> ))}
-                                                        <td className="p-2 border-r text-orange-400 bg-orange-950/25">{formatMoney(columnTotals.taxaEntrega)}</td>
-                                                        <td className="p-2 border-r text-red-400 bg-red-950/25">{formatMoney(columnTotals.motoboy)}</td>
-                                                    </tr>
-                                                </tfoot>
-                                            </table>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    );
+                                })()}
 
-                                {activeTab === 'a_pagar' && (
-                                    <div className="space-y-4 fade-in">
-                                        <div className="stat-banner !border-black !bg-red-500 p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Total A Pagar ({filterMonth})</p><h3 className="text-3xl font-black">{formatMoney(consolidatedAPagar.reduce((sum, t) => sum + p(t.amount), 0))}</h3></div>
-                                        <div className="glass-card rounded-2xl overflow-hidden border shadow-sm">
-                                            <table className="w-full text-left">
-                                                <thead className="bg-slate-100 text-slate-500 uppercase font-black tracking-widest border-b"><tr><th className="p-3">Vencimento</th><th className="p-3">Descrição</th><th className="p-3">Conta/Cartão</th><th className="p-3 text-right">Valor</th><th className="p-3 text-center">Ação</th></tr></thead>
-                                                <tbody className="divide-y font-bold text-slate-700">
-                                                    {consolidatedAPagar.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400">Nenhuma conta pendente.</td></tr> : consolidatedAPagar.map((t, idx) => (
-                                                        <tr key={idx} className="hover:bg-slate-50">
-                                                            <td className={"p-3 " + (new Date(t.clearanceDate) < new Date() ? 'text-red-500' : '')}>{t.clearanceDate.split('-').reverse().join('/')}</td>
-                                                            <td className="p-3 uppercase">{t.description}</td>
-                                                            <td className="p-3 uppercase"><span className="bg-slate-200 px-2 py-0.5 rounded">{t.account}</span></td>
-                                                            <td className="p-3 text-right text-red-500 font-black">{formatMoney(t.amount)}</td>
-                                                            <td className="p-3 text-center"><button onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-black uppercase hover:bg-green-200">Baixar Pgt</button></td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
+                                {activeTab === 'a_receber' && (() => {
+                                    const list = transactions.filter(t => {
+                                        const accInfo = accounts.find(a => a.name === t.account);
+                                        const { clearanceDate } = getTransactionDates(t, accInfo);
+                                        return t.type === 'entrada' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth);
+                                    }).sort((a,b) => {
+                                        const accA = accounts.find(acc => acc.name === a.account);
+                                        const accB = accounts.find(acc => acc.name === b.account);
+                                        return (getTransactionDates(a, accA).clearanceDate||"").localeCompare(getTransactionDates(b, accB).clearanceDate||"");
+                                    });
+
+                                    return (
+                                        <div className="space-y-4 fade-in">
+                                            <div className="stat-banner !border-black !bg-green-500 p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Total A Receber ({filterMonth})</p><h3 className="text-3xl font-black">{formatMoney(list.reduce((sum, t) => sum + p(t.amount), 0))}</h3></div>
+                                            <div className="glass-card rounded-2xl overflow-hidden border shadow-sm">
+                                                <table className="w-full text-left">
+                                                    <thead className="bg-slate-100 text-slate-500 uppercase font-black tracking-widest border-b"><tr><th className="p-3">Previsão</th><th className="p-3">Descrição</th><th className="p-3">Conta Destino</th><th className="p-3 text-right">Valor</th><th className="p-3 text-center">Ação</th></tr></thead>
+                                                    <tbody className="divide-y font-bold text-slate-700">
+                                                        {list.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400">Nenhum recebimento pendente.</td></tr> : list.map((t) => {
+                                                            const accInfo = accounts.find(a => a.name === t.account);
+                                                            const { clearanceDate } = getTransactionDates(t, accInfo);
+                                                            return (
+                                                                <tr key={t.id} className="hover:bg-slate-50">
+                                                                    <td className="p-3">{clearanceDate?.split('-').reverse().join('/')}</td>
+                                                                    <td className="p-3 uppercase">{t.description}</td>
+                                                                    <td className="p-3 uppercase"><span className="bg-slate-200 px-2 py-0.5 rounded">{t.account}</span></td>
+                                                                    <td className="p-3 text-right text-green-600 font-black">{formatMoney(t.amount)}</td>
+                                                                    <td className="p-3 text-center"><button onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-black uppercase hover:bg-green-200">Conf. Recib</button></td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    );
+                                })()}
 
-                                {activeTab === 'a_receber' && (
-                                    <div className="space-y-4 fade-in">
-                                        <div className="stat-banner !border-black !bg-green-500 p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Total A Receber ({filterMonth})</p><h3 className="text-3xl font-black">{formatMoney(consolidatedAReceber.reduce((sum, t) => sum + p(t.amount), 0))}</h3></div>
-                                        <div className="glass-card rounded-2xl overflow-hidden border shadow-sm">
-                                            <table className="w-full text-left">
-                                                <thead className="bg-slate-100 text-slate-500 uppercase font-black tracking-widest border-b"><tr><th className="p-3">Previsão</th><th className="p-3">Descrição</th><th className="p-3">Conta Destino</th><th className="p-3 text-right">Valor</th><th className="p-3 text-center">Ação</th></tr></thead>
-                                                <tbody className="divide-y font-bold text-slate-700">
-                                                    {consolidatedAReceber.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400">Nenhum recebimento pendente.</td></tr> : consolidatedAReceber.map((t) => (
-                                                        <tr key={t.id} className="hover:bg-slate-50">
-                                                            <td className="p-3">{t.clearanceDate.split('-').reverse().join('/')}</td>
-                                                            <td className="p-3 uppercase">{t.description}</td>
-                                                            <td className="p-3 uppercase"><span className="bg-slate-200 px-2 py-0.5 rounded">{t.account}</span></td>
-                                                            <td className="p-3 text-right text-green-600 font-black">{formatMoney(t.amount)}</td>
-                                                            <td className="p-3 text-center"><button onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-black uppercase hover:bg-green-200">Conf. Recib</button></td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                )}
+                                {/* ================= ABA DE CARTÕES OTIMIZADA ================= */}
+                                {activeTab === 'cartoes' && (() => {
+                                    const cStats = accounts.filter(a => a.type === 'cartao').map(card => {
+                                        const txs = transactions.filter(t => t.account === card.name);
+                                        const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                                        const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                                        const currentBalance = totalPurchases - totalPaid;
+                                        const limit = p(card.limit || 0); const available = limit > 0 ? limit - currentBalance : 0;
+                                        return { ...card, currentBalance, limit, available };
+                                    });
 
-                                {activeTab === 'cartoes' && (
-                                    <div className="space-y-4 fade-in">
-                                        <div className="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm"><div><h2 className="font-black uppercase text-slate-800">Cartões de Crédito</h2><p className="font-bold text-slate-400 uppercase mt-0.5">Limites e Faturas ({filterMonth})</p></div></div>
-                                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                                            {cardStats.length === 0 ? <div className="col-span-full p-8 text-center text-slate-400 uppercase font-black glass-card rounded-2xl border-dashed">Nenhum cartão cadastrado.</div> : cardStats.map(card => {
-                                                const currentMonthTxs = transactions.filter(t => { if (t.account !== card.name) return false; const { billingMonth } = getTransactionDates(t, card); return billingMonth === filterMonth && !isInvoicePayment(t); });
-                                                const invoiceTotal = currentMonthTxs.reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                                const invoicePayments = transactions.filter(t => t.account === card.name && isInvoicePayment(t) && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
-                                                const paidAmount = invoicePayments.reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                                const isPaid = paidAmount >= invoiceTotal && invoiceTotal > 0;
+                                    return (
+                                        <div className="space-y-4 fade-in">
+                                            <div className="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm"><div><h2 className="font-black uppercase text-slate-800">Cartões de Crédito</h2><p className="font-bold text-slate-400 uppercase mt-0.5">Limites e Faturas ({filterMonth})</p></div></div>
+                                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                                {cStats.length === 0 ? <div className="col-span-full p-8 text-center text-slate-400 uppercase font-black glass-card rounded-2xl border-dashed">Nenhum cartão cadastrado. Vá em "Ajustes" para adicionar.</div> : cStats.map(card => {
+                                                    const currentMonthTxs = transactions.filter(t => { if (t.account !== card.name) return false; const { clearanceDate } = getTransactionDates(t, card); return clearanceDate?.startsWith(filterMonth) && !isInvoicePayment(t); });
+                                                    const invoiceTotal = currentMonthTxs.reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                                                    const invoicePayments = transactions.filter(t => t.account === card.name && isInvoicePayment(t) && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
+                                                    const paidAmount = invoicePayments.reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                                                    const isPaid = paidAmount >= invoiceTotal && invoiceTotal > 0;
 
-                                                return (
-                                                    <div key={card.id} className="glass-card rounded-2xl overflow-hidden shadow-md border-t-4 border-[#1A202C] flex flex-col">
-                                                        <div className="p-5 pb-4 bg-white">
-                                                            <div className="flex justify-between items-start mb-4"><div><h3 className="font-black text-lg text-slate-900 uppercase">{card.name}</h3><p className="font-bold text-slate-400 uppercase mt-0.5">Fecho: dia {card.closing} • Venc: dia {card.due}</p></div><CreditCard size={24} className="text-slate-300" /></div>
-                                                            <div className="space-y-2">
-                                                                <div>
-                                                                    <div className="flex justify-between items-end mb-1"><p className="font-black text-slate-400 uppercase tracking-widest">Limite Comprometido</p><span className="font-black text-slate-700">{formatMoney(card.currentBalance)}</span></div>
-                                                                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div className="bg-[#D97757] h-full transition-all" style={{width: `${Math.min(100, (card.currentBalance/card.limit)*100)}%`}}></div></div>
-                                                                    <div className="flex justify-between font-black uppercase text-slate-500 mt-1"><span>Tot: {formatMoney(card.limit)}</span><span className="text-emerald-500">Disp: {formatMoney(card.available)}</span></div>
+                                                    return (
+                                                        <div key={card.id} className="glass-card rounded-2xl overflow-hidden shadow-md border-t-4 border-[#1A202C] flex flex-col">
+                                                            <div className="p-5 pb-4 bg-white">
+                                                                <div className="flex justify-between items-start mb-4"><div><h3 className="font-black text-lg text-slate-900 uppercase">{card.name}</h3><p className="font-bold text-slate-400 uppercase mt-0.5">Fecho: dia {card.closing} • Venc: dia {card.due}</p></div><CreditCard size={24} className="text-slate-300" /></div>
+                                                                <div className="space-y-2">
+                                                                    <div>
+                                                                        <div className="flex justify-between items-end mb-1"><p className="font-black text-slate-400 uppercase tracking-widest">Limite Comprometido</p><span className="font-black text-slate-700">{formatMoney(card.currentBalance)}</span></div>
+                                                                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div className="bg-[#D97757] h-full transition-all" style={{width: `${Math.min(100, (card.currentBalance/card.limit)*100)}%`}}></div></div>
+                                                                        <div className="flex justify-between font-black uppercase text-slate-500 mt-1"><span>Tot: {formatMoney(card.limit)}</span><span className="text-emerald-500">Disp: {formatMoney(card.available)}</span></div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-slate-50 p-4 flex-1 flex flex-col border-t">
+                                                                <div className="flex justify-between items-center mb-4">
+                                                                    <div><p className="font-black uppercase text-slate-400 tracking-widest">Fatura Atual</p><h4 className={"text-xl font-black " + (isPaid ? "text-emerald-500" : "text-red-500")}>{formatMoney(invoiceTotal)}</h4></div>
+                                                                    {isPaid ? <span className="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg font-black uppercase border border-emerald-200">Fatura Paga</span> : ( invoiceTotal > 0 && <button onClick={() => setInvoiceModal({ cardName: card.name, total: invoiceTotal })} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl font-black uppercase shadow-lg active:scale-95 transition-all">Pagar Fatura</button> )}
+                                                                </div>
+                                                                <div className="flex-1 bg-white rounded-xl border shadow-sm overflow-hidden flex flex-col max-h-[250px]">
+                                                                    <div className="p-3 bg-slate-100 border-b font-black uppercase text-slate-500 tracking-widest flex items-center gap-1.5"><FileText size={12}/> Compras Fatura</div>
+                                                                    <div className="overflow-y-auto flex-1 divide-y p-1 no-scrollbar">
+                                                                        {currentMonthTxs.length === 0 ? <div className="p-6 text-center font-bold text-slate-400 uppercase">Sem gastos nesta fatura.</div> : currentMonthTxs.sort((a,b)=>a.date.localeCompare(b.date)).map(t => (
+                                                                            <div key={t.id} className="py-2 px-3 flex justify-between items-center hover:bg-slate-50 rounded-lg"><div><p className="font-black uppercase text-slate-800 leading-tight">{t.description}</p><p className="font-bold text-slate-400 uppercase mt-0.5">{t.date.split('-').reverse().join('/')} • {t.category}</p></div><span className="font-black text-red-500">{formatMoney(t.amount)}</span></div>
+                                                                        ))}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        <div className="bg-slate-50 p-4 flex-1 flex flex-col border-t">
-                                                            <div className="flex justify-between items-center mb-4">
-                                                                <div><p className="font-black uppercase text-slate-400 tracking-widest">Fatura do Mês</p><h4 className={"text-xl font-black " + (isPaid ? "text-emerald-500" : "text-red-500")}>{formatMoney(invoiceTotal)}</h4></div>
-                                                                {isPaid ? <span className="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg font-black uppercase border border-emerald-200">Fatura Paga</span> : ( invoiceTotal > 0 && <button onClick={() => setInvoiceModal({ cardName: card.name, total: invoiceTotal })} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl font-black uppercase shadow-lg active:scale-95 transition-all">Pagar Fatura</button> )}
-                                                            </div>
-                                                            <div className="flex-1 bg-white rounded-xl border shadow-sm overflow-hidden flex flex-col max-h-[250px]">
-                                                                <div className="p-3 bg-slate-100 border-b font-black uppercase text-slate-500 tracking-widest flex items-center gap-1.5"><FileText size={12}/> Compras Fatura</div>
-                                                                <div className="overflow-y-auto flex-1 divide-y p-1 no-scrollbar">
-                                                                    {currentMonthTxs.length === 0 ? <div className="p-6 text-center font-bold text-slate-400 uppercase">Sem gastos nesta fatura.</div> : currentMonthTxs.sort((a,b)=>a.date.localeCompare(b.date)).map(t => (
-                                                                        <div key={t.id} className="py-2 px-3 flex justify-between items-center hover:bg-slate-50 rounded-lg"><div><p className="font-black uppercase text-slate-800 leading-tight">{t.description}</p><p className="font-bold text-slate-400 uppercase mt-0.5">{t.date.split('-').reverse().join('/')} • {t.category}</p></div><span className="font-black text-red-500">{formatMoney(t.amount)}</span></div>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    );
+                                })()}
 
                                 {activeTab === 'resultados' && (
-                                    <div className="space-y-6 animate-in fade-in">
+                                    <div className="space-y-4 animate-in fade-in">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                             <div className="glass-card p-5 rounded-2xl shadow-md border-t-4 border-orange-500 text-center flex flex-col justify-between">
                                                 <div><p className="font-black text-slate-400 uppercase tracking-widest mb-2">Meta de Vendas</p><div className="flex items-center justify-center gap-1"><span className="font-black text-slate-400">R$</span><input type="text" className="text-xl font-black w-24 text-center bg-transparent border-b-2 outline-none focus:border-black" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} onBlur={e=>saveMeta(e.target.value)} /></div></div>
@@ -883,7 +1044,12 @@
                                 )}
 
                                 {activeTab === 'relatorios' && (() => {
-                                    const pendings = transactions.filter(t => t.type === 'saida' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao');
+                                    const pendings = transactions.filter(t => {
+                                        const accInfo = accounts.find(a => a.name === t.account);
+                                        const { clearanceDate } = getTransactionDates(t, accInfo);
+                                        return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accInfo?.type !== 'cartao';
+                                    });
+                                    
                                     const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
                                         const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
                                         const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
@@ -895,7 +1061,12 @@
                                     const sumInvoices = invoices.reduce((acc, val) => acc + val, 0);
                                     const totalAPagar = sumPendings + sumInvoices;
 
-                                    const totalAReceber = transactions.filter(t => t.type === 'entrada' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth)).reduce((acc, t) => acc + p(t.amount), 0);
+                                    const totalAReceber = transactions.filter(t => {
+                                        const accInfo = accounts.find(a => a.name === t.account);
+                                        const { clearanceDate } = getTransactionDates(t, accInfo);
+                                        return t.type === 'entrada' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth);
+                                    }).reduce((acc, t) => acc + p(t.amount), 0);
+                                    
                                     const somaDespesasCategoria = Object.values(stats.catCosts).reduce((a, b) => a + b, 0);
 
                                     return (
@@ -909,7 +1080,7 @@
                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                     <div className="bg-green-50 p-4 rounded-2xl text-center border border-green-100"><p className="font-black text-green-600 uppercase mb-1 tracking-widest">Total Entradas</p><h4 className="text-xl font-black text-green-700">{formatMoney(stats.entradas)}</h4></div>
                                                     <div className="bg-red-50 p-4 rounded-2xl text-center border border-red-100"><p className="font-black text-red-600 uppercase mb-1 tracking-widest">Contas Pagas</p><h4 className="text-xl font-black text-red-700">{formatMoney(stats.contasPagas)}</h4></div>
-                                                    <div className={"p-4 rounded-2xl text-center border shadow-sm " + (stats.lucroCaixa >= 0 ? "bg-blue-50 border-blue-200" : "bg-orange-50 border-orange-200")}><p className={"font-black uppercase mb-1 tracking-widest " + (stats.lucroCaixa >= 0 ? "text-blue-600" : "text-orange-600")}>Geração Caixa</p><h4 className={"text-xl font-black " + (stats.lucroCaixa >= 0 ? "text-blue-700" : "text-orange-700")}>{formatMoney(stats.lucroCaixa)}</h4></div>
+                                                    <div className={"p-4 rounded-2xl text-center border shadow-sm " + (stats.lucroCaixa >= 0 ? "bg-blue-50 border-blue-200" : "bg-orange-50 border-orange-200")}><p className={"font-black uppercase mb-1 tracking-widest " + (stats.lucroCaixa >= 0 ? "text-blue-600" : "text-orange-600")}>Geração Caixa Líquida</p><h4 className={"text-xl font-black " + (stats.lucroCaixa >= 0 ? "text-blue-700" : "text-orange-700")}>{formatMoney(stats.lucroCaixa)}</h4></div>
                                                 </div>
                                             </div>
                                             <div className="glass-card p-6 rounded-3xl shadow-sm border-t-4 border-slate-800">
@@ -943,7 +1114,7 @@
                                             <h3 className="font-black uppercase text-slate-800 mb-3">Add Fornecedor</h3>
                                             <form onSubmit={addSupplier} className="space-y-3">
                                                 <input type="text" className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:border-black" placeholder="Nome..." value={supForm} onChange={e=>setSupForm(e.target.value)} required />
-                                                <button className="w-full bg-black text-[#F8CC82] p-3 rounded-xl font-black uppercase">Salvar Fornecedor</button>
+                                                <button className="w-full bg-black text-[#F8CC82] p-3 rounded-xl font-black uppercase">Salvar</button>
                                             </form>
                                         </div>
                                         <div className="md:col-span-2 glass-card rounded-3xl overflow-hidden border shadow-sm">
@@ -1120,8 +1291,8 @@
                                 {activeTab === 'complementos' && (
                                      <div className="space-y-6 fade-in">
                                          <div className="flex justify-between items-center bg-white p-5 rounded-2xl border shadow-sm">
-                                             <div><h2 className="font-black uppercase text-slate-800">Complementos</h2><p className="font-bold text-slate-400 uppercase mt-0.5">{complements.length} adicionais</p></div>
-                                             <button onClick={() => {setCompForm({ id: '', name: '', category: compCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsCompModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Criar Extra</button>
+                                             <div><h2 className="font-black uppercase text-slate-800">Complementos</h2><p className="font-bold text-slate-400 uppercase mt-0.5">{complements.length} ativos</p></div>
+                                             <button onClick={() => {setCompForm({ id: '', name: '', category: compCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsCompModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Criar</button>
                                          </div>
                                          <div className="space-y-6">
                                              {compCats.map(cat => {
@@ -1135,7 +1306,7 @@
                                                              {isCollapsed ? <ChevronDown size={14} className="text-slate-400"/> : <ChevronUp size={14} className="text-slate-400"/>}
                                                          </div>
                                                          {!isCollapsed && (
-                                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                                                                  {catComps.sort((a,b)=>a.name.localeCompare(b.name)).map(comp => (
                                                                      <div key={comp.id} className="glass-card rounded-2xl p-4 shadow-sm border flex flex-col justify-between">
                                                                          <div><span className="font-black bg-indigo-50 text-indigo-600 px-1.5 rounded uppercase tracking-widest mb-2 inline-block">{comp.category}</span><h3 className="font-black uppercase text-slate-900 leading-tight">{comp.name}</h3></div>
@@ -1158,8 +1329,8 @@
                                  {activeTab === 'combos' && (
                                      <div className="space-y-6 fade-in">
                                          <div className="flex justify-between items-center bg-white p-5 rounded-2xl border shadow-sm">
-                                             <div><h2 className="font-black uppercase text-slate-800">Fichas de Combos</h2><p className="font-bold text-slate-400 uppercase mt-0.5">{combos.length} combos ativos</p></div>
-                                             <button onClick={() => {setComboForm({ id: '', name: '', category: comboCats[0], sellingPrice: '', items: [], ignoreCMV: false }); setIsComboModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Criar Combo</button>
+                                             <div><h2 className="font-black uppercase text-slate-800">Fichas de Combos</h2><p className="font-bold text-slate-400 uppercase mt-0.5">{combos.length} ativos</p></div>
+                                             <button onClick={() => {setComboForm({ id: '', name: '', category: comboCats[0], sellingPrice: '', items: [], ignoreCMV: false }); setIsComboModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Criar</button>
                                          </div>
                                          <div className="space-y-6">
                                              {comboCats.map(cat => {
@@ -1181,10 +1352,10 @@
                                                                              <div className="flex justify-between items-start mb-3"><span className="font-black bg-amber-50 text-amber-600 px-1.5 rounded uppercase tracking-widest">{combo.category}</span><div className="flex gap-1"><button onClick={()=>{setComboForm({...combo}); setIsComboModalOpen(true);}} className="text-blue-500"><Edit2 size={12}/></button><button onClick={()=>delActionCMV('combos', combos, combo.id)} className="text-red-400"><Trash2 size={12}/></button></div></div>
                                                                              <h3 className="font-black text-base uppercase text-slate-900 leading-tight mb-3">{combo.name}</h3>
                                                                              <div className="grid grid-cols-2 gap-2 mt-3">
-                                                                                 <div className="bg-slate-50 p-2 rounded-xl text-center border"><span className="font-black uppercase text-slate-500 block mb-0.5">Custo Combo</span><span className="font-black text-slate-800 text-sm">{formatMoney(cost)}</span></div>
-                                                                                 <div className={"p-2 rounded-xl text-center border " + (cmv > cmvSettings.targetCMV ? 'bg-red-50 border-red-100 text-red-600' : 'bg-green-50 border-green-100 text-green-700')}><span className="font-black uppercase block mb-0.5">CMV Real</span><span className="font-black text-sm">{cmv}%</span></div>
+                                                                                 <div className="bg-slate-50 p-2 rounded-xl text-center border"><span className="font-black uppercase text-slate-500 block mb-0.5">Custo Combo</span><span className="font-black text-slate-800">{formatMoney(cost)}</span></div>
+                                                                                 <div className={"p-2 rounded-xl text-center border " + (cmv > cmvSettings.targetCMV ? 'bg-red-50 border-red-100 text-red-600' : 'bg-green-50 border-green-100 text-green-700')}><span className="font-black uppercase block mb-0.5">CMV Real</span><span className="font-black">{cmv}%</span></div>
                                                                              </div>
-                                                                             <div className="flex justify-between items-center mt-3 pt-3 border-t"><span className="font-black uppercase text-slate-500">Preço Venda:</span><span className="font-black text-slate-900 text-base">{formatMoney(sp)}</span></div>
+                                                                             <div className="flex justify-between items-center mt-3 pt-3 border-t"><span className="font-black uppercase text-slate-500">Venda:</span><span className="font-black text-slate-900 text-base">{formatMoney(sp)}</span></div>
                                                                          </div>
                                                                      );
                                                                  })}
@@ -1221,12 +1392,12 @@
                                                 <p className="font-bold text-slate-500 mt-1">{faturamentoReal > 0 ? ((totalFixedCosts/faturamentoReal)*100).toFixed(1) : 0}% do Faturamento</p>
                                             </div>
                                             <div className="glass-card p-5 rounded-2xl shadow text-center border-l-4 border-emerald-500 flex flex-col justify-center">
-                                                <p className="font-black uppercase text-slate-400">Ponto Equilíbrio (Zero a Zero)</p>
+                                                <p className="font-black uppercase text-slate-400">Ponto de Equilíbrio</p>
                                                 <h3 className="text-xl font-black text-emerald-600 mt-1">{formatMoney(pontoEquilibrio)}</h3>
                                                 {faltaParaPe > 0 ? (
-                                                    <p className="font-black text-orange-600 mt-2 bg-orange-50 py-1.5 rounded-xl uppercase">Faltam {formatMoney(faltaParaPe)}</p>
+                                                    <p className="font-black text-orange-600 mt-2 bg-orange-50 py-1.5 rounded-lg uppercase">Faltam {formatMoney(faltaParaPe)}</p>
                                                 ) : (
-                                                    <p className="font-black text-emerald-600 mt-2 bg-emerald-50 py-1.5 rounded-xl uppercase flex items-center justify-center gap-1"><CheckCircle size={12}/> Atingido! (+{formatMoney(Math.abs(faltaParaPe))})</p>
+                                                    <p className="font-black text-emerald-600 mt-2 bg-emerald-50 py-1.5 rounded-lg uppercase flex items-center justify-center gap-1"><CheckCircle size={12}/> Atingido! (+{formatMoney(Math.abs(faltaParaPe))})</p>
                                                 )}
                                             </div>
                                         </div>
@@ -1303,9 +1474,9 @@
                                              </div>
                                              
                                              <div className="space-y-5">
-                                                 <div><h3 className="font-black uppercase text-slate-800 text-base">Cadastros Rápidos</h3><p className="font-bold text-slate-400 uppercase mt-1">Gestão Financeira</p></div>
+                                                 <div><h3 className="font-black uppercase text-slate-800 text-base">Cadastros Rápidos</h3><p className="font-bold text-slate-400 uppercase mt-1">Gestão de Contas Financeiras e Categorias</p></div>
                                                  <div className="space-y-2.5">
-                                                    <form onSubmit={addCat} className="flex gap-2"><input type="text" placeholder="Nova Categoria..." className="flex-1 p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={catForm} onChange={e=>setCatForm(e.target.value)} required /><button className="bg-black text-[#F8CC82] px-4 rounded-xl font-black">Add</button></form>
+                                                    <form onSubmit={addCat} className="flex gap-2"><input type="text" placeholder="Nova Categoria Financeira..." className="flex-1 p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={catForm} onChange={e=>setCatForm(e.target.value)} required /><button className="bg-black text-[#F8CC82] px-4 rounded-xl font-black">Add</button></form>
                                                     <form onSubmit={addAcc} className="flex gap-2 flex-wrap bg-slate-50 p-2.5 rounded-xl border">
                                                         <input type="text" placeholder="Nome Conta/Cartão" className="flex-1 p-2 bg-white border rounded-lg font-bold outline-none min-w-[100px]" value={accForm.name} onChange={e=>setAccForm({...accForm, name: e.target.value})} required />
                                                         <select className="p-2 bg-white border rounded-lg font-bold outline-none" value={accForm.type} onChange={e=>setAccForm({...accForm, type: e.target.value})}><option value="corrente">Corrente</option><option value="cartao">Cartão</option></select>
