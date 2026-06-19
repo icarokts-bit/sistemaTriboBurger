@@ -67,7 +67,7 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        // 🚀 OTIMIZAÇÃO: Ícones Guardados em Memória
+        // 🚀 OTIMIZAÇÃO: Ícones Blindados
         const Icon = memo(({ name, size = 20, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
@@ -79,7 +79,7 @@
             return <span ref={containerRef} className={`inline-flex items-center justify-center ${className}`}></span>;
         });
 
-        // 🚀 OTIMIZAÇÃO: Input Inteligente para a Tabela de Vendas (Grava só ao tirar o rato)
+        // 🚀 OTIMIZAÇÃO: Células de Digitação Fluidas (Caixa Diário)
         const DailyInput = memo(({ dateStr, field, initialValue, activeUid, className, placeholder }) => {
             const [val, setVal] = useState(initialValue || '');
             useEffect(() => { setVal(initialValue || ''); }, [initialValue]);
@@ -130,14 +130,13 @@
             const [activeTab, setActiveTab] = useState('fin_dashboard');
             const [isMenuOpen, setIsMenuOpen] = useState(false);
             
-            // ESTADOS FINANCEIROS
+            // ESTADOS GERAIS
             const [transactions, setTransactions] = useState([]);
             const [dailyRecords, setDailyRecords] = useState({});
             const [accounts, setAccounts] = useState([]);
             const [categories, setCategories] = useState([]);
             const [suppliers, setSuppliers] = useState([]);
             const [metaVendas, setMetaVendas] = useState(0);
-
             const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
             const [searchQuery, setSearchQuery] = useState('');
             const [typeFilter, setTypeFilter] = useState('todos');
@@ -213,6 +212,25 @@
             const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
+            // FUNÇÕES DE CÁLCULO
+            const getIngCost = (id, q) => { const i = ingredients.find(x => x.id === id); return i ? (i.cost / i.qty) * (p(q) * (i.unit==='kg'||i.unit==='L'?0.001:1)) : 0; };
+            const calcItemCost = (ings) => (ings||[]).reduce((t, r) => t + getIngCost(r.ingredientId, r.qty), 0);
+            const calcComboCost = (items) => (items||[]).reduce((t, i) => {
+                if (i.type === 'recipe') return t + calcItemCost(recipes.find(r=>r.id===i.itemId)?.ingredients) * p(i.qty);
+                if (i.type === 'complement') return t + calcItemCost(complements.find(c=>c.id===i.itemId)?.ingredients) * p(i.qty);
+                return t + getIngCost(i.itemId, i.qty);
+            }, 0);
+
+            // ================= MEMOS FINANCEIROS =================
+            const filteredDashboard = useMemo(() => transactions.filter(t => {
+                if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
+                const { clearanceDate, billingMonth } = getTransactionDates(t, accounts.find(a => a.name === t.account));
+                const isMonth = (t.date?.startsWith(filterMonth) || clearanceDate?.startsWith(filterMonth) || billingMonth === filterMonth);
+                const matchSearch = (t.description || "").toLowerCase().includes(searchQuery.toLowerCase());
+                const matchType = typeFilter === 'todos' || t.type === typeFilter;
+                return isMonth && matchSearch && matchType;
+            }).sort((a,b) => (b.timestamp || "").localeCompare(a.timestamp || "")), [transactions, filterMonth, searchQuery, typeFilter, accounts]);
+
             const accountBalances = useMemo(() => {
                 const bal = {}; accounts.forEach(a => bal[a.name] = 0);
                 transactions.forEach(t => {
@@ -226,14 +244,13 @@
                 return bal;
             }, [transactions, accounts]);
 
-            const totalPatrimony = useMemo(() => accounts.filter(a => a.type === 'corrente').reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0), [accounts, accountBalances]);
+            const currentAccounts = useMemo(() => accounts.filter(a => a.type === 'corrente'), [accounts]);
+            const totalPatrimony = useMemo(() => currentAccounts.reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0), [currentAccounts, accountBalances]);
 
             const stats = useMemo(() => {
-                let rb = 0; let custos = 0; let catCosts = {}; let diasAtivos = 0; let totalPedidos = 0;
-                let entradas = 0; let contasPagas = 0;
+                let rb = 0; let custos = 0; let catCosts = {}; let diasAtivos = 0; let totalPedidos = 0; let entradas = 0; let contasPagas = 0;
                 const parts = filterMonth.split('-'); const anoFiltro = parseInt(parts[0]); const mesFiltro = parseInt(parts[1]) - 1;
-                let prevMes = mesFiltro - 1; let prevAno = anoFiltro;
-                if (prevMes < 0) { prevMes = 11; prevAno--; }
+                let prevMes = mesFiltro - 1; let prevAno = anoFiltro; if (prevMes < 0) { prevMes = 11; prevAno--; }
                 const prevMonthStr = prevAno + "-" + String(prevMes + 1).padStart(2, '0');
 
                 const buildWeekMap = (ano, mes) => {
@@ -305,6 +322,65 @@
                 };
             }, [dailyRecords, transactions, filterMonth, metaVendas, accounts]);
 
+            const salesDays = useMemo(() => Object.keys(dailyRecords).filter(d=>d.startsWith(filterMonth)).sort((a,b)=>new Date(b)-new Date(a)), [dailyRecords, filterMonth]);
+            const columnTotals = useMemo(() => {
+                const totals = { totalDia: 0, pedidos: 0, pix: 0, pixOnline: 0, fiado: 0, dinheiro: 0, ifood: 0, debito: 0, credito: 0, vr: 0, ticket: 0, alelo: 0, taxaEntrega: 0, motoboy: 0 };
+                salesDays.forEach(d => {
+                    const r = dailyRecords[d] || {};
+                    totals.totalDia += ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
+                    totals.pedidos += p(r.qtdPedidos);
+                    ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].forEach(f => { totals[f] += p(r[f]); });
+                    totals.taxaEntrega += p(r.taxaEntrega); totals.motoboy += p(r.motoboy);
+                });
+                totals.ticketMedio = totals.pedidos > 0 ? totals.totalDia / totals.pedidos : 0;
+                return totals;
+            }, [dailyRecords, salesDays]);
+
+            const consolidatedAPagar = useMemo(() => {
+                const pendings = transactions.filter(t => t.type === 'saida' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao');
+                const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
+                    const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
+                    const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                    const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                    const remaining = totalPurchases - totalPaid;
+                    return remaining > 0.01 ? { id: "card-" + card.name, description: "Fatura " + card.name, amount: remaining, account: card.name, clearanceDate: filterMonth + "-" + String(card.due || 10).padStart(2, '0'), isInvoice: true, category: 'Cartão de Crédito' } : null;
+                }).filter(Boolean);
+                return [...pendings, ...invoices].sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
+            }, [transactions, accounts, filterMonth]);
+
+            const consolidatedAReceber = useMemo(() => transactions.filter(t => t.type === 'entrada' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth)).sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || "")), [transactions, accounts, filterMonth]);
+
+            const cardStats = useMemo(() => accounts.filter(a => a.type === 'cartao').map(card => {
+                const txs = transactions.filter(t => t.account === card.name);
+                const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                const currentBalance = totalPurchases - totalPaid;
+                const limit = p(card.limit || 0); const available = limit > 0 ? limit - currentBalance : 0;
+                return { ...card, currentBalance, limit, available };
+            }), [transactions, accounts]);
+
+            // ================= MEMOS CMV E RELATÓRIOS =================
+            const generalCmvAverage = useMemo(() => {
+                let sumCmv = 0, count = 0;
+                [...recipes, ...complements, ...combos].forEach(item => {
+                    if (!item.ignoreCMV) {
+                        const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items);
+                        const sp = p(item.sellingPrice);
+                        if(sp>0){ sumCmv += (cost/sp)*100; count++; }
+                    }
+                });
+                return count > 0 ? (sumCmv/count).toFixed(1) : 0;
+            }, [recipes, complements, combos]);
+
+            const cmvAnalysisStats = useMemo(() => {
+                const totalFixedCosts = fixedCosts.reduce((s,c)=>s+p(c.value),0);
+                const margemContribuicao = 1 - (p(cmvSettings.targetCMV)/100) - ((p(cmvSettings.tax) + p(cmvSettings.apps) + p(cmvSettings.card))/100);
+                const pontoEquilibrio = margemContribuicao > 0 ? totalFixedCosts / margemContribuicao : 0;
+                const faturamentoReal = stats.rb;
+                const faltaParaPe = pontoEquilibrio - faturamentoReal;
+                return { totalFixedCosts, pontoEquilibrio, faturamentoReal, faltaParaPe };
+            }, [fixedCosts, cmvSettings, stats.rb]);
+
             // ================= ACTIONS =================
             const saveCMVDoc = async (field, data) => await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/cmv_data/state`).set({ [field]: data }, { merge: true });
             const saveMeta = async (v) => { if (!user) return; await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/settings/config`).set({ meta: p(v) }, { merge: true }); };
@@ -356,6 +432,10 @@
                 await batch.commit(); setInvoiceModal(null); setInvoicePartialVal(''); setInvoiceSourceAcc('');
             };
 
+            const addSupplier = async (e) => { e.preventDefault(); if(supForm) { await db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/suppliers`).add({name: supForm}); setSupForm(''); } };
+            const addCat = async (e) => { e.preventDefault(); if(catForm) { await db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/categories`).add({name: catForm}); setCatForm(''); } };
+            const addAcc = async (e) => { e.preventDefault(); if(accForm.name) { await db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/accounts`).add(accForm); setAccForm({ name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' }); alert('Conta/Cartão adicionado!');} };
+
             const crudActionCMV = async (collectionStr, stateArr, formObj, setModalOpen) => {
                 if (!user) return;
                 const list = [...stateArr]; const id = formObj.id || crypto.randomUUID(); const index = list.findIndex(x => x.id === id);
@@ -368,7 +448,8 @@
                 await saveCMVDoc(collectionStr, list); setModalOpen(false);
             };
 
-            // RENDER BASE
+            const delActionCMV = async (collectionStr, stateArr, id) => { if(window.confirm("Confirmar exclusão?")) await saveCMVDoc(collectionStr, stateArr.filter(x => x.id !== id)); };
+
             if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase tracking-widest">Iniciando ERP Unificado...</div>;
             if (!user || user.isAnonymous) return (
                 <div className="min-h-screen flex items-center justify-center bg-[#1A202C] p-4">
@@ -379,19 +460,32 @@
                 </div>
             );
 
+            // ================= ESTRUTURA ÚNICA DE RENDERING (SEM DUPLICADOS) =================
             return (
                 <div className="min-h-screen flex flex-col fade-in">
-                    {/* ================= MODAIS ROOT ================= */}
+                    {/* MODAIS GERAIS */}
                     {liqModal && (
                         <div className="modal-overlay">
                             <div className="glass-card w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl border-t-8 border-green-500 flex flex-col gap-6 scale-up-center">
-                                <div className="text-center"><h3 className="text-sm font-black uppercase text-slate-400 mb-1 tracking-widest">Confirmar Liquidação</h3><p className="font-black text-lg text-slate-800 uppercase leading-tight">{liqModal.description}</p></div>
+                                <div className="text-center">
+                                    <h3 className="text-sm font-black uppercase text-slate-400 mb-1 tracking-widest">Confirmar Liquidação</h3>
+                                    <p className="font-black text-lg text-slate-800 uppercase leading-tight">{liqModal.description}</p>
+                                </div>
                                 <div className="space-y-4">
                                     <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-2">Data da Liquidação</label><input type="date" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-sm outline-none" value={liqModal.date} onChange={e=>setLiqModal({...liqModal, date: e.target.value})} /></div>
-                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-2">Conta / Cartão</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={liqModal.account} onChange={e=>setLiqModal({...liqModal, account: e.target.value})}><option value="">Selecione...</option>{accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}</select></div>
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black uppercase text-slate-400 ml-2">Conta / Cartão</label>
+                                        <select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={liqModal.account} onChange={e=>setLiqModal({...liqModal, account: e.target.value})}>
+                                            <option value="">Selecione a conta...</option>
+                                            {accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+                                        </select>
+                                    </div>
                                     <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-2">Valor Final (R$)</label><input type="text" className="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-xl text-center text-green-600 outline-none" value={liqModal.amount} onChange={e=>setLiqModal({...liqModal, amount: e.target.value})} /></div>
                                 </div>
-                                <div className="flex flex-col gap-2"><button onClick={executeLiquidation} className="w-full bg-black text-[#F8CC82] p-5 rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">Confirmar e Liquidar</button><button onClick={()=>setLiqModal(null)} className="w-full text-slate-400 p-2 text-[9px] font-black uppercase hover:text-red-500">Cancelar</button></div>
+                                <div className="flex flex-col gap-2">
+                                    <button onClick={executeLiquidation} className="w-full bg-black text-[#F8CC82] p-5 rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">Confirmar e Liquidar</button>
+                                    <button onClick={()=>setLiqModal(null)} className="w-full text-slate-400 p-2 text-[9px] font-black uppercase hover:text-red-500">Cancelar</button>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -399,46 +493,192 @@
                     {invoiceModal && (
                         <div className="modal-overlay">
                             <div className="glass-card w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl border-t-8 border-orange-500 flex flex-col gap-5 scale-up-center">
-                                <div className="text-center"><h3 className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">PAGAMENTO DE FATURA</h3><p className="font-black text-xl text-slate-800 uppercase">{invoiceModal.cardName}</p><p className="text-[10px] font-bold text-[#D97757] uppercase bg-orange-50 rounded-full px-3 py-1 inline-block mt-1">Mês Base: {filterMonth}</p></div>
+                                <div className="text-center">
+                                    <h3 className="text-[10px] font-black uppercase text-slate-400 mb-1 tracking-widest">PAGAMENTO DE FATURA</h3>
+                                    <p className="font-black text-xl text-slate-800 uppercase">{invoiceModal.cardName}</p>
+                                    <p className="text-[10px] font-bold text-[#D97757] uppercase bg-orange-50 rounded-full px-3 py-1 inline-block mt-1">Mês Base: {filterMonth}</p>
+                                </div>
                                 <div className="bg-slate-50 p-4 rounded-2xl border flex justify-between items-center"><span className="text-xs font-black uppercase text-slate-500">Valor Total Fechado:</span><span className="text-xl font-black text-slate-900">{formatMoney(invoiceModal.total)}</span></div>
                                 <div className="space-y-2"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Modalidade de Pagamento</label><div className="flex gap-2 bg-slate-100 p-1 rounded-xl"><button onClick={()=>setInvoicePayType('integral')} className={"flex-1 py-2 rounded-lg font-black text-[10px] uppercase transition-all " + (invoicePayType === "integral" ? "bg-black text-[#F8CC82] shadow" : "text-slate-400")}>INTEGRAL (TOTAL)</button><button onClick={()=>setInvoicePayType('parcial')} className={"flex-1 py-2 rounded-lg font-black text-[10px] uppercase transition-all " + (invoicePayType === "parcial" ? "bg-orange-500 text-white shadow" : "text-slate-400")}>PARCIAL</button></div></div>
-                                {invoicePayType === 'parcial' && (<div className="space-y-1 fade-in"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Quanto deseja pagar agora? (R$)</label><input type="text" className="w-full p-4 bg-white border-2 border-orange-100 rounded-2xl font-black text-lg text-center text-orange-600 outline-none" placeholder="0,00" value={invoicePartialVal} onChange={e=>setInvoicePartialVal(e.target.value)} />{p(invoicePartialVal) > 0 && <p className="text-[9px] font-bold text-red-500 text-center uppercase mt-1">* Restante de {formatMoney(invoiceModal.total - p(invoicePartialVal))} rolará para o próximo mês!</p>}</div>)}
-                                <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Origem do Dinheiro (Conta Débito)</label><select className="w-full p-4 bg-white border rounded-2xl font-black text-xs outline-none" value={invoiceSourceAcc} onChange={e=>setInvoiceSourceAcc(e.target.value)} required><option value="">Selecione a conta...</option>{accounts.filter(a => a.type === 'corrente').map(a=><option key={a.id} value={a.name}>{a.name} (Saldo: {formatMoney(accountBalances[a.name]||0)})</option>)}</select></div>
-                                <div className="flex flex-col gap-2 pt-2"><button onClick={handleExecuteInvoicePayment} className="w-full bg-black text-[#F8CC82] p-5 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Confirmar e Dar Baixa</button><button onClick={()=>{setInvoiceModal(null); setInvoicePartialVal('');}} className="w-full text-slate-400 p-1 text-[9px] font-black uppercase hover:text-red-500">Voltar</button></div>
+                                {invoicePayType === 'parcial' && (
+                                    <div className="space-y-1 fade-in">
+                                        <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Quanto deseja pagar agora? (R$)</label>
+                                        <input type="text" className="w-full p-4 bg-white border-2 border-orange-100 rounded-2xl font-black text-lg text-center text-orange-600 outline-none" placeholder="0,00" value={invoicePartialVal} onChange={e=>setInvoicePartialVal(e.target.value)} />
+                                        {p(invoicePartialVal) > 0 && <p className="text-[9px] font-bold text-red-500 text-center uppercase mt-1">* Restante de {formatMoney(invoiceModal.total - p(invoicePartialVal))} rolará para o próximo mês!</p>}
+                                    </div>
+                                )}
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 ml-1">Origem do Dinheiro (Conta Débito)</label>
+                                    <select className="w-full p-4 bg-white border rounded-2xl font-black text-xs outline-none" value={invoiceSourceAcc} onChange={e=>setInvoiceSourceAcc(e.target.value)} required><option value="">Selecione a conta...</option>{accounts.filter(a => a.type === 'corrente').map(a=><option key={a.id} value={a.name}>{a.name} (Saldo: {formatMoney(accountBalances[a.name]||0)})</option>)}</select>
+                                </div>
+                                <div className="flex flex-col gap-2 pt-2">
+                                    <button onClick={handleExecuteInvoicePayment} className="w-full bg-black text-[#F8CC82] p-5 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Confirmar e Dar Baixa</button>
+                                    <button onClick={()=>{setInvoiceModal(null); setInvoicePartialVal('');}} className="w-full text-slate-400 p-1 text-[9px] font-black uppercase hover:text-red-500">Voltar</button>
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    {/* ================= HEADER ================= */}
+                    {isIngModalOpen && (
+                        <div className="modal-overlay">
+                            <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-4 scale-up-center">
+                                <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3 mb-2">{ingForm.id ? 'Editar Insumo' : 'Novo Insumo'}</h3>
+                                <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome do Insumo</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.name} onChange={e=>setIngForm({...ingForm, name: e.target.value})} /></div>
+                                <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.category} onChange={e=>setIngForm({...ingForm, category: e.target.value})}>{ingCats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço Pacote (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.cost} onChange={e=>setIngForm({...ingForm, cost: e.target.value})} /></div>
+                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Unidade</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.unit} onChange={e=>setIngForm({...ingForm, unit: e.target.value})}><option value="kg">Quilo (kg)</option><option value="g">Grama (g)</option><option value="L">Litro (L)</option><option value="ml">Mililitro (ml)</option><option value="un">Unidade (un)</option></select></div>
+                                </div>
+                                <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Quantidade Total na Embalagem</label><input type="number" step="0.001" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.qty} onChange={e=>setIngForm({...ingForm, qty: e.target.value})} /></div>
+                                <div className="flex gap-2 mt-4"><button onClick={()=>crudActionCMV('ingredients', ingredients, ingForm, setIsIngModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Gravar Insumo</button><button onClick={()=>setIsIngModalOpen(false)} className="px-6 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {(isRecipeModalOpen || isCompModalOpen) && (() => {
+                        const isRec = isRecipeModalOpen; const formObj = isRec ? recipeForm : compForm; const setFormObj = isRec ? setRecipeForm : setCompForm;
+                        const catList = isRec ? recCats : compCats; const title = formObj.id ? `Editar ${isRec?'Ficha':'Complemento'}` : `Novo ${isRec?'Ficha':'Complemento'}`;
+                        const cost = calcItemCost(formObj.ingredients); const sp = p(formObj.sellingPrice); const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
+                        return (
+                            <div className="modal-overlay">
+                                <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-6 scale-up-center">
+                                    <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3">{title}</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={formObj.name} onChange={e=>setFormObj({...formObj, name: e.target.value})} /></div>
+                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço Venda (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={formObj.sellingPrice} onChange={e=>setFormObj({...formObj, sellingPrice: e.target.value})} /></div>
+                                    </div>
+                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={formObj.category} onChange={e=>setFormObj({...formObj, category: e.target.value})}>{catList.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                    <div><label className="flex items-center gap-3 bg-slate-50 border p-4 rounded-2xl cursor-pointer"><input type="checkbox" className="w-4 h-4 accent-[#F27A18]" checked={formObj.ignoreCMV} onChange={e=>setFormObj({...formObj, ignoreCMV: e.target.checked})} /><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ignorar no cálculo do CMV Médio Geral</span></label></div>
+                                    <div className="border-t pt-4">
+                                        <div className="flex justify-between items-center mb-3"><label className="text-[10px] font-black uppercase text-slate-800">Receituário</label><button onClick={()=>setFormObj({...formObj, ingredients: [...formObj.ingredients, {ingredientId:'', qty:''}]})} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl text-[9px] font-black uppercase">Add Insumo</button></div>
+                                        <div className="space-y-2">
+                                            {formObj.ingredients.map((ingItem, idx) => (
+                                                <div key={idx} className="flex gap-2 bg-slate-50 p-2 rounded-xl border">
+                                                    <select className="flex-1 p-3 bg-white border rounded-lg font-bold text-[10px]" value={ingItem.ingredientId} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].ingredientId=e.target.value; setFormObj({...formObj, ingredients: arr});}}><option value="">Selecione...</option>{ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select>
+                                                    <input type="number" step="0.001" placeholder="Qtd" className="w-24 p-3 bg-white border rounded-lg font-bold text-[10px] text-center" value={ingItem.qty} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].qty=e.target.value; setFormObj({...formObj, ingredients: arr});}} />
+                                                    <button onClick={()=>{const arr=[...formObj.ingredients]; arr.splice(idx,1); setFormObj({...formObj, ingredients: arr});}} className="bg-red-50 text-red-500 p-3 rounded-lg"><Icon name="trash-2" size={14}/></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="bg-[#1A202C] text-white p-5 rounded-3xl flex justify-between items-center shadow-inner mt-2">
+                                        <div><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Custo Insumos</span><span className="text-2xl font-black text-[#F8CC82]">{formatMoney(cost)}</span></div>
+                                        <div className="text-right"><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">CMV Estimado</span><span className={"text-2xl font-black " + (cmv > cmvSettings.targetCMV ? "text-red-400" : "text-emerald-400")}>{cmv}%</span></div>
+                                    </div>
+                                    <div className="flex gap-2 mt-2 pt-4 border-t">
+                                        <button onClick={()=>crudActionCMV(isRec?'recipes':'complements', isRec?recipes:complements, formObj, isRec?setIsRecipeModalOpen:setIsCompModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Salvar</button>
+                                        <button onClick={()=>isRec?setIsRecipeModalOpen(false):setIsCompModalOpen(false)} className="px-8 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {isComboModalOpen && (
+                        <div className="modal-overlay">
+                            <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-6 scale-up-center">
+                                <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3">{comboForm.id ? 'Editar Combo' : 'Novo Combo'}</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome Combo</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={comboForm.name} onChange={e=>setComboForm({...comboForm, name: e.target.value})} /></div>
+                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço Venda (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={comboForm.sellingPrice} onChange={e=>setComboForm({...comboForm, sellingPrice: e.target.value})} /></div>
+                                </div>
+                                <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={comboForm.category} onChange={e=>setComboForm({...comboForm, category: e.target.value})}>{comboCats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                <div className="border-t pt-4">
+                                    <div className="flex justify-between items-center mb-3"><label className="text-[10px] font-black uppercase text-slate-800">Itens do Combo</label><button onClick={()=>setComboForm({...comboForm, items: [...comboForm.items, {type:'recipe', itemId:'', qty:''}]})} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl text-[9px] font-black uppercase">Add Item</button></div>
+                                    <div className="space-y-2">
+                                        {comboForm.items.map((item, idx) => (
+                                            <div key={idx} className="flex gap-2 bg-slate-50 p-2 rounded-xl border">
+                                                <select className="w-28 p-3 bg-white border rounded-lg font-bold text-[10px]" value={item.type} onChange={e=>{const arr=[...comboForm.items]; arr[idx].type=e.target.value; arr[idx].itemId=''; setComboForm({...comboForm, items: arr});}}><option value="recipe">Ficha</option><option value="complement">Extra</option><option value="ingredient">Insumo</option></select>
+                                                <select className="flex-1 p-3 bg-white border rounded-lg font-bold text-[10px]" value={item.itemId} onChange={e=>{const arr=[...comboForm.items]; arr[idx].itemId=e.target.value; setComboForm({...comboForm, items: arr});}}><option value="">Selecionar...</option>
+                                                    {item.type==='recipe' && recipes.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+                                                    {item.type==='complement' && complements.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                                                    {item.type==='ingredient' && ingredients.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+                                                </select>
+                                                <input type="number" step="0.001" placeholder="Qtd" className="w-20 p-3 bg-white border rounded-lg font-bold text-[10px] text-center" value={item.qty} onChange={e=>{const arr=[...comboForm.items]; arr[idx].qty=e.target.value; setComboForm({...comboForm, items: arr});}} />
+                                                <button onClick={()=>{const arr=[...comboForm.items]; arr.splice(idx,1); setComboForm({...comboForm, items: arr});}} className="bg-red-50 text-red-500 p-3 rounded-lg"><Icon name="trash-2" size={14}/></button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="bg-[#1A202C] text-white p-5 rounded-3xl flex justify-between items-center shadow-inner mt-2">
+                                    <div><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Custo Combo</span><span className="text-2xl font-black text-[#F8CC82]">{formatMoney(calcComboCost(comboForm.items))}</span></div>
+                                    <div className="text-right"><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">CMV Estimado</span><span className={"text-2xl font-black " + ((p(comboForm.sellingPrice)>0 && (calcComboCost(comboForm.items)/p(comboForm.sellingPrice))*100 > cmvSettings.targetCMV) ? "text-red-400" : "text-emerald-400")}>{p(comboForm.sellingPrice)>0 ? ((calcComboCost(comboForm.items)/p(comboForm.sellingPrice))*100).toFixed(1) : 0}%</span></div>
+                                </div>
+                                <div className="flex gap-2 mt-2 pt-4 border-t"><button onClick={()=>crudActionCMV('combos', combos, comboForm, setIsComboModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Salvar</button><button onClick={()=>setIsComboModalOpen(false)} className="px-8 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {isFcModalOpen && (
+                        <div className="modal-overlay">
+                            <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-4 scale-up-center">
+                                <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3 mb-2">{fcForm.id ? 'Editar Custo Fixo' : 'Novo Custo Fixo'}</h3>
+                                <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Descrição</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={fcForm.description} onChange={e=>setFcForm({...fcForm, description: e.target.value})} /></div>
+                                <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={fcForm.category} onChange={e=>setFcForm({...fcForm, category: e.target.value})}>{fcCats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Valor Mensal (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={fcForm.value} onChange={e=>setFcForm({...fcForm, value: e.target.value})} /></div>
+                                <div className="flex gap-2 mt-4"><button onClick={()=>crudActionCMV('fixedCosts', fixedCosts, fcForm, setIsFcModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Gravar</button><button onClick={()=>setIsFcModalOpen(false)} className="px-6 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ================= HEADER SUPERIOR COM MENU HAMBÚRGUER ================= */}
                     <header className="bg-[#1A202C] text-white p-4 sticky top-0 z-50 shadow-xl print:hidden flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <button onClick={() => setIsMenuOpen(true)} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-colors"><Icon name="menu" size={20} /></button>
+                            <button onClick={() => setIsMenuOpen(true)} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-colors">
+                                <Icon name="menu" size={20} />
+                            </button>
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-xl bg-[#F27A18] flex items-center justify-center font-black text-black text-lg shadow">TB</div>
-                                <div className="hidden sm:block"><h1 className="text-lg font-black text-[#F8CC82] uppercase leading-none">ERP do Cantinho</h1><span className="text-[9px] font-black text-emerald-400 tracking-widest uppercase">Sistema Integrado Conectado</span></div>
+                                <div className="hidden sm:block">
+                                    <h1 className="text-lg font-black text-[#F8CC82] uppercase leading-none">ERP do Cantinho</h1>
+                                    <span className="text-[9px] font-black text-emerald-400 tracking-widest uppercase">Sistema Integrado Conectado</span>
+                                </div>
                             </div>
                         </div>
                         <button onClick={()=>auth.signOut()} className="text-[10px] font-black uppercase text-slate-400 hover:text-white">Sair</button>
                     </header>
 
-                    {/* ================= SIDEBAR ================= */}
+                    {/* ================= SIDEBAR (MENU LATERAL) ================= */}
                     {isMenuOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] transition-opacity print:hidden" onClick={() => setIsMenuOpen(false)}></div>}
+
                     <div className={`fixed inset-y-0 left-0 z-[95] w-72 bg-[#1A202C] shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col print:hidden ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                        <div className="p-6 border-b border-white/10 flex justify-between items-center"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black text-sm shadow">TB</div><span className="font-black text-[#F8CC82] uppercase tracking-widest">Menu Principal</span></div><button onClick={() => setIsMenuOpen(false)} className="text-slate-400 hover:text-white p-2 bg-white/5 rounded-lg"><Icon name="x" size={16}/></button></div>
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black text-sm shadow">TB</div>
+                                <span className="font-black text-[#F8CC82] uppercase tracking-widest">Menu Principal</span>
+                            </div>
+                            <button onClick={() => setIsMenuOpen(false)} className="text-slate-400 hover:text-white p-2 bg-white/5 rounded-lg"><Icon name="x" size={16}/></button>
+                        </div>
+                        
                         <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-6">
                             <div>
                                 <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] mb-3 flex items-center gap-2 px-2"><Icon name="wallet" size={12}/> Finanças</h3>
-                                <div className="flex flex-col gap-1">{['fin_dashboard', 'saldos', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'resultados', 'dre', 'relatorios', 'fornecedores'].map(t => (<button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-4 py-3 text-xs font-black uppercase transition-all rounded-xl " + (activeTab === t ? "bg-white/10 text-[#F8CC82] shadow-inner" : "text-slate-400 hover:text-white hover:bg-white/5")}>{t.replace('fin_', '').replace('_', ' ')}</button>))}</div>
+                                <div className="flex flex-col gap-1">
+                                    {['fin_dashboard', 'saldos', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'resultados', 'dre', 'relatorios', 'fornecedores'].map(t => (
+                                        <button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-4 py-3 text-xs font-black uppercase transition-all rounded-xl " + (activeTab === t ? "bg-white/10 text-[#F8CC82] shadow-inner" : "text-slate-400 hover:text-white hover:bg-white/5")}>
+                                            {t.replace('fin_', '').replace('_', ' ')}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                             <div>
                                 <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] mb-3 flex items-center gap-2 px-2"><Icon name="pie-chart" size={12}/> Custos & CMV</h3>
-                                <div className="flex flex-col gap-1">{['cmv_dashboard', 'insumos', 'fichas', 'complementos', 'combos', 'analise', 'custos_fixos', 'ajustes'].map(t => (<button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-4 py-3 text-xs font-black uppercase transition-all rounded-xl " + (activeTab === t ? "bg-[#F27A18] text-black shadow-md" : "text-slate-400 hover:text-white hover:bg-white/5")}>{t.replace('cmv_', '').replace('_', ' ')}</button>))}</div>
+                                <div className="flex flex-col gap-1">
+                                    {['cmv_dashboard', 'insumos', 'fichas', 'complementos', 'combos', 'analise', 'custos_fixos', 'ajustes'].map(t => (
+                                        <button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-4 py-3 text-xs font-black uppercase transition-all rounded-xl " + (activeTab === t ? "bg-[#F27A18] text-black shadow-md" : "text-slate-400 hover:text-white hover:bg-white/5")}>
+                                            {t.replace('cmv_', '').replace('_', ' ')}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
+                        </div>
+                        <div className="p-6 border-t border-white/10 text-center">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-600">Tribo Burger v2.0</p>
                         </div>
                     </div>
 
                     <main className="p-4 max-w-7xl mx-auto w-full flex-1 space-y-6">
-                        {/* MÊS GLOBAL */}
+                        {/* ================================= FILTRO GLOBAL ================================= */}
                         {['fin_dashboard', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'dre', 'analise', 'resultados', 'relatorios'].includes(activeTab) && (
                             <div className="flex justify-center print:hidden fade-in">
                                 <div className="glass-card px-6 py-2 rounded-full flex items-center gap-4 border shadow-sm">
@@ -515,38 +755,47 @@
 
                             return (
                                 <div className="space-y-10 animate-in fade-in">
-                                    <div className="stat-banner !border-black !bg-[#D97757]"><p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-80 mb-2">Patrimônio Líquido Disponível</p><h3 className="text-5xl font-black drop-shadow-xl">{formatMoney(currentAccounts.reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0))}</h3></div>
+                                    <div className="stat-banner !border-black !bg-[#D97757]">
+                                        <p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-80 mb-2">Patrimônio Líquido Disponível</p>
+                                        <h3 className="text-5xl font-black drop-shadow-xl">{formatMoney(currentAccounts.reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0))}</h3>
+                                    </div>
+
                                     {highlighted.length > 0 && (
                                         <div className="space-y-4">
                                             <h2 className="text-sm font-black uppercase text-slate-800 border-b-2 pb-2 flex items-center gap-2"><Icon name="star" size={18} className="text-[#D97757]" /> Contas Principais</h2>
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                                 {highlighted.map(acc => (
                                                     <div key={acc.id} className="glass-card p-8 rounded-[2.5rem] shadow-xl border-t-8 border-[#F27A18] text-center transform hover:scale-105 transition-transform bg-orange-50/30">
-                                                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2">{acc.name}</p><h3 className={"text-3xl font-black " + (accountBalances[acc.name]>=0?'text-slate-900':'text-red-500')}>{formatMoney(accountBalances[acc.name]||0)}</h3>
+                                                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2">{acc.name}</p>
+                                                        <h3 className={"text-3xl font-black " + (accountBalances[acc.name]>=0?'text-slate-900':'text-red-500')}>{formatMoney(accountBalances[acc.name]||0)}</h3>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     )}
+
                                     {funds.length > 0 && (
                                         <div className="space-y-4">
                                             <h2 className="text-sm font-black uppercase text-slate-800 border-b-2 pb-2 flex items-center gap-2"><Icon name="trending-up" size={18} className="text-emerald-600" /> Fundos & Aplicações</h2>
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                                 {funds.map(acc => (
                                                     <div key={acc.id} className="glass-card p-6 rounded-[2.5rem] shadow-md border-t-4 border-emerald-500 text-center bg-emerald-50/20">
-                                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">{acc.name}</p><h3 className={"text-2xl font-black " + (accountBalances[acc.name]>=0?'text-emerald-700':'text-red-500')}>{formatMoney(accountBalances[acc.name]||0)}</h3>
+                                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">{acc.name}</p>
+                                                        <h3 className={"text-2xl font-black " + (accountBalances[acc.name]>=0?'text-emerald-700':'text-red-500')}>{formatMoney(accountBalances[acc.name]||0)}</h3>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     )}
+
                                     {others.length > 0 && (
                                         <div className="space-y-4">
                                             <h2 className="text-sm font-black uppercase text-slate-800 border-b-2 pb-2 flex items-center gap-2"><Icon name="wallet" size={18} className="text-slate-500" /> Outras Contas Operacionais</h2>
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                                 {others.map(acc => (
                                                     <div key={acc.id} className="glass-card p-6 rounded-[2.5rem] shadow-sm border-t-4 border-[#1A202C] text-center">
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{acc.name}</p><h3 className={"text-xl font-black " + (accountBalances[acc.name]>=0?'text-slate-800':'text-red-500')}>{formatMoney(accountBalances[acc.name]||0)}</h3>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{acc.name}</p>
+                                                        <h3 className={"text-xl font-black " + (accountBalances[acc.name]>=0?'text-slate-800':'text-red-500')}>{formatMoney(accountBalances[acc.name]||0)}</h3>
                                                     </div>
                                                 ))}
                                             </div>
@@ -557,9 +806,9 @@
                         })()}
 
                         {activeTab === 'vendas' && (() => {
-                            const days = Object.keys(dailyRecords).filter(d=>d.startsWith(filterMonth)).sort((a,b)=>new Date(b)-new Date(a));
+                            const salesDays = Object.keys(dailyRecords).filter(d=>d.startsWith(filterMonth)).sort((a,b)=>new Date(b)-new Date(a));
                             const totals = { totalDia: 0, pedidos: 0, pix: 0, pixOnline: 0, fiado: 0, dinheiro: 0, ifood: 0, debito: 0, credito: 0, vr: 0, ticket: 0, alelo: 0, taxaEntrega: 0, motoboy: 0 };
-                            days.forEach(d => {
+                            salesDays.forEach(d => {
                                 const r = dailyRecords[d] || {}; const total = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
                                 totals.totalDia += total; totals.pedidos += p(r.qtdPedidos); ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].forEach(f => { totals[f] += p(r[f]); }); totals.taxaEntrega += p(r.taxaEntrega); totals.motoboy += p(r.motoboy);
                             });
@@ -568,15 +817,26 @@
                                     <div className="stat-banner !border-black !bg-[#D97757]"><p className="text-[11px] font-black uppercase tracking-[0.4em] opacity-80 mb-2">Faturamento do Mês</p><h3 className="text-5xl font-black">{formatMoney(stats.rb)}</h3></div>
                                     <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-6 rounded-[2rem] border shadow-sm">
                                         <div className="flex items-center gap-3"><Icon name="calendar-days" className="text-slate-400" /><h2 className="text-[10px] font-black uppercase tracking-widest">Caixa Diário</h2></div>
-                                        <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border"><input type="date" className="text-xs font-bold bg-transparent outline-none border-0" value={newDayDate} onChange={e=>setNewDayDate(e.target.value)} /><button onClick={()=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(newDayDate).set({initialized:true},{merge:true})} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl text-[9px] font-black uppercase">Abrir Dia</button></div>
+                                        <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border">
+                                            <input type="date" className="text-xs font-bold bg-transparent outline-none border-0" value={newDayDate} onChange={e=>setNewDayDate(e.target.value)} />
+                                            <button onClick={()=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(newDayDate).set({initialized:true},{merge:true})} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl text-[9px] font-black uppercase">Abrir Dia</button>
+                                        </div>
                                     </div>
                                     <div className="glass-card rounded-[2.5rem] overflow-hidden border shadow-sm overflow-x-auto no-scrollbar">
                                         <table className="w-full text-center text-[11px] min-w-[1700px]">
                                             <thead className="bg-[#1A202C] text-white uppercase text-[9px] tracking-widest border-b">
-                                                <tr><th className="p-4 sticky left-0 z-20 bg-[#1A202C]">Data</th><th className="p-4 bg-amber-500 text-black">Total Dia</th><th className="p-4 bg-blue-600 text-white">Pedidos</th><th className="p-4 bg-blue-800 text-white">Ticket Médio</th>{['Pix','Pix Online','Fiado','Dinheiro','Ifood','Débito','Crédito','VR','Ticket','Alelo'].map(h=><th key={h} className="p-4">{h}</th>)}<th className="p-4 text-orange-400 bg-orange-950">Taxa Entrega</th><th className="p-4 text-red-400 bg-red-950">Motoboy</th></tr>
+                                                <tr>
+                                                    <th className="p-4 sticky left-0 z-20 bg-[#1A202C]">Data</th>
+                                                    <th className="p-4 bg-amber-500 text-black">Total Dia</th>
+                                                    <th className="p-4 bg-blue-600 text-white">Pedidos</th>
+                                                    <th className="p-4 bg-blue-800 text-white">Ticket Médio</th>
+                                                    {['Pix','Pix Online','Fiado','Dinheiro','Ifood','Débito','Crédito','VR','Ticket','Alelo'].map(h=><th key={h} className="p-4">{h}</th>)}
+                                                    <th className="p-4 text-orange-400 bg-orange-950">Taxa Entrega</th>
+                                                    <th className="p-4 text-red-400 bg-red-950">Motoboy</th>
+                                                </tr>
                                             </thead>
                                             <tbody className="divide-y font-bold">
-                                                {days.map(d => {
+                                                {salesDays.map(d => {
                                                     const r = dailyRecords[d] || {}; const total = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
                                                     return (
                                                         <tr key={d} className="hover:bg-slate-50 h-12">
@@ -609,7 +869,7 @@
                         })()}
 
                         {activeTab === 'a_pagar' && (() => {
-                            const list = transactions.filter(t => t.type === 'saida' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao');
+                            const pendings = transactions.filter(t => t.type === 'saida' && t.status === 'pendente' && getTransactionDates(t, accounts.find(a => a.name === t.account)).clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao');
                             const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
                                 const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
                                 const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
@@ -617,7 +877,7 @@
                                 const remaining = totalPurchases - totalPaid;
                                 return remaining > 0.01 ? { id: "card-" + card.name, description: "Fatura " + card.name, amount: remaining, account: card.name, clearanceDate: filterMonth + "-" + String(card.due || 10).padStart(2, '0'), isInvoice: true, category: 'Cartão de Crédito' } : null;
                             }).filter(Boolean);
-                            const combined = [...list, ...invoices].sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
+                            const combined = [...pendings, ...invoices].sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
                             
                             return (
                                 <div className="space-y-6 fade-in">
@@ -667,6 +927,7 @@
                             );
                         })()}
 
+                        {/* ================= ABA DE CARTÕES ================= */}
                         {activeTab === 'cartoes' && (() => {
                             const cStats = accounts.filter(a => a.type === 'cartao').map(card => {
                                 const txs = transactions.filter(t => t.account === card.name);
@@ -800,7 +1061,7 @@
                                         <h3 className="text-sm font-black uppercase text-slate-800 mb-6 flex items-center gap-2"><Icon name="trending-up" size={18}/> 1. Fluxo de Caixa (Realizado)</h3>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                             <div className="bg-green-50 p-6 rounded-[2rem] text-center border border-green-100"><p className="text-[9px] font-black text-green-600 uppercase mb-2 tracking-widest">Total Entradas</p><h4 className="text-3xl font-black text-green-700">{formatMoney(stats.entradas)}</h4></div>
-                                            <div className="bg-red-50 p-6 rounded-[2rem] text-center border border-red-100"><p className="text-[9px] font-black text-red-600 uppercase mb-2 tracking-widest">Contas Pagas</p><h4 className="text-3xl font-black text-red-700">{formatMoney(stats.contasPagas)}</h4></div>
+                                            <div className="bg-red-50 p-6 rounded-[2rem] text-center border border-red-100"><p className="text-[9px] font-black text-red-600 uppercase mb-2 tracking-widest">Contas Pagas (Saídas)</p><h4 className="text-3xl font-black text-red-700">{formatMoney(stats.contasPagas)}</h4></div>
                                             <div className={"p-6 rounded-[2rem] text-center border shadow-sm " + (stats.lucroCaixa >= 0 ? "bg-blue-50 border-blue-200" : "bg-orange-50 border-orange-200")}><p className={"text-[9px] font-black uppercase mb-2 tracking-widest " + (stats.lucroCaixa >= 0 ? "text-blue-600" : "text-orange-600")}>Geração Caixa Líquida</p><h4 className={"text-3xl font-black " + (stats.lucroCaixa >= 0 ? "text-blue-700" : "text-orange-700")}>{formatMoney(stats.lucroCaixa)}</h4></div>
                                         </div>
                                     </div>
@@ -812,7 +1073,7 @@
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-red-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-red-600 mb-6 flex items-center gap-2"><Icon name="trending-down" size={18}/> 3. Contas a Pagar (Provisão)</h3><h4 className="text-4xl font-black text-red-600 mb-3">{formatMoney(totalAPagar)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Soma de saídas pendentes e faturas de cartão.</p></div></div>
-                                        <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-emerald-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-emerald-600 mb-6 flex items-center gap-2"><Icon name="trending-up" size={18}/> 4. Contas a Receber (Provisão)</h3><h4 className="text-4xl font-black text-emerald-600 mb-3">{formatMoney(totalAReceber)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar no caixa neste mês.</p></div></div>
+                                        <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-emerald-500 flex flex-col justify-between"><div><h3 className="text-sm font-black uppercase text-emerald-600 mb-6 flex items-center gap-2"><Icon name="trending-up" size={18}/> 4. Contas a Receber (Provisão)</h3><h4 className="text-4xl font-black text-emerald-600 mb-3">{formatMoney(totalReceitasPendentes)}</h4><p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar no caixa neste mês.</p></div></div>
                                     </div>
                                     <div className="glass-card p-8 rounded-[3rem] shadow-sm border-t-8 border-orange-500">
                                         <div className="flex justify-between items-center mb-6"><h3 className="text-sm font-black uppercase text-slate-800 flex items-center gap-2"><Icon name="pie-chart" size={18}/> 5. Composição de Custos por Categoria</h3></div>
@@ -1157,109 +1418,6 @@
                                      </div>
                                  </div>
                              </div>
-                        )}
-
-                        {/* ================================= MODAIS CMV ================================= */}
-                        {isIngModalOpen && (
-                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                                <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-4 scale-up-center">
-                                    <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3 mb-2">{ingForm.id ? 'Editar Insumo' : 'Novo Insumo'}</h3>
-                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome do Insumo</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.name} onChange={e=>setIngForm({...ingForm, name: e.target.value})} /></div>
-                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.category} onChange={e=>setIngForm({...ingForm, category: e.target.value})}>{ingCats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço Pacote (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.cost} onChange={e=>setIngForm({...ingForm, cost: e.target.value})} /></div>
-                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Unidade</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.unit} onChange={e=>setIngForm({...ingForm, unit: e.target.value})}><option value="kg">Quilo (kg)</option><option value="g">Grama (g)</option><option value="L">Litro (L)</option><option value="ml">Mililitro (ml)</option><option value="un">Unidade (un)</option></select></div>
-                                    </div>
-                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Quantidade Total na Embalagem</label><input type="number" step="0.001" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={ingForm.qty} onChange={e=>setIngForm({...ingForm, qty: e.target.value})} /></div>
-                                    <div className="flex gap-2 mt-4"><button onClick={()=>crudActionCMV('ingredients', ingredients, ingForm, setIsIngModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Gravar Insumo</button><button onClick={()=>setIsIngModalOpen(false)} className="px-6 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button></div>
-                                </div>
-                            </div>
-                        )}
-
-                        {(isRecipeModalOpen || isCompModalOpen) && (() => {
-                            const isRec = isRecipeModalOpen; const formObj = isRec ? recipeForm : compForm; const setFormObj = isRec ? setRecipeForm : setCompForm;
-                            const catList = isRec ? recCats : compCats; const title = formObj.id ? `Editar ${isRec?'Ficha':'Complemento'}` : `Novo ${isRec?'Ficha':'Complemento'}`;
-                            const cost = calcItemCost(formObj.ingredients); const sp = p(formObj.sellingPrice); const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
-                            return (
-                                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                                    <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-6 scale-up-center">
-                                        <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3">{title}</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={formObj.name} onChange={e=>setFormObj({...formObj, name: e.target.value})} /></div>
-                                            <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço Venda (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={formObj.sellingPrice} onChange={e=>setFormObj({...formObj, sellingPrice: e.target.value})} /></div>
-                                        </div>
-                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={formObj.category} onChange={e=>setFormObj({...formObj, category: e.target.value})}>{catList.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-                                        <div><label className="flex items-center gap-3 bg-slate-50 border p-4 rounded-2xl cursor-pointer"><input type="checkbox" className="w-4 h-4 accent-[#F27A18]" checked={formObj.ignoreCMV} onChange={e=>setFormObj({...formObj, ignoreCMV: e.target.checked})} /><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ignorar no cálculo do CMV Médio Geral</span></label></div>
-                                        <div className="border-t pt-4">
-                                            <div className="flex justify-between items-center mb-3"><label className="text-[10px] font-black uppercase text-slate-800">Receituário</label><button onClick={()=>setFormObj({...formObj, ingredients: [...formObj.ingredients, {ingredientId:'', qty:''}]})} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl text-[9px] font-black uppercase">Add Insumo</button></div>
-                                            <div className="space-y-2">
-                                                {formObj.ingredients.map((ingItem, idx) => (
-                                                    <div key={idx} className="flex gap-2 bg-slate-50 p-2 rounded-xl border">
-                                                        <select className="flex-1 p-3 bg-white border rounded-lg font-bold text-[10px]" value={ingItem.ingredientId} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].ingredientId=e.target.value; setFormObj({...formObj, ingredients: arr});}}><option value="">Selecione...</option>{ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select>
-                                                        <input type="number" step="0.001" placeholder="Qtd" className="w-24 p-3 bg-white border rounded-lg font-bold text-[10px] text-center" value={ingItem.qty} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].qty=e.target.value; setFormObj({...formObj, ingredients: arr});}} />
-                                                        <button onClick={()=>{const arr=[...formObj.ingredients]; arr.splice(idx,1); setFormObj({...formObj, ingredients: arr});}} className="bg-red-50 text-red-500 p-3 rounded-lg"><Icon name="trash-2" size={14}/></button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className="bg-[#1A202C] text-white p-5 rounded-3xl flex justify-between items-center shadow-inner mt-2">
-                                            <div><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Custo Insumos</span><span className="text-2xl font-black text-[#F8CC82]">{formatMoney(cost)}</span></div>
-                                            <div className="text-right"><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">CMV Estimado</span><span className={"text-2xl font-black " + (cmv > cmvSettings.targetCMV ? "text-red-400" : "text-emerald-400")}>{cmv}%</span></div>
-                                        </div>
-                                        <div className="flex gap-2 mt-2 pt-4 border-t">
-                                            <button onClick={()=>crudActionCMV(isRec?'recipes':'complements', isRec?recipes:complements, formObj, isRec?setIsRecipeModalOpen:setIsCompModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Salvar</button>
-                                            <button onClick={()=>isRec?setIsRecipeModalOpen(false):setIsCompModalOpen(false)} className="px-8 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-
-                        {isComboModalOpen && (
-                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                                <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-6 scale-up-center">
-                                    <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3">{comboForm.id ? 'Editar Combo' : 'Novo Combo'}</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Nome Combo</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={comboForm.name} onChange={e=>setComboForm({...comboForm, name: e.target.value})} /></div>
-                                        <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Preço Venda (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={comboForm.sellingPrice} onChange={e=>setComboForm({...comboForm, sellingPrice: e.target.value})} /></div>
-                                    </div>
-                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={comboForm.category} onChange={e=>setComboForm({...comboForm, category: e.target.value})}>{comboCats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-                                    <div className="border-t pt-4">
-                                        <div className="flex justify-between items-center mb-3"><label className="text-[10px] font-black uppercase text-slate-800">Itens do Combo</label><button onClick={()=>setComboForm({...comboForm, items: [...comboForm.items, {type:'recipe', itemId:'', qty:''}]})} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl text-[9px] font-black uppercase">Add Item</button></div>
-                                        <div className="space-y-2">
-                                            {comboForm.items.map((item, idx) => (
-                                                <div key={idx} className="flex gap-2 bg-slate-50 p-2 rounded-xl border">
-                                                    <select className="w-28 p-3 bg-white border rounded-lg font-bold text-[10px]" value={item.type} onChange={e=>{const arr=[...comboForm.items]; arr[idx].type=e.target.value; arr[idx].itemId=''; setComboForm({...comboForm, items: arr});}}><option value="recipe">Ficha</option><option value="complement">Extra</option><option value="ingredient">Insumo</option></select>
-                                                    <select className="flex-1 p-3 bg-white border rounded-lg font-bold text-[10px]" value={item.itemId} onChange={e=>{const arr=[...comboForm.items]; arr[idx].itemId=e.target.value; setComboForm({...comboForm, items: arr});}}><option value="">Selecionar...</option>
-                                                        {item.type==='recipe' && recipes.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
-                                                        {item.type==='complement' && complements.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                                                        {item.type==='ingredient' && ingredients.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
-                                                    </select>
-                                                    <input type="number" step="0.001" placeholder="Qtd" className="w-20 p-3 bg-white border rounded-lg font-bold text-[10px] text-center" value={item.qty} onChange={e=>{const arr=[...comboForm.items]; arr[idx].qty=e.target.value; setComboForm({...comboForm, items: arr});}} />
-                                                    <button onClick={()=>{const arr=[...comboForm.items]; arr.splice(idx,1); setComboForm({...comboForm, items: arr});}} className="bg-red-50 text-red-500 p-3 rounded-lg"><Icon name="trash-2" size={14}/></button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="bg-[#1A202C] text-white p-5 rounded-3xl flex justify-between items-center shadow-inner mt-2">
-                                        <div><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Custo Combo</span><span className="text-2xl font-black text-[#F8CC82]">{formatMoney(calcComboCost(comboForm.items))}</span></div>
-                                        <div className="text-right"><span className="text-[9px] font-black uppercase text-slate-400 block mb-1">CMV Estimado</span><span className={"text-2xl font-black " + ((p(comboForm.sellingPrice)>0 && (calcComboCost(comboForm.items)/p(comboForm.sellingPrice))*100 > cmvSettings.targetCMV) ? "text-red-400" : "text-emerald-400")}>{p(comboForm.sellingPrice)>0 ? ((calcComboCost(comboForm.items)/p(comboForm.sellingPrice))*100).toFixed(1) : 0}%</span></div>
-                                    </div>
-                                    <div className="flex gap-2 mt-2 pt-4 border-t"><button onClick={()=>crudActionCMV('combos', combos, comboForm, setIsComboModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Salvar</button><button onClick={()=>setIsComboModalOpen(false)} className="px-8 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button></div>
-                                </div>
-                            </div>
-                        )}
-
-                        {isFcModalOpen && (
-                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                                <div className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl flex flex-col gap-4 scale-up-center">
-                                    <h3 className="text-sm font-black uppercase text-slate-800 border-b pb-3 mb-2">{fcForm.id ? 'Editar Custo Fixo' : 'Novo Custo Fixo'}</h3>
-                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Descrição</label><input type="text" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={fcForm.description} onChange={e=>setFcForm({...fcForm, description: e.target.value})} /></div>
-                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={fcForm.category} onChange={e=>setFcForm({...fcForm, category: e.target.value})}>{fcCats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-                                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-slate-400 ml-1">Valor Mensal (R$)</label><input type="number" step="0.01" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-xs outline-none" value={fcForm.value} onChange={e=>setFcForm({...fcForm, value: e.target.value})} /></div>
-                                    <div className="flex gap-2 mt-4"><button onClick={()=>crudActionCMV('fixedCosts', fixedCosts, fcForm, setIsFcModalOpen)} className="flex-1 btn-accent p-4 rounded-2xl text-[10px]">Gravar</button><button onClick={()=>setIsFcModalOpen(false)} className="px-6 bg-slate-200 text-slate-600 font-black uppercase text-[10px] rounded-2xl">Cancelar</button></div>
-                                </div>
-                            </div>
                         )}
 
                     </main>
