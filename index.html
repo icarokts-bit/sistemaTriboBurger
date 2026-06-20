@@ -17,37 +17,42 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;600;800&display=swap');
+        
+        /* ================= ESCALA COMPACTA (SISTEMA COM LETRAS MENORES) ================= */
+        html { font-size: 10px; } /* Reduz a escala base do sistema (1rem = 10px em vez de 16px) */
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #FDFCF9; color: #1A202C; overflow-x: hidden; }
-        body, input:not([type="password"]), select, button, textarea, option, span, p, h1, h2, h3, h4, th, td { text-transform: uppercase !important; }
+        * { text-transform: uppercase !important; }
+        
         input::placeholder, textarea::placeholder { text-transform: uppercase !important; }
-        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(226, 232, 240, 0.6); }
-        .tab-active { background-color: #1A202C; color: #F8CC82; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-        .tab-cmv-active { background-color: #F27A18; color: #000; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .glass-card { background: rgba(255, 255, 255, 0.95); border: 1px solid rgba(226, 232, 240, 0.6); }
+        .tab-active { background-color: #1A202C; color: #F8CC82; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .tab-cmv-active { background-color: #F27A18; color: #000; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .fade-in { animation: fadeIn 0.3s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .fade-in { animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
         
         .btn-primary { background-color: #000; color: #F8CC82; font-weight: 900; text-transform: uppercase; transition: all 0.2s; }
         .btn-accent { background-color: #F27A18; color: #000; font-weight: 900; text-transform: uppercase; transition: all 0.2s; }
         
-        .table-input { width: 100%; height: 100%; text-align: center; background: transparent; border: none; font-weight: 800; font-size: 11px; outline: none; padding: 4px; }
+        .table-input { width: 100%; height: 100%; text-align: center; background: transparent; border: none; font-weight: 800; font-size: 10px; outline: none; padding: 4px; }
         .table-input:focus { background-color: rgba(211, 226, 152, 0.2); }
-        .header-black { background-color: #000; color: #FFF; font-weight: 800; text-transform: uppercase; font-size: 10px; border: 1px solid #333; }
-        .stat-banner { background: #1A202C; border-bottom: 6px solid #D97757; color: white; padding: 2rem; border-radius: 2.5rem; text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
-        .status-badge { font-size: 7px; font-weight: 900; padding: 2px 6px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .header-black { background-color: #000; color: #FFF; font-weight: 800; text-transform: uppercase; font-size: 9px; border: 1px solid #333; }
+        .stat-banner { background: #1A202C; border-bottom: 4px solid #D97757; color: white; padding: 1.5rem; border-radius: 1.5rem; text-align: center; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .status-badge { font-size: 7px; font-weight: 900; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
 
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem; }
-        .scale-up-center { animation: scale-up-center 0.2s cubic-bezier(0.390, 0.575, 0.565, 1.000) both; }
-        @keyframes scale-up-center { 0% { transform: scale(0.95); } 100% { transform: scale(1); } }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+        .scale-up-center { animation: scale-up-center 0.15s cubic-bezier(0.390, 0.575, 0.565, 1.000) both; }
+        @keyframes scale-up-center { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
-        .delete-confirm { background-color: #EF4444 !important; color: white !important; animation: pulse 1s infinite; font-size: 9px !important; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        .delete-confirm { background-color: #EF4444 !important; color: white !important; animation: pulse 1s infinite; font-size: 8px !important; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
 
         @media print {
             body { background-color: white !important; color: black !important; }
-            .print\:hidden, header, .sidebar { display: none !important; }
+            .print\:hidden, aside, header { display: none !important; }
             .glass-card { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
-            main { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+            main { padding: 0 !important; margin: 0 !important; max-width: 100% !important; overflow: visible !important; }
         }
     </style>
 </head>
@@ -70,7 +75,8 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        const Icon = memo(({ name, size = 20, className = "" }) => {
+        // ================= ÍCONES OTIMIZADOS =================
+        const Icon = memo(({ name, size = 16, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
                 if (window.lucide && containerRef.current) {
@@ -100,31 +106,11 @@
         
         const IconComponents = {};
         safeIcons.forEach(iconName => {
-            const normalized = iconName.toLowerCase()
-                .replace('2', '-2')
-                .replace('square', '-square')
-                .replace('circle', '-circle')
-                .replace('days', '-days')
-                .replace('card', '-card')
-                .replace('up', '-up')
-                .replace('down', '-down')
-                .replace('check', '-check')
-                .replace('lightning', '-lightning')
-                .replace('triangle', '-triangle')
-                .replace('text', '-text')
-                .replace('chart', '-chart');
-                
-            IconComponents[iconName] = (props) => (
-                <Icon name={normalized} size={props.size || 20} className={props.className || ""} />
-            );
+            const normalized = iconName.toLowerCase().replace('2', '-2').replace('square', '-square').replace('circle', '-circle').replace('days', '-days').replace('card', '-card').replace('up', '-up').replace('down', '-down').replace('check', '-check').replace('lightning', '-lightning').replace('triangle', '-triangle').replace('text', '-text').replace('chart', '-chart');
+            IconComponents[iconName] = (props) => <Icon name={normalized} size={props.size || 16} className={props.className || ""} />;
         });
 
-        const { 
-            Utensils, Sprout, Edit, Edit2, Trash, Trash2, Plus, Check, Search, Bell, Calendar, 
-            CreditCard, TrendingUp, CheckSquare, PlusCircle, CalendarDays, ShoppingCart, 
-            CheckCircle, Lock, ShieldCheck, Copy, Download, CloudLightning, Target, TrendingDown, AlertTriangle,
-            FileText, PieChart, Printer, Wallet, Star, Menu, X, ChevronUp, ChevronDown, Box, Layers
-        } = IconComponents;
+        const { Utensils, Edit2, Trash2, Plus, Search, CreditCard, TrendingUp, CalendarDays, CheckCircle, Target, TrendingDown, FileText, PieChart, Printer, Wallet, Star, ChevronUp, ChevronDown, Box, Layers, Lock, Menu, X } = IconComponents;
 
         const parseDateUTC = (dateStr) => {
             if (!dateStr || dateStr.includes('NaN')) return new Date();
@@ -173,7 +159,8 @@
             
             const [supForm, setSupForm] = useState('');
             const [catForm, setCatForm] = useState('');
-            const [accForm, setAccForm] = useState({ name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' });
+            // Estado Atualizado para Formulário de Conta (com ID para Edição)
+            const [accForm, setAccForm] = useState({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' });
             
             const [liqModal, setLiqModal] = useState(null);
             const [invoiceModal, setInvoiceModal] = useState(null);
@@ -366,34 +353,6 @@
                 return totals;
             }, [dailyRecords, salesDays]);
 
-            const consolidatedAPagar = useMemo(() => {
-                const pendings = transactions.filter(t => {
-                    const { clearanceDate } = getTransactionDates(t);
-                    return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao';
-                });
-                
-                const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
-                    const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
-                    const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                    const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                    const remaining = totalPurchases - totalPaid;
-                    return remaining > 0.01 ? { id: "card-" + card.name, description: "Fatura " + card.name, amount: remaining, account: card.name, clearanceDate: filterMonth + "-" + String(card.due || card.dueDay || 10).padStart(2, '0'), isInvoice: true, category: 'Cartão de Crédito' } : null;
-                }).filter(Boolean);
-                
-                return [...pendings, ...invoices].sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
-            }, [transactions, accounts, filterMonth]);
-
-            const consolidatedAReceber = useMemo(() => transactions.filter(t => t.type === 'entrada' && t.status === 'pendente' && getTransactionDates(t).clearanceDate?.startsWith(filterMonth)).sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || "")), [transactions, filterMonth]);
-
-            const cardStats = useMemo(() => accounts.filter(a => a.type === 'cartao').map(card => {
-                const txs = transactions.filter(t => t.account === card.name);
-                const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                const currentBalance = totalPurchases - totalPaid;
-                const limit = p(card.limit || 0); const available = limit > 0 ? limit - currentBalance : 0;
-                return { ...card, currentBalance, limit, available };
-            }), [transactions, accounts]);
-
             // ================= LÓGICA CMV COMPUTADA =================
             const getIngCost = (id, q) => { const i = ingredients.find(x => x.id === id); return i ? (i.cost / i.qty) * (p(q) * (i.unit==='kg'||i.unit==='L'?0.001:1)) : 0; };
             const calcItemCost = (ings) => (ings||[]).reduce((t, r) => t + getIngCost(r.ingredientId, r.qty), 0);
@@ -503,7 +462,19 @@
 
             const addSupplier = async (e) => { e.preventDefault(); if(supForm) { await db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/suppliers`).add({name: supForm}); setSupForm(''); } };
             const addCat = async (e) => { e.preventDefault(); if(catForm) { await db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/categories`).add({name: catForm}); setCatForm(''); } };
-            const addAcc = async (e) => { e.preventDefault(); if(accForm.name) { await db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/accounts`).add(accForm); setAccForm({ name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' }); alert('Conta/Cartão adicionado!');} };
+            
+            // FUNÇÃO CORRIGIDA: Salva e Edita Contas e Cartões
+            const handleSaveAcc = async (e) => {
+                e.preventDefault();
+                if (!accForm.name || !user) return;
+                const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/accounts";
+                if (accForm.id) {
+                    await db.collection(path).doc(accForm.id).update(accForm);
+                } else {
+                    await db.collection(path).add(accForm);
+                }
+                setAccForm({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' });
+            };
 
             const crudActionCMV = async (collectionStr, stateArr, formObj, setModalOpen) => {
                 if (!user) return;
@@ -529,26 +500,29 @@
                 </div>
             );
 
-            // ================= ESTRUTURA GLOBAL DE LAYOUT (SIDEBAR FIXA) =================
             return (
                 <div className="flex h-screen w-full overflow-hidden bg-[#FDFCF9] fade-in">
                     
-                    {/* MODAIS (FINANCEIROS E CMV) SOBREPOSTOS */}
+                    {/* ================= MODAIS (FINANCEIROS E CMV) SOBREPOSTOS ================= */}
                     {liqModal && (
-                        <div className="modal-overlay">
+                        <div className="modal-overlay z-[110]">
                             <div className="glass-card w-full max-w-sm p-6 rounded-2xl shadow-2xl border-t-4 border-green-500 flex flex-col gap-4 scale-up-center">
                                 <div className="text-center"><h3 className="font-black uppercase text-slate-400 mb-1 tracking-widest">Confirmar Liquidação</h3><p className="font-black text-sm text-slate-800 uppercase leading-tight">{liqModal.description}</p></div>
                                 <div className="space-y-3">
                                     <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Data da Liquidação</label><input type="date" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={liqModal.date} onChange={e=>setLiqModal({...liqModal, date: e.target.value})} /></div>
-                                    <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Conta / Cartão</label><select className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={liqModal.account} onChange={e=>setLiqModal({...liqModal, account: e.target.value})}><option value="">Selecione...</option>{accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}</select></div>
+                                    <div className="space-y-1">
+                                        <label className="font-black uppercase text-slate-400 ml-1">Conta / Cartão</label>
+                                        <select className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={liqModal.account} onChange={e=>setLiqModal({...liqModal, account: e.target.value})}><option value="">Selecione...</option>{accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}</select>
+                                    </div>
                                     <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Valor Final (R$)</label><input type="text" className="w-full p-2.5 bg-white border-2 border-slate-100 rounded-xl font-black text-lg text-center text-green-600 outline-none" value={liqModal.amount} onChange={e=>setLiqModal({...liqModal, amount: e.target.value})} /></div>
                                 </div>
                                 <div className="flex flex-col gap-2 mt-2"><button onClick={executeLiquidation} className="w-full bg-black text-[#F8CC82] p-3 rounded-xl font-black uppercase shadow-lg active:scale-95 transition-all">Confirmar e Liquidar</button><button onClick={()=>setLiqModal(null)} className="w-full text-slate-400 p-2 font-black uppercase hover:text-red-500">Cancelar</button></div>
                             </div>
                         </div>
                     )}
+
                     {invoiceModal && (
-                        <div className="modal-overlay">
+                        <div className="modal-overlay z-[110]">
                             <div className="glass-card w-full max-w-sm p-6 rounded-2xl shadow-2xl border-t-4 border-orange-500 flex flex-col gap-4 scale-up-center">
                                 <div className="text-center"><h3 className="font-black uppercase text-slate-400 mb-1 tracking-widest">PAGAMENTO DE FATURA</h3><p className="font-black text-base text-slate-800 uppercase">{invoiceModal.cardName}</p><p className="font-bold text-[#D97757] uppercase bg-orange-50 rounded-md px-2 py-0.5 inline-block mt-1">Mês Base: {filterMonth}</p></div>
                                 <div className="bg-slate-50 p-3 rounded-xl border flex justify-between items-center"><span className="font-black uppercase text-slate-500">Valor Fechado:</span><span className="text-base font-black text-slate-900">{formatMoney(invoiceModal.total)}</span></div>
@@ -559,27 +533,29 @@
                             </div>
                         </div>
                     )}
+
                     {isIngModalOpen && (
-                        <div className="modal-overlay">
+                        <div className="modal-overlay z-[110]">
                             <div className="bg-white w-full max-w-sm p-6 rounded-2xl shadow-2xl flex flex-col gap-3 scale-up-center">
                                 <h3 className="font-black uppercase text-slate-800 border-b pb-2 mb-1">{ingForm.id ? 'Editar Insumo' : 'Novo Insumo'}</h3>
                                 <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Nome do Insumo</label><input type="text" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={ingForm.name} onChange={e=>setIngForm({...ingForm, name: e.target.value})} /></div>
                                 <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Categoria</label><select className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={ingForm.category} onChange={e=>setIngForm({...ingForm, category: e.target.value})}>{ingCats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
                                 <div className="grid grid-cols-2 gap-2">
-                                    <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Preço Pacote</label><input type="number" step="0.01" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={ingForm.cost} onChange={e=>setIngForm({...ingForm, cost: e.target.value})} /></div>
+                                    <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Preço Pacote (R$)</label><input type="number" step="0.01" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={ingForm.cost} onChange={e=>setIngForm({...ingForm, cost: e.target.value})} /></div>
                                     <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Unidade</label><select className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={ingForm.unit} onChange={e=>setIngForm({...ingForm, unit: e.target.value})}><option value="kg">Quilo (kg)</option><option value="g">Grama (g)</option><option value="L">Litro (L)</option><option value="ml">Mililitro (ml)</option><option value="un">Unidade (un)</option></select></div>
                                 </div>
-                                <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Qtd na Embalagem</label><input type="number" step="0.001" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={ingForm.qty} onChange={e=>setIngForm({...ingForm, qty: e.target.value})} /></div>
+                                <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Quantidade Total na Embalagem</label><input type="number" step="0.001" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={ingForm.qty} onChange={e=>setIngForm({...ingForm, qty: e.target.value})} /></div>
                                 <div className="flex gap-2 mt-2"><button onClick={()=>crudActionCMV('ingredients', ingredients, ingForm, setIsIngModalOpen)} className="flex-1 btn-accent p-3 rounded-xl">Gravar</button><button onClick={()=>setIsIngModalOpen(false)} className="px-5 bg-slate-200 text-slate-600 font-black uppercase rounded-xl">Cancelar</button></div>
                             </div>
                         </div>
                     )}
+
                     {(isRecipeModalOpen || isCompModalOpen) && (() => {
                         const isRec = isRecipeModalOpen; const formObj = isRec ? recipeForm : compForm; const setFormObj = isRec ? setRecipeForm : setCompForm;
                         const catList = isRec ? recCats : compCats; const title = formObj.id ? `Editar ${isRec?'Ficha':'Complemento'}` : `Novo ${isRec?'Ficha':'Complemento'}`;
                         const cost = calcItemCost(formObj.ingredients); const sp = p(formObj.sellingPrice); const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
                         return (
-                            <div className="modal-overlay">
+                            <div className="modal-overlay z-[110]">
                                 <div className="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 rounded-2xl shadow-2xl flex flex-col gap-4 scale-up-center">
                                     <h3 className="font-black uppercase text-slate-800 border-b pb-2">{title}</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -609,8 +585,9 @@
                             </div>
                         );
                     })()}
+
                     {isComboModalOpen && (
-                        <div className="modal-overlay">
+                        <div className="modal-overlay z-[110]">
                             <div className="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 rounded-2xl shadow-2xl flex flex-col gap-4 scale-up-center">
                                 <h3 className="font-black uppercase text-slate-800 border-b pb-2">{comboForm.id ? 'Editar Combo' : 'Novo Combo'}</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -643,8 +620,9 @@
                             </div>
                         </div>
                     )}
+
                     {isFcModalOpen && (
-                        <div className="modal-overlay">
+                        <div className="modal-overlay z-[110]">
                             <div className="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl flex flex-col gap-3 scale-up-center">
                                 <h3 className="font-black uppercase text-slate-800 border-b pb-2 mb-1">{fcForm.id ? 'Editar Custo' : 'Novo Custo Fixo'}</h3>
                                 <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Descrição</label><input type="text" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={fcForm.description} onChange={e=>setFcForm({...fcForm, description: e.target.value})} /></div>
@@ -655,18 +633,17 @@
                         </div>
                     )}
 
-                    {/* ================= SIDEBAR (MENU LATERAL FIXO) E CONTEÚDO ================= */}
-                    <div className="flex w-full h-full">
+                    {/* ================= BARRA LATERAL FIXA & MENU RESPONSIVO ================= */}
+                    <div className="flex w-full h-full overflow-hidden">
                         
-                        <aside className="w-52 flex-shrink-0 bg-[#1A202C] text-white flex flex-col shadow-2xl z-50 print:hidden h-full">
+                        <aside className="hidden md:flex w-52 flex-shrink-0 bg-[#1A202C] text-white flex-col shadow-2xl z-40 print:hidden h-full">
                             <div className="p-4 border-b border-white/10 flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div>
-                                <div><h1 className="font-black text-[#F8CC82] uppercase leading-none">ERP do Cantinho</h1><span className="text-[7px] font-black text-emerald-400 tracking-widest uppercase">Sistema Integrado</span></div>
+                                <div><h1 className="font-black text-[#F8CC82] uppercase leading-none">ERP Cantinho</h1><span className="text-[7px] font-black text-emerald-400 tracking-widest uppercase">Sistema Integrado</span></div>
                             </div>
-                            
                             <div className="flex-1 overflow-y-auto no-scrollbar p-3 space-y-5">
                                 <div>
-                                    <h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1"><Wallet size={12}/> Finanças</h3>
+                                    <h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><Wallet size={12}/> Finanças</h3>
                                     <div className="flex flex-col gap-0.5">
                                         {['fin_dashboard', 'saldos', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'resultados', 'relatorios', 'fornecedores'].map(t => (
                                             <button key={t} onClick={() => setActiveTab(t)} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-white/10 text-[#F8CC82] shadow-inner" : "text-slate-400 hover:text-white hover:bg-white/5")}>
@@ -676,7 +653,7 @@
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1"><PieChart size={12}/> Custos & CMV</h3>
+                                    <h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><PieChart size={12}/> Custos & CMV</h3>
                                     <div className="flex flex-col gap-0.5">
                                         {['cmv_dashboard', 'insumos', 'fichas', 'complementos', 'combos', 'analise', 'custos_fixos', 'ajustes'].map(t => (
                                             <button key={t} onClick={() => setActiveTab(t)} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-[#F27A18] text-black shadow-md" : "text-slate-400 hover:text-white hover:bg-white/5")}>
@@ -691,14 +668,44 @@
                             </div>
                         </aside>
 
+                        {/* Menu Mobile */}
+                        {isMenuOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] transition-opacity md:hidden print:hidden" onClick={() => setIsMenuOpen(false)}></div>}
+                        <div className={`fixed inset-y-0 left-0 z-[95] w-64 bg-[#1A202C] shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col md:hidden print:hidden ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                            <div className="p-4 border-b border-white/10 flex justify-between items-center"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div><span className="font-black text-[#F8CC82] uppercase tracking-widest">Menu</span></div><button onClick={() => setIsMenuOpen(false)} className="text-slate-400 hover:text-white p-2 bg-white/5 rounded-lg"><X size={16}/></button></div>
+                            <div className="flex-1 overflow-y-auto no-scrollbar p-3 space-y-5">
+                                <div>
+                                    <h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><Wallet size={12}/> Finanças</h3>
+                                    <div className="flex flex-col gap-0.5">{['fin_dashboard', 'saldos', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'resultados', 'relatorios', 'fornecedores'].map(t => (<button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-white/10 text-[#F8CC82] shadow-inner" : "text-slate-400 hover:text-white hover:bg-white/5")}>{t.replace('fin_', '').replace('_', ' ')}</button>))}</div>
+                                </div>
+                                <div>
+                                    <h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><PieChart size={12}/> Custos & CMV</h3>
+                                    <div className="flex flex-col gap-0.5">{['cmv_dashboard', 'insumos', 'fichas', 'complementos', 'combos', 'analise', 'custos_fixos', 'ajustes'].map(t => (<button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-[#F27A18] text-black shadow-md" : "text-slate-400 hover:text-white hover:bg-white/5")}>{t.replace('cmv_', '').replace('_', ' ')}</button>))}</div>
+                                </div>
+                            </div>
+                            <div className="p-4 border-t border-white/10 text-center"><button onClick={()=>auth.signOut()} className="w-full py-2 bg-red-500/10 text-red-400 rounded-lg font-black uppercase hover:bg-red-500/20 transition-all">Sair</button></div>
+                        </div>
+
+                        {/* ÁREA PRINCIPAL */}
                         <main className="flex-1 flex flex-col h-screen overflow-y-auto w-full print:overflow-visible">
-                            <div className="p-4 md:p-6 w-full max-w-full space-y-4 print:p-0">
+                            
+                            {/* Cabecalho Mobile */}
+                            <header className="bg-[#1A202C] text-white p-3 shadow-md flex items-center justify-between md:hidden print:hidden">
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => setIsMenuOpen(true)} className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"><Menu size={18} /></button>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div>
+                                    </div>
+                                </div>
+                                <span className="font-black text-[#F8CC82] uppercase tracking-widest">{activeTab.replace('fin_', '').replace('cmv_', '').replace('_', ' ')}</span>
+                            </header>
+
+                            <div className="p-4 md:p-6 w-full max-w-full space-y-4 print:p-0 mx-auto">
                                 
                                 {/* CABEÇALHO COM FILTRO MÊS */}
                                 {['fin_dashboard', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'dre', 'analise', 'resultados', 'relatorios'].includes(activeTab) && (
                                     <div className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border print:hidden mb-2">
-                                        <h2 className="font-black text-slate-800 uppercase pl-2">{activeTab.replace('fin_', '').replace('_', ' ')}</h2>
-                                        <div className="flex items-center gap-2 bg-slate-50 px-4 py-1.5 rounded-xl border">
+                                        <h2 className="font-black text-slate-800 uppercase pl-2 hidden md:block">{activeTab.replace('fin_', '').replace('_', ' ')}</h2>
+                                        <div className="flex items-center gap-2 bg-slate-50 px-4 py-1.5 rounded-xl border ml-auto md:ml-0">
                                             <span className="font-black uppercase text-slate-400">Mês:</span>
                                             <input type="month" value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} className="bg-transparent border-0 outline-none font-black text-[#D97757] cursor-pointer" />
                                         </div>
@@ -754,7 +761,7 @@
                                                         <div className="flex items-center gap-3">
                                                             <p className={"font-black " + (t.type==='entrada'?'text-green-600':'text-slate-800')}>{formatMoney(t.amount)}</p>
                                                             <div className="flex gap-1">
-                                                                <button onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1});}} className="text-blue-400 p-1.5"><Edit2 size={12}/></button>
+                                                                <button onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-400 p-1.5"><Edit2 size={12}/></button>
                                                                 <button onClick={() => executeDelete('transactions', t.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === t.id ? 'delete-confirm' : 'text-red-400 hover:text-red-600')}>{deleteConfirmId === t.id ? <span className="font-black uppercase text-[8px]">Sim</span> : <Trash2 size={12}/>}</button>
                                                             </div>
                                                         </div>
@@ -768,6 +775,7 @@
                                 {activeTab === 'saldos' && (() => {
                                     const highlightedNames = ['MERCADO PAGO', 'C6 BANK', 'IFOOD', 'CAIXA LOJA'];
                                     const fundKeywords = ['FUNDO', 'APLICAÇÃO', 'APLICACAO', 'INVESTIMENTO', 'RESERVA', 'POUPANÇA', 'POUPANCA'];
+                                    const currentAccounts = accounts.filter(a => a.type === 'corrente');
                                     
                                     const highlighted = currentAccounts.filter(a => highlightedNames.includes((a.name||'').trim().toUpperCase()));
                                     const funds = currentAccounts.filter(a => !highlightedNames.includes((a.name||'').trim().toUpperCase()) && fundKeywords.some(k => (a.name||'').toUpperCase().includes(k)));
@@ -775,7 +783,7 @@
 
                                     return (
                                         <div className="space-y-6 animate-in fade-in">
-                                            <div className="stat-banner !border-black !bg-[#D97757] p-6 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-2">Patrimônio Líquido Disponível</p><h3 className="text-3xl font-black drop-shadow-xl">{formatMoney(totalPatrimony)}</h3></div>
+                                            <div className="stat-banner !border-black !bg-[#D97757] p-6 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-2">Patrimônio Líquido Disponível</p><h3 className="text-3xl font-black drop-shadow-xl">{formatMoney(currentAccounts.reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0))}</h3></div>
                                             {highlighted.length > 0 && (
                                                 <div className="space-y-3"><h2 className="font-black uppercase text-slate-800 border-b-2 pb-1.5 flex items-center gap-1.5"><Star size={14} className="text-[#D97757]" /> Contas Principais</h2>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -810,7 +818,7 @@
                                             <div className="stat-banner !border-black !bg-[#D97757] p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Faturamento Mês</p><h3 className="text-2xl font-black">{formatMoney(stats.rb)}</h3></div>
                                             <div className="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm">
                                                 <div className="flex items-center gap-2"><CalendarDays className="text-slate-400" /><h2 className="font-black uppercase tracking-widest">Caixa Diário</h2></div>
-                                                <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border"><input type="date" className="font-bold bg-transparent outline-none border-0" value={newDayDate} onChange={e=>setNewDayDate(e.target.value)} /><button onClick={()=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(newDayDate).set({initialized:true},{merge:true})} className="bg-black text-[#F8CC82] px-3 py-1.5 rounded-lg font-black uppercase">Abrir</button></div>
+                                                <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border"><input type="date" className="font-bold bg-transparent outline-none border-0" value={newDayDate} onChange={e=>setNewDayDate(e.target.value)} /><button onClick={()=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(newDayDate).set({initialized:true},{merge:true})} className="bg-black text-[#F8CC82] px-3 py-1.5 rounded-lg font-black uppercase">Abrir Dia</button></div>
                                             </div>
                                             <div className="glass-card rounded-2xl overflow-hidden border shadow-sm overflow-x-auto no-scrollbar">
                                                 <table className="w-full text-center min-w-[1400px]">
@@ -931,7 +939,7 @@
                                                                     <td className="p-3 uppercase">{t.description}</td>
                                                                     <td className="p-3 uppercase"><span className="bg-slate-200 px-2 py-0.5 rounded">{t.account}</span></td>
                                                                     <td className="p-3 text-right text-green-600 font-black">{formatMoney(t.amount)}</td>
-                                                                    <td className="p-3 text-center"><button onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-black uppercase hover:bg-green-200">Conf. Recib</button></td>
+                                                                    <td className="p-3 text-center"><button onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-black uppercase hover:bg-green-200">Confirmar Rec.</button></td>
                                                                 </tr>
                                                             );
                                                         })}
@@ -978,14 +986,14 @@
                                                             </div>
                                                             <div className="bg-slate-50 p-4 flex-1 flex flex-col border-t">
                                                                 <div className="flex justify-between items-center mb-4">
-                                                                    <div><p className="font-black uppercase text-slate-400 tracking-widest">Fatura Atual</p><h4 className={"text-xl font-black " + (isPaid ? "text-emerald-500" : "text-red-500")}>{formatMoney(invoiceTotal)}</h4></div>
+                                                                    <div><p className="font-black uppercase text-slate-400 tracking-widest">Fatura Atual do Mês</p><h4 className={"text-xl font-black " + (isPaid ? "text-emerald-500" : "text-red-500")}>{formatMoney(invoiceTotal)}</h4></div>
                                                                     {isPaid ? <span className="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg font-black uppercase border border-emerald-200">Fatura Paga</span> : ( invoiceTotal > 0 && <button onClick={() => setInvoiceModal({ cardName: card.name, total: invoiceTotal })} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl font-black uppercase shadow-lg active:scale-95 transition-all">Pagar Fatura</button> )}
                                                                 </div>
                                                                 <div className="flex-1 bg-white rounded-xl border shadow-sm overflow-hidden flex flex-col max-h-[250px]">
-                                                                    <div className="p-3 bg-slate-100 border-b font-black uppercase text-slate-500 tracking-widest flex items-center gap-1.5"><FileText size={12}/> Compras Fatura</div>
+                                                                    <div className="p-3 bg-slate-100 border-b font-black uppercase text-slate-500 tracking-widest flex items-center gap-1.5"><FileText size={12}/> Compras da Fatura</div>
                                                                     <div className="overflow-y-auto flex-1 divide-y p-1 no-scrollbar">
                                                                         {currentMonthTxs.length === 0 ? <div className="p-6 text-center font-bold text-slate-400 uppercase">Sem gastos nesta fatura.</div> : currentMonthTxs.sort((a,b)=>a.date.localeCompare(b.date)).map(t => (
-                                                                            <div key={t.id} className="py-2 px-3 flex justify-between items-center hover:bg-slate-50 rounded-lg"><div><p className="font-black uppercase text-slate-800 leading-tight">{t.description}</p><p className="font-bold text-slate-400 uppercase mt-0.5">{t.date.split('-').reverse().join('/')} • {t.category}</p></div><span className="font-black text-red-500">{formatMoney(t.amount)}</span></div>
+                                                                            <div key={t.id} className="py-2 px-3 flex justify-between items-center hover:bg-slate-50 transition-colors rounded-lg"><div><p className="font-black uppercase text-slate-800 leading-tight">{t.description}</p><p className="font-bold text-slate-400 uppercase mt-0.5">{t.date.split('-').reverse().join('/')} • {t.category}</p></div><span className="font-black text-red-500">{formatMoney(t.amount)}</span></div>
                                                                         ))}
                                                                     </div>
                                                                 </div>
@@ -999,7 +1007,7 @@
                                 })()}
 
                                 {activeTab === 'resultados' && (
-                                    <div className="space-y-4 animate-in fade-in">
+                                    <div className="space-y-6 animate-in fade-in">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                             <div className="glass-card p-5 rounded-2xl shadow-md border-t-4 border-orange-500 text-center flex flex-col justify-between">
                                                 <div><p className="font-black text-slate-400 uppercase tracking-widest mb-2">Meta de Vendas</p><div className="flex items-center justify-center gap-1"><span className="font-black text-slate-400">R$</span><input type="text" className="text-xl font-black w-24 text-center bg-transparent border-b-2 outline-none focus:border-black" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} onBlur={e=>saveMeta(e.target.value)} /></div></div>
@@ -1080,7 +1088,7 @@
                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                     <div className="bg-green-50 p-4 rounded-2xl text-center border border-green-100"><p className="font-black text-green-600 uppercase mb-1 tracking-widest">Total Entradas</p><h4 className="text-xl font-black text-green-700">{formatMoney(stats.entradas)}</h4></div>
                                                     <div className="bg-red-50 p-4 rounded-2xl text-center border border-red-100"><p className="font-black text-red-600 uppercase mb-1 tracking-widest">Contas Pagas</p><h4 className="text-xl font-black text-red-700">{formatMoney(stats.contasPagas)}</h4></div>
-                                                    <div className={"p-4 rounded-2xl text-center border shadow-sm " + (stats.lucroCaixa >= 0 ? "bg-blue-50 border-blue-200" : "bg-orange-50 border-orange-200")}><p className={"font-black uppercase mb-1 tracking-widest " + (stats.lucroCaixa >= 0 ? "text-blue-600" : "text-orange-600")}>Geração Caixa Líquida</p><h4 className={"text-xl font-black " + (stats.lucroCaixa >= 0 ? "text-blue-700" : "text-orange-700")}>{formatMoney(stats.lucroCaixa)}</h4></div>
+                                                    <div className={"p-4 rounded-2xl text-center border shadow-sm " + (stats.lucroCaixa >= 0 ? "bg-blue-50 border-blue-200" : "bg-orange-50 border-orange-200")}><p className={"font-black uppercase mb-1 tracking-widest " + (stats.lucroCaixa >= 0 ? "text-blue-600" : "text-orange-600")}>Geração Caixa</p><h4 className={"text-xl font-black " + (stats.lucroCaixa >= 0 ? "text-blue-700" : "text-orange-700")}>{formatMoney(stats.lucroCaixa)}</h4></div>
                                                 </div>
                                             </div>
                                             <div className="glass-card p-6 rounded-3xl shadow-sm border-t-4 border-slate-800">
@@ -1124,7 +1132,7 @@
                                                     {suppliers.length === 0 ? <tr><td colSpan="2" className="p-8 text-center text-slate-400">Vazio.</td></tr> : suppliers.sort((a,b)=>a.name.localeCompare(b.name)).map(s => (
                                                         <tr key={s.id} className="hover:bg-slate-50">
                                                             <td className="p-3 uppercase">{s.name}</td>
-                                                            <td className="p-3 text-right"><button onClick={() => executeDelete('suppliers', s.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === s.id ? 'delete-confirm' : 'text-red-400 hover:text-red-600')}>{deleteConfirmId === s.id ? <span className="font-black uppercase">Sim</span> : <Trash2 size={12}/>}</button></td>
+                                                            <td className="p-3 text-right"><button onClick={() => executeDelete('suppliers', s.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === s.id ? 'delete-confirm text-white' : 'text-red-400 hover:text-red-600')}>{deleteConfirmId === s.id ? <span className="font-black uppercase">Sim</span> : <Trash2 size={12}/>}</button></td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -1232,7 +1240,7 @@
                                                                                 <td className="p-3 text-slate-900">{ing.name}</td>
                                                                                 <td className="p-3">{formatMoney(ing.cost)} <span className="text-slate-400">/ {ing.qty}{ing.unit}</span></td>
                                                                                 <td className="p-3 text-emerald-600">{formatMoney(getIngCost(ing.id, ing.unit==='kg'||ing.unit==='L'?1000:1))} <span className="text-slate-400">/ {ing.unit==='kg'?'g':ing.unit==='L'?'ml':ing.unit}</span></td>
-                                                                                <td className="p-3 text-right"><button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 p-1.5"><Edit2 size={12}/></button><button onClick={() => executeDelete('cmv_data/state', ing.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === ing.id ? 'delete-confirm' : 'text-red-400 hover:text-red-600')}><Trash2 size={12}/></button></td>
+                                                                                <td className="p-3 text-right"><button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 p-1.5"><Edit2 size={12}/></button><button onClick={() => executeDelete('cmv_data/state', ing.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === ing.id ? 'delete-confirm text-white' : 'text-red-400 hover:text-red-600')}><Trash2 size={12}/></button></td>
                                                                             </tr>
                                                                         ))}
                                                                     </tbody>
@@ -1291,7 +1299,7 @@
                                 {activeTab === 'complementos' && (
                                      <div className="space-y-6 fade-in">
                                          <div className="flex justify-between items-center bg-white p-5 rounded-2xl border shadow-sm">
-                                             <div><h2 className="font-black uppercase text-slate-800">Complementos</h2><p className="font-bold text-slate-400 uppercase mt-0.5">{complements.length} ativos</p></div>
+                                             <div><h2 className="font-black uppercase text-slate-800">Complementos</h2><p className="font-bold text-slate-400 uppercase mt-0.5">{complements.length} adicionais</p></div>
                                              <button onClick={() => {setCompForm({ id: '', name: '', category: compCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsCompModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Criar</button>
                                          </div>
                                          <div className="space-y-6">
@@ -1306,7 +1314,7 @@
                                                              {isCollapsed ? <ChevronDown size={14} className="text-slate-400"/> : <ChevronUp size={14} className="text-slate-400"/>}
                                                          </div>
                                                          {!isCollapsed && (
-                                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                                                  {catComps.sort((a,b)=>a.name.localeCompare(b.name)).map(comp => (
                                                                      <div key={comp.id} className="glass-card rounded-2xl p-4 shadow-sm border flex flex-col justify-between">
                                                                          <div><span className="font-black bg-indigo-50 text-indigo-600 px-1.5 rounded uppercase tracking-widest mb-2 inline-block">{comp.category}</span><h3 className="font-black uppercase text-slate-900 leading-tight">{comp.name}</h3></div>
@@ -1329,7 +1337,7 @@
                                  {activeTab === 'combos' && (
                                      <div className="space-y-6 fade-in">
                                          <div className="flex justify-between items-center bg-white p-5 rounded-2xl border shadow-sm">
-                                             <div><h2 className="font-black uppercase text-slate-800">Fichas de Combos</h2><p className="font-bold text-slate-400 uppercase mt-0.5">{combos.length} ativos</p></div>
+                                             <div><h2 className="font-black uppercase text-slate-800">Fichas de Combos</h2><p className="font-bold text-slate-400 uppercase mt-0.5">{combos.length} combos ativos</p></div>
                                              <button onClick={() => {setComboForm({ id: '', name: '', category: comboCats[0], sellingPrice: '', items: [], ignoreCMV: false }); setIsComboModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Criar</button>
                                          </div>
                                          <div className="space-y-6">
@@ -1461,8 +1469,10 @@
                                 {activeTab === 'ajustes' && (
                                      <div className="space-y-6 fade-in">
                                          <div className="glass-card p-6 rounded-3xl border-t-8 border-[#D97757] shadow-xl grid grid-cols-1 md:grid-cols-2 gap-6">
+                                             
+                                             {/* PARÂMETROS CMV */}
                                              <div className="space-y-5">
-                                                 <div><h3 className="font-black uppercase text-slate-800 text-base">Parâmetros & Taxas</h3><p className="font-bold text-slate-400 uppercase mt-1">Configurações Base (Financeiro e CMV)</p></div>
+                                                 <div><h3 className="font-black uppercase text-slate-800 text-base">Parâmetros & Taxas</h3><p className="font-bold text-slate-400 uppercase mt-1">Configurações para os cálculos de precificação do cardápio e Financeiro</p></div>
                                                  <div className="grid grid-cols-2 gap-3">
                                                      <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Meta CMV (%)</label><input type="number" step="0.1" className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:border-black" value={cmvSettings.targetCMV} onChange={e=>setCmvSettings({...cmvSettings, targetCMV: e.target.value})} /></div>
                                                      <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Impostos (%)</label><input type="number" step="0.1" className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:border-black" value={cmvSettings.tax} onChange={e=>setCmvSettings({...cmvSettings, tax: e.target.value})} /></div>
@@ -1473,16 +1483,57 @@
                                                  <button onClick={async()=>{if(!user)return; await saveCMVDoc('settings', {...cmvSettings, targetCMV:p(cmvSettings.targetCMV), tax:p(cmvSettings.tax), apps:p(cmvSettings.apps), card:p(cmvSettings.card), ifoodTax:p(cmvSettings.ifoodTax)}); await saveMeta(metaVendas); alert('Parâmetros Salvos!');}} className="w-full bg-[#1A202C] text-[#F8CC82] p-3 rounded-xl font-black uppercase shadow-lg hover:bg-black transition-all">Salvar Parâmetros Globais</button>
                                              </div>
                                              
+                                             {/* CADASTROS RÁPIDOS */}
                                              <div className="space-y-5">
-                                                 <div><h3 className="font-black uppercase text-slate-800 text-base">Cadastros Rápidos</h3><p className="font-bold text-slate-400 uppercase mt-1">Gestão de Contas Financeiras e Categorias</p></div>
-                                                 <div className="space-y-2.5">
-                                                    <form onSubmit={addCat} className="flex gap-2"><input type="text" placeholder="Nova Categoria Financeira..." className="flex-1 p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={catForm} onChange={e=>setCatForm(e.target.value)} required /><button className="bg-black text-[#F8CC82] px-4 rounded-xl font-black">Add</button></form>
-                                                    <form onSubmit={addAcc} className="flex gap-2 flex-wrap bg-slate-50 p-2.5 rounded-xl border">
-                                                        <input type="text" placeholder="Nome Conta/Cartão" className="flex-1 p-2 bg-white border rounded-lg font-bold outline-none min-w-[100px]" value={accForm.name} onChange={e=>setAccForm({...accForm, name: e.target.value})} required />
-                                                        <select className="p-2 bg-white border rounded-lg font-bold outline-none" value={accForm.type} onChange={e=>setAccForm({...accForm, type: e.target.value})}><option value="corrente">Corrente</option><option value="cartao">Cartão</option></select>
-                                                        {accForm.type === 'cartao' && <><input type="number" placeholder="Limite" className="w-16 p-2 bg-white border rounded-lg font-bold" value={accForm.limit} onChange={e=>setAccForm({...accForm, limit: e.target.value})} /><input type="number" placeholder="Fecho" className="w-12 p-2 bg-white border rounded-lg font-bold" value={accForm.closing} onChange={e=>setAccForm({...accForm, closing: e.target.value})} /><input type="number" placeholder="Venc" className="w-12 p-2 bg-white border rounded-lg font-bold" value={accForm.due} onChange={e=>setAccForm({...accForm, due: e.target.value})} /></>}
-                                                        <button className="w-full bg-[#1A202C] text-white py-2 rounded-lg font-black uppercase mt-1">Criar Conta</button>
-                                                    </form>
+                                                 <div><h3 className="font-black uppercase text-slate-800 text-base">Contas, Cartões & Categorias</h3><p className="font-bold text-slate-400 uppercase mt-1">Gestão da Estrutura Financeira</p></div>
+                                                 
+                                                 <div className="space-y-2">
+                                                     {/* Nova Categoria */}
+                                                     <form onSubmit={addCat} className="flex gap-2"><input type="text" placeholder="Nova Categoria..." className="flex-1 p-2 bg-slate-50 border rounded-lg font-bold outline-none" value={catForm} onChange={e=>setCatForm(e.target.value)} required /><button className="bg-black text-[#F8CC82] px-3 rounded-lg font-black text-[9px]">Add Cat.</button></form>
+                                                     
+                                                     {/* Nova Conta/Cartão */}
+                                                     <form onSubmit={handleSaveAcc} className="flex flex-col gap-2 bg-slate-50 p-3 rounded-xl border">
+                                                         <div className="flex justify-between items-center mb-1">
+                                                             <span className="font-black text-[9px] text-slate-600 uppercase">{accForm.id ? 'A Editar Conta/Cartão' : 'Nova Conta ou Cartão'}</span>
+                                                             {accForm.id && <button type="button" onClick={()=>setAccForm({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' })} className="text-[8px] text-red-500 font-black uppercase hover:underline">Cancelar Edição</button>}
+                                                         </div>
+                                                         <div className="flex gap-2">
+                                                             <input type="text" placeholder="Nome Conta/Cartão" className="flex-1 p-2 bg-white border rounded-lg font-bold outline-none" value={accForm.name} onChange={e=>setAccForm({...accForm, name: e.target.value})} required />
+                                                             <select className="p-2 bg-white border rounded-lg font-bold outline-none" value={accForm.type} onChange={e=>setAccForm({...accForm, type: e.target.value})}><option value="corrente">Corrente</option><option value="cartao">Cartão</option></select>
+                                                         </div>
+                                                         {accForm.type === 'cartao' && (
+                                                             <div className="grid grid-cols-3 gap-2">
+                                                                 <input type="number" placeholder="Limite R$" className="w-full p-2 bg-white border rounded-lg font-bold" value={accForm.limit} onChange={e=>setAccForm({...accForm, limit: e.target.value})} />
+                                                                 <input type="number" placeholder="Dia Fecho" className="w-full p-2 bg-white border rounded-lg font-bold" value={accForm.closing} onChange={e=>setAccForm({...accForm, closing: e.target.value})} />
+                                                                 <input type="number" placeholder="Dia Venc" className="w-full p-2 bg-white border rounded-lg font-bold" value={accForm.due} onChange={e=>setAccForm({...accForm, due: e.target.value})} />
+                                                             </div>
+                                                         )}
+                                                         <button className="w-full bg-[#1A202C] text-white py-2 rounded-lg font-black uppercase mt-1">{accForm.id ? 'Atualizar' : 'Salvar'} Conta/Cartão</button>
+                                                     </form>
+                                                 </div>
+
+                                                 {/* LISTA DE CONTAS E CARTÕES COM EXCLUSÃO/EDIÇÃO */}
+                                                 <div className="mt-4 border-t pt-4">
+                                                     <h4 className="font-black text-slate-800 mb-3 flex items-center gap-1.5"><Wallet size={12}/> Contas & Cartões Ativos</h4>
+                                                     <div className="space-y-1.5 overflow-y-auto max-h-[300px] no-scrollbar">
+                                                         {accounts.length === 0 ? <p className="text-center font-bold text-slate-400 p-2">Vazio</p> : accounts.sort((a,b)=>a.name.localeCompare(b.name)).map(a => (
+                                                             <div key={a.id} className="p-2.5 flex justify-between items-center bg-white border rounded-lg shadow-sm hover:border-slate-300 transition-all">
+                                                                 <div>
+                                                                     <div className="flex items-center gap-1.5">
+                                                                         {a.type === 'cartao' ? <CreditCard size={12} className="text-orange-500" /> : <Wallet size={12} className="text-blue-500" />}
+                                                                         <span className="font-black uppercase text-slate-800">{a.name}</span>
+                                                                     </div>
+                                                                     <p className="font-bold text-slate-400 uppercase mt-0.5 ml-4">
+                                                                         {a.type} {a.type === 'cartao' && ` • Limite: ${formatMoney(a.limit)} • Fecho: ${a.closing || a.closingDay || '25'} • Venc: ${a.due || a.dueDay || '10'}`}
+                                                                     </p>
+                                                                 </div>
+                                                                 <div className="flex gap-1 items-center">
+                                                                     <button type="button" onClick={()=>setAccForm({ ...a, closing: a.closing || a.closingDay || '', due: a.due || a.dueDay || '' })} className="text-blue-500 p-1.5 rounded hover:bg-blue-50"><Edit2 size={12}/></button>
+                                                                     <button type="button" onClick={() => executeDelete('accounts', a.id)} className={"transition-all p-1.5 rounded hover:bg-red-50 " + (deleteConfirmId === a.id ? 'delete-confirm text-white' : 'text-red-400')} title="Excluir">{deleteConfirmId === a.id ? <span className="font-black uppercase">Sim</span> : <Trash2 size={12}/>}</button>
+                                                                 </div>
+                                                             </div>
+                                                         ))}
+                                                     </div>
                                                  </div>
                                              </div>
                                          </div>
