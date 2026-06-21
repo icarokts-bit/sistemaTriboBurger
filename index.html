@@ -75,6 +75,7 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
+        // COMPONENTE ICON BLINDADO E SEGURO
         const Icon = memo(({ name, size = 16, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
@@ -94,22 +95,6 @@
             };
             return <input className={`table-input ${className || ''}`} value={val} onChange={e=>setVal(e.target.value)} onBlur={handleBlur} placeholder={placeholder || "0,00"} />;
         });
-
-        const safeIcons = [
-            'Utensils', 'Sprout', 'Edit', 'Edit2', 'Trash', 'Trash2', 'Plus', 'Check', 'Search', 
-            'Bell', 'Calendar', 'CreditCard', 'TrendingUp', 'CheckSquare', 'PlusCircle', 
-            'CalendarDays', 'ShoppingCart', 'CheckCircle', 'Lock', 'ShieldCheck', 'Copy', 'Download', 'CloudLightning',
-            'Target', 'TrendingDown', 'AlertTriangle', 'FileText', 'PieChart', 'Printer', 'Wallet', 'Star', 'Menu', 'X',
-            'ChevronUp', 'ChevronDown', 'Box', 'Layers', 'Filter'
-        ];
-        
-        const IconComponents = {};
-        safeIcons.forEach(iconName => {
-            const normalized = iconName.toLowerCase().replace('2', '-2').replace('square', '-square').replace('circle', '-circle').replace('days', '-days').replace('card', '-card').replace('up', '-up').replace('down', '-down').replace('check', '-check').replace('lightning', '-lightning').replace('triangle', '-triangle').replace('text', '-text').replace('chart', '-chart');
-            IconComponents[iconName] = (props) => <Icon name={normalized} size={props.size || 16} className={props.className || ""} />;
-        });
-
-        const { Utensils, Edit2, Trash2, Plus, Search, CreditCard, TrendingUp, CalendarDays, CheckCircle, Target, TrendingDown, FileText, PieChart, Printer, Wallet, Star, ChevronUp, ChevronDown, Box, Layers, Lock, Menu, X, Filter } = IconComponents;
 
         const parseDateUTC = (dateStr) => {
             if (!dateStr || dateStr.includes('NaN')) return new Date();
@@ -158,8 +143,8 @@
             
             const [visibleTxCount, setVisibleTxCount] = useState(10);
             
-            // Estado Atualizado para Formulário de Lançamento (Com taxas)
-            const [txForm, setTxForm] = useState({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1, feeType: '', feePercent: '' });
+            // ESTADO DO FORMULÁRIO COM O NOVO SISTEMA DE TAXAS AUTOMÁTICAS
+            const [txForm, setTxForm] = useState({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1, feeType: 'none', feePercent: 0 });
             const [newDayDate, setNewDayDate] = useState(new Date().toISOString().split('T')[0]);
             
             const [supForm, setSupForm] = useState('');
@@ -238,6 +223,7 @@
             const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
+            // AUTOCOMPLETAR DESCRIÇÃO INTELIGENTE
             const uniqueDescriptions = useMemo(() => {
                 const descs = transactions.map(t => t.description).filter(Boolean);
                 return [...new Set(descs)].sort((a, b) => a.localeCompare(b));
@@ -273,7 +259,6 @@
             const currentAccounts = useMemo(() => accounts.filter(a => a.type === 'corrente'), [accounts]);
             const totalPatrimony = useMemo(() => currentAccounts.reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0), [currentAccounts, accountBalances]);
 
-            // ================= ESTATÍSTICAS COM TAXAS AUTOMÁTICAS =================
             const stats = useMemo(() => {
                 let rb = 0; let custos = 0; let catCosts = {}; let diasAtivos = 0; let totalPedidos = 0;
                 let entradas = 0; let contasPagas = 0; let autoCardFees = 0;
@@ -284,7 +269,8 @@
                 const prevMonthStr = prevAno + "-" + String(prevMes + 1).padStart(2, '0');
 
                 const buildWeekMap = (ano, mes) => {
-                    const map = {}; const lastDay = new Date(ano, mes + 1, 0).getDate(); let currentWeek = 1; let seenWorkingDay = false;
+                    const map = {}; const lastDay = new Date(ano, mes + 1, 0).getDate();
+                    let currentWeek = 1; let seenWorkingDay = false;
                     for(let d = 1; d <= lastDay; d++) {
                         const wd = new Date(ano, mes, d).getDay(); 
                         if (wd === 3) { if (seenWorkingDay) { currentWeek++; seenWorkingDay = false; } seenWorkingDay = true; } else if (wd === 0 || wd > 3) { seenWorkingDay = true; }
@@ -336,7 +322,6 @@
 
                 let diasUteisTotaisMes = 0; let diasUteisPassados = 0; 
                 const ultimoDiaMes = new Date(anoFiltro, mesFiltro + 1, 0).getDate(); const hoje = new Date();
-                
                 for (let dia = 1; dia <= ultimoDiaMes; dia++) {
                     const diaDaSemana = new Date(anoFiltro, mesFiltro, dia).getDay(); 
                     if (diaDaSemana !== 1 && diaDaSemana !== 2) { 
@@ -379,8 +364,9 @@
 
             const consolidatedAPagar = useMemo(() => {
                 const pendings = transactions.filter(t => {
+                    const accInfo = accounts.find(a => a.name === t.account);
                     const { clearanceDate } = getTransactionDates(t);
-                    return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao';
+                    return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accInfo?.type !== 'cartao';
                 });
                 
                 const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
@@ -405,7 +391,6 @@
                 return { ...card, currentBalance, limit, available };
             }), [transactions, accounts]);
 
-            // ================= LÓGICA CMV COMPUTADA =================
             const getIngCost = (id, q) => { const i = ingredients.find(x => x.id === id); return i ? (i.cost / i.qty) * (p(q) * (i.unit==='kg'||i.unit==='L'?0.001:1)) : 0; };
             const calcItemCost = (ings) => (ings||[]).reduce((t, r) => t + getIngCost(r.ingredientId, r.qty), 0);
             const calcComboCost = (items) => (items||[]).reduce((t, i) => {
@@ -463,11 +448,11 @@
                     } else {
                         batch.set(db.collection(path).doc(), payload);
                         
-                        // LANÇAMENTO AUTOMÁTICO DE TAXA (CRÉDITO/DÉBITO) NAS ENTRADAS MANUAIS
-                        if (txForm.type === 'entrada' && p(txForm.feePercent) > 0) {
+                        // LANÇAMENTO AUTOMÁTICO DE TAXA DE CARTÃO
+                        if (txForm.type === 'entrada' && txForm.feeType && txForm.feeType !== 'none' && p(txForm.feePercent) > 0) {
                             const feeAmt = baseAmount * (p(txForm.feePercent) / 100);
                             const feePayload = {
-                                description: `Taxa Cartão (${txForm.feeType || 'Auto'}) - ` + (numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc),
+                                description: `Taxa Cartão (${txForm.feeType.toUpperCase()}) - ${numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc}`,
                                 amount: feeAmt, type: 'saida', status: txForm.status,
                                 date: dateStr, clearanceDate: clearStr, billingMonth: billingM,
                                 account: txForm.acc, destinationAccount: '', category: 'Taxas Bancárias',
@@ -478,7 +463,7 @@
                     }
                 }
                 await batch.commit(); 
-                setTxForm({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1, feeType: '', feePercent: '' });
+                setTxForm({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1, feeType: 'none', feePercent: 0 });
             };
 
             const executeDelete = async (collectionName, id) => {
@@ -586,7 +571,7 @@
                 <div className="h-screen w-full flex items-center justify-center bg-[#1A202C] p-4">
                     <div className="bg-white p-8 rounded-2xl max-w-sm w-full text-center shadow-2xl">
                         <h2 className="text-base font-black uppercase text-slate-800 mb-2">ERP Tribo Burger</h2>
-                        <button onClick={async () => { const provider = new firebase.auth.GoogleAuthProvider(); await auth.signInWithPopup(provider); }} className="w-full bg-black text-[#F8CC82] p-3 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2 mt-4"><Lock size={14}/> Entrar com Google</button>
+                        <button onClick={async () => { const provider = new firebase.auth.GoogleAuthProvider(); await auth.signInWithPopup(provider); }} className="w-full bg-black text-[#F8CC82] p-3 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2 mt-4"><Icon name="lock" size={14}/> Entrar com Google</button>
                     </div>
                 </div>
             );
@@ -594,7 +579,7 @@
             return (
                 <div className="flex h-screen w-full overflow-hidden bg-[#FDFCF9] fade-in">
                     
-                    {/* MODAIS (FINANCEIROS E CMV) SOBREPOSTOS */}
+                    {/* ================= MODAIS (FINANCEIROS E CMV) SOBREPOSTOS ================= */}
                     {liqModal && (
                         <div className="modal-overlay z-[110]">
                             <div className="glass-card w-full max-w-sm p-6 rounded-2xl shadow-2xl border-t-4 border-green-500 flex flex-col gap-4 scale-up-center">
@@ -660,7 +645,7 @@
                                                 <div key={idx} className="flex gap-1.5 bg-slate-50 p-1.5 rounded-lg border">
                                                     <select className="flex-1 p-2 bg-white border rounded font-bold" value={ingItem.ingredientId} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].ingredientId=e.target.value; setFormObj({...formObj, ingredients: arr});}}><option value="">Selecione...</option>{ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select>
                                                     <input type="number" step="0.001" placeholder="Qtd" className="w-16 p-2 bg-white border rounded font-bold text-center" value={ingItem.qty} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].qty=e.target.value; setFormObj({...formObj, ingredients: arr});}} />
-                                                    <button onClick={()=>{const arr=[...formObj.ingredients]; arr.splice(idx,1); setFormObj({...formObj, ingredients: arr});}} className="bg-red-50 text-red-500 p-2 rounded"><Trash2 size={12}/></button>
+                                                    <button onClick={()=>{const arr=[...formObj.ingredients]; arr.splice(idx,1); setFormObj({...formObj, ingredients: arr});}} className="bg-red-50 text-red-500 p-2 rounded"><Icon name="trash-2" size={12}/></button>
                                                 </div>
                                             ))}
                                         </div>
@@ -695,7 +680,7 @@
                                                     {item.type==='ingredient' && ingredients.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
                                                 </select>
                                                 <input type="number" step="0.001" placeholder="Qtd" className="w-12 p-2 bg-white border rounded font-bold text-center" value={item.qty} onChange={e=>{const arr=[...comboForm.items]; arr[idx].qty=e.target.value; setComboForm({...comboForm, items: arr});}} />
-                                                <button onClick={()=>{const arr=[...comboForm.items]; arr.splice(idx,1); setComboForm({...comboForm, items: arr});}} className="bg-red-50 text-red-500 p-2 rounded"><Trash2 size={12}/></button>
+                                                <button onClick={()=>{const arr=[...comboForm.items]; arr.splice(idx,1); setComboForm({...comboForm, items: arr});}} className="bg-red-50 text-red-500 p-2 rounded"><Icon name="trash-2" size={12}/></button>
                                             </div>
                                         ))}
                                     </div>
@@ -723,7 +708,7 @@
                     {/* BARRA LATERAL FIXA & MENU RESPONSIVO */}
                     <header className="bg-[#1A202C] text-white p-3 shadow-md flex items-center justify-between md:hidden print:hidden z-50 relative">
                         <div className="flex items-center gap-3">
-                            <button onClick={() => setIsMenuOpen(true)} className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"><Menu size={18} /></button>
+                            <button onClick={() => setIsMenuOpen(true)} className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"><Icon name="menu" size={18} /></button>
                             <div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div>
                         </div>
                         <span className="font-black text-[#F8CC82] uppercase tracking-widest">{activeTab.replace('fin_', '').replace('cmv_', '').replace('_', ' ')}</span>
@@ -738,7 +723,7 @@
                             </div>
                             <div className="flex-1 overflow-y-auto no-scrollbar p-3 space-y-5">
                                 <div>
-                                    <h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><Wallet size={12}/> Finanças</h3>
+                                    <h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><Icon name="wallet" size={12}/> Finanças</h3>
                                     <div className="flex flex-col gap-0.5">
                                         {['fin_dashboard', 'saldos', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'resultados', 'relatorios', 'fornecedores'].map(t => (
                                             <button key={t} onClick={() => setActiveTab(t)} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-white/10 text-[#F8CC82] shadow-inner" : "text-slate-400 hover:text-white hover:bg-white/5")}>
@@ -748,7 +733,7 @@
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><PieChart size={12}/> Custos & CMV</h3>
+                                    <h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><Icon name="pie-chart" size={12}/> Custos & CMV</h3>
                                     <div className="flex flex-col gap-0.5">
                                         {['cmv_dashboard', 'insumos', 'fichas', 'complementos', 'combos', 'analise', 'custos_fixos', 'ajustes'].map(t => (
                                             <button key={t} onClick={() => setActiveTab(t)} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-[#F27A18] text-black shadow-md" : "text-slate-400 hover:text-white hover:bg-white/5")}>
@@ -766,10 +751,10 @@
                         {/* Menu Mobile */}
                         {isMenuOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] transition-opacity md:hidden print:hidden" onClick={() => setIsMenuOpen(false)}></div>}
                         <div className={`fixed inset-y-0 left-0 z-[95] w-64 bg-[#1A202C] shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col md:hidden print:hidden ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                            <div className="p-4 border-b border-white/10 flex justify-between items-center"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div><span className="font-black text-[#F8CC82] uppercase tracking-widest">Menu</span></div><button onClick={() => setIsMenuOpen(false)} className="text-slate-400 hover:text-white p-2 bg-white/5 rounded-lg"><X size={16}/></button></div>
+                            <div className="p-4 border-b border-white/10 flex justify-between items-center"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div><span className="font-black text-[#F8CC82] uppercase tracking-widest">Menu</span></div><button onClick={() => setIsMenuOpen(false)} className="text-slate-400 hover:text-white p-2 bg-white/5 rounded-lg"><Icon name="x" size={16}/></button></div>
                             <div className="flex-1 overflow-y-auto no-scrollbar p-3 space-y-5">
-                                <div><h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><Wallet size={12}/> Finanças</h3><div className="flex flex-col gap-0.5">{['fin_dashboard', 'saldos', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'resultados', 'relatorios', 'fornecedores'].map(t => (<button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-white/10 text-[#F8CC82] shadow-inner" : "text-slate-400 hover:text-white hover:bg-white/5")}>{t.replace('fin_', '').replace('_', ' ')}</button>))}</div></div>
-                                <div><h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><PieChart size={12}/> Custos & CMV</h3><div className="flex flex-col gap-0.5">{['cmv_dashboard', 'insumos', 'fichas', 'complementos', 'combos', 'analise', 'custos_fixos', 'ajustes'].map(t => (<button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-[#F27A18] text-black shadow-md" : "text-slate-400 hover:text-white hover:bg-white/5")}>{t.replace('cmv_', '').replace('_', ' ')}</button>))}</div></div>
+                                <div><h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><Icon name="wallet" size={12}/> Finanças</h3><div className="flex flex-col gap-0.5">{['fin_dashboard', 'saldos', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'resultados', 'relatorios', 'fornecedores'].map(t => (<button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-white/10 text-[#F8CC82] shadow-inner" : "text-slate-400 hover:text-white hover:bg-white/5")}>{t.replace('fin_', '').replace('_', ' ')}</button>))}</div></div>
+                                <div><h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><Icon name="pie-chart" size={12}/> Custos & CMV</h3><div className="flex flex-col gap-0.5">{['cmv_dashboard', 'insumos', 'fichas', 'complementos', 'combos', 'analise', 'custos_fixos', 'ajustes'].map(t => (<button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-[#F27A18] text-black shadow-md" : "text-slate-400 hover:text-white hover:bg-white/5")}>{t.replace('cmv_', '').replace('_', ' ')}</button>))}</div></div>
                             </div>
                             <div className="p-4 border-t border-white/10 text-center"><button onClick={()=>auth.signOut()} className="w-full py-2 bg-red-500/10 text-red-400 rounded-lg font-black uppercase hover:bg-red-500/20 transition-all">Sair</button></div>
                         </div>
@@ -794,7 +779,7 @@
                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 fade-in">
                                         <form onSubmit={handleSaveTx} className="lg:col-span-1 glass-card p-5 rounded-2xl shadow-sm space-y-3 border-t-4 border-black h-fit relative">
                                             {txForm.id && <div className="absolute -top-3 right-4 bg-blue-600 text-white font-black px-2 py-0.5 rounded uppercase">A Editar</div>}
-                                            <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">{['entrada','saida','transferencia'].map(t=>(<button key={t} type="button" onClick={()=>setTxForm({...txForm, type: t})} className={"flex-1 py-2 rounded-lg font-black uppercase " + (txForm.type===t ? 'bg-white shadow text-black' : 'text-slate-400')}>{t}</button>))}</div>
+                                            <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">{['entrada','saida','transferencia'].map(t=>(<button key={t} type="button" onClick={()=>setTxForm({...txForm, type: t, feeType: 'none', feePercent: 0})} className={"flex-1 py-2 rounded-lg font-black uppercase " + (txForm.type===t ? 'bg-white shadow text-black' : 'text-slate-400')}>{t}</button>))}</div>
                                             
                                             {/* AUTOCOMPLETAR DESCRIÇÃO */}
                                             <input type="text" list="desc-history" placeholder="Descrição" required className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={txForm.desc} onChange={e=>setTxForm({...txForm, desc: e.target.value})} />
@@ -823,28 +808,26 @@
                                             
                                             {/* LANÇAMENTO AUTOMÁTICO DE TAXAS DE CARTÃO PARA ENTRADAS */}
                                             {txForm.type === 'entrada' && !txForm.id && (
-                                                <div className="flex flex-col gap-2 mt-2 p-2 bg-emerald-50 rounded-lg border border-emerald-200">
-                                                    <label className="font-black text-emerald-800 text-[9px] flex items-center gap-1"><CreditCard size={12}/> Descontar Taxa Cartão?</label>
+                                                <div className="col-span-full bg-emerald-50 border border-emerald-200 p-3 rounded-xl mt-2">
+                                                    <label className="text-[9px] font-black text-emerald-800 uppercase flex items-center gap-1 mb-2">
+                                                        <Icon name="credit-card" size={12} /> Descontar Taxa de Cartão?
+                                                    </label>
                                                     <div className="flex gap-2">
-                                                        <select className="flex-1 p-2 bg-white border border-emerald-200 rounded-lg font-black outline-none text-[9px]" 
-                                                            value={txForm.feeType} 
-                                                            onChange={e => {
-                                                                const ft = e.target.value; let fp = '';
-                                                                if (ft === 'debito') fp = cmvSettings.taxaDebito;
-                                                                if (ft === 'credito') fp = cmvSettings.taxaCredito;
-                                                                setTxForm({...txForm, feeType: ft, feePercent: fp});
-                                                            }}>
-                                                            <option value="">NÃO DESCONTAR</option><option value="debito">DÉBITO ({cmvSettings.taxaDebito}%)</option><option value="credito">CRÉDITO ({cmvSettings.taxaCredito}%)</option><option value="custom">OUTRA TAXA</option>
-                                                        </select>
-                                                        {txForm.feeType && (
-                                                            <div className="flex items-center gap-1 w-20">
-                                                                <input type="number" step="0.01" className="w-full p-2 bg-white border border-emerald-200 rounded-lg font-black outline-none text-red-500 text-center" value={txForm.feePercent} onChange={e=>setTxForm({...txForm, feePercent: e.target.value})} placeholder="%" />
-                                                                <span className="font-black text-emerald-800">%</span>
-                                                            </div>
-                                                        )}
+                                                        <button type="button" onClick={() => setTxForm({...txForm, feeType: 'none', feePercent: 0})} className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase ${txForm.feeType === 'none' ? 'bg-emerald-600 text-white' : 'bg-white border text-emerald-600'}`}>Não</button>
+                                                        <button type="button" onClick={() => setTxForm({...txForm, feeType: 'debito', feePercent: cmvSettings.taxaDebito})} className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase ${txForm.feeType === 'debito' ? 'bg-emerald-600 text-white' : 'bg-white border text-emerald-600'}`}>Débito</button>
+                                                        <button type="button" onClick={() => setTxForm({...txForm, feeType: 'credito', feePercent: cmvSettings.taxaCredito})} className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase ${txForm.feeType === 'credito' ? 'bg-emerald-600 text-white' : 'bg-white border text-emerald-600'}`}>Crédito</button>
+                                                        <button type="button" onClick={() => setTxForm({...txForm, feeType: 'custom', feePercent: ''})} className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase ${txForm.feeType === 'custom' ? 'bg-emerald-600 text-white' : 'bg-white border text-emerald-600'}`}>Outro</button>
                                                     </div>
-                                                    {txForm.feeType && txForm.val && (
-                                                        <p className="text-[8px] font-bold text-emerald-700 uppercase">A Entrada será {formatMoney(p(txForm.val))} e lançará uma Saída automática de {formatMoney(p(txForm.val) * (p(txForm.feePercent)/100))} como taxa.</p>
+                                                    {txForm.feeType === 'custom' && (
+                                                        <div className="mt-2 flex items-center gap-2">
+                                                            <span className="text-[9px] font-black text-emerald-800 uppercase">Qual a porcentagem (%)?</span>
+                                                            <input type="number" step="0.01" className="p-1.5 border border-emerald-200 rounded text-[10px] font-bold w-16 outline-none text-center" value={txForm.feePercent} onChange={e => setTxForm({...txForm, feePercent: e.target.value})} placeholder="%" />
+                                                        </div>
+                                                    )}
+                                                    {txForm.feeType !== 'none' && p(txForm.val) > 0 && p(txForm.feePercent) > 0 && (
+                                                        <p className="text-[8px] font-black text-red-500 uppercase mt-2">
+                                                            * Será lançado um débito automático de {formatMoney(p(txForm.val) * (p(txForm.feePercent)/100))} (Taxas Bancárias).
+                                                        </p>
                                                     )}
                                                 </div>
                                             )}
@@ -862,7 +845,7 @@
 
                                         <div className="lg:col-span-2 glass-card rounded-2xl shadow-sm h-[600px] flex flex-col border overflow-hidden">
                                             <div className="p-3 bg-slate-50 border-b space-y-3">
-                                                <div className="relative"><Search size={14} className="absolute left-3 top-2.5 text-slate-300" /><input type="text" placeholder="Pesquisar histórico..." className="w-full pl-9 pr-3 py-2 bg-white border rounded-xl font-bold outline-none text-[10px]" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} /></div>
+                                                <div className="relative"><Icon name="search" size={14} className="absolute left-3 top-2.5 text-slate-300" /><input type="text" placeholder="Pesquisar histórico..." className="w-full pl-9 pr-3 py-2 bg-white border rounded-xl font-bold outline-none text-[10px]" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} /></div>
                                                 
                                                 {/* BARRA DE FILTROS AVANÇADOS */}
                                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -895,8 +878,8 @@
                                                         <div className="flex items-center gap-3">
                                                             <p className={"font-black " + (t.type==='entrada'?'text-green-600':'text-slate-800')}>{formatMoney(t.amount)}</p>
                                                             <div className="flex gap-1">
-                                                                <button onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1, feeType: '', feePercent: ''}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-400 p-1.5"><Edit2 size={12}/></button>
-                                                                <button onClick={() => executeDelete('transactions', t.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === t.id ? 'delete-confirm' : 'text-red-400 hover:text-red-600')}>{deleteConfirmId === t.id ? <span className="font-black uppercase text-[8px]">Sim</span> : <Trash2 size={12}/>}</button>
+                                                                <button onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1, feeType: 'none', feePercent: 0}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-400 p-1.5"><Icon name="edit-2" size={12}/></button>
+                                                                <button onClick={() => executeDelete('transactions', t.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === t.id ? 'delete-confirm' : 'text-red-400 hover:text-red-600')}>{deleteConfirmId === t.id ? <span className="font-black uppercase text-[8px]">Sim</span> : <Icon name="trash-2" size={12}/>}</button>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -923,19 +906,19 @@
                                         <div className="space-y-6 animate-in fade-in">
                                             <div className="stat-banner !border-black !bg-[#D97757] p-6 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-2">Patrimônio Líquido Disponível</p><h3 className="text-3xl font-black drop-shadow-xl">{formatMoney(totalPatrimony)}</h3></div>
                                             {highlighted.length > 0 && (
-                                                <div className="space-y-3"><h2 className="font-black uppercase text-slate-800 border-b-2 pb-1.5 flex items-center gap-1.5"><Star size={14} className="text-[#D97757]" /> Contas Principais</h2>
+                                                <div className="space-y-3"><h2 className="font-black uppercase text-slate-800 border-b-2 pb-1.5 flex items-center gap-1.5"><Icon name="star" size={14} className="text-[#D97757]" /> Contas Principais</h2>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                                     {highlighted.map(acc => (<div key={acc.id} className="glass-card p-5 rounded-2xl shadow-md border-t-4 border-[#F27A18] text-center transform hover:scale-[1.02] transition-transform bg-orange-50/30"><p className="font-black text-slate-500 uppercase tracking-widest mb-1">{acc.name}</p><h3 className={"text-xl font-black " + (accountBalances[acc.name]>=0?'text-slate-900':'text-red-500')}>{formatMoney(accountBalances[acc.name]||0)}</h3></div>))}
                                                 </div></div>
                                             )}
                                             {funds.length > 0 && (
-                                                <div className="space-y-3"><h2 className="font-black uppercase text-slate-800 border-b-2 pb-1.5 flex items-center gap-1.5"><TrendingUp size={14} className="text-emerald-600" /> Fundos & Aplicações</h2>
+                                                <div className="space-y-3"><h2 className="font-black uppercase text-slate-800 border-b-2 pb-1.5 flex items-center gap-1.5"><Icon name="trending-up" size={14} className="text-emerald-600" /> Fundos & Aplicações</h2>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                                     {funds.map(acc => (<div key={acc.id} className="glass-card p-5 rounded-2xl shadow-sm border-t-4 border-emerald-500 text-center bg-emerald-50/20"><p className="font-black text-slate-500 uppercase tracking-widest mb-1">{acc.name}</p><h3 className={"text-lg font-black " + (accountBalances[acc.name]>=0?'text-emerald-700':'text-red-500')}>{formatMoney(accountBalances[acc.name]||0)}</h3></div>))}
                                                 </div></div>
                                             )}
                                             {others.length > 0 && (
-                                                <div className="space-y-3"><h2 className="font-black uppercase text-slate-800 border-b-2 pb-1.5 flex items-center gap-1.5"><Wallet size={14} className="text-slate-500" /> Outras Contas Operacionais</h2>
+                                                <div className="space-y-3"><h2 className="font-black uppercase text-slate-800 border-b-2 pb-1.5 flex items-center gap-1.5"><Icon name="wallet" size={14} className="text-slate-500" /> Outras Contas Operacionais</h2>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                                     {others.map(acc => (<div key={acc.id} className="glass-card p-4 rounded-xl shadow-sm border-t-4 border-[#1A202C] text-center"><p className="font-black text-slate-400 uppercase tracking-widest mb-1">{acc.name}</p><h3 className={"text-base font-black " + (accountBalances[acc.name]>=0?'text-slate-800':'text-red-500')}>{formatMoney(accountBalances[acc.name]||0)}</h3></div>))}
                                                 </div></div>
@@ -959,7 +942,7 @@
                                                 </div>
                                             </div>
                                             <div className="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm">
-                                                <div className="flex items-center gap-2"><CalendarDays className="text-slate-400" /><h2 className="font-black uppercase tracking-widest">Caixa Diário</h2></div>
+                                                <div className="flex items-center gap-2"><Icon name="calendar-days" className="text-slate-400" /><h2 className="font-black uppercase tracking-widest">Caixa Diário</h2></div>
                                                 <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border"><input type="date" className="font-bold bg-transparent outline-none border-0" value={newDayDate} onChange={e=>setNewDayDate(e.target.value)} /><button onClick={()=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(newDayDate).set({initialized:true},{merge:true})} className="bg-black text-[#F8CC82] px-3 py-1.5 rounded-lg font-black uppercase">Abrir</button></div>
                                             </div>
                                             <div className="glass-card rounded-2xl overflow-hidden border shadow-sm overflow-x-auto no-scrollbar">
@@ -967,728 +950,4 @@
                                                     <thead className="bg-[#1A202C] text-white uppercase tracking-widest border-b">
                                                         <tr>
                                                             <th className="p-2 sticky left-0 z-20 bg-[#1A202C]">Data</th><th className="p-2 bg-amber-500 text-black">Total Dia</th><th className="p-2 bg-blue-600 text-white">Pedidos</th><th className="p-2 bg-blue-800 text-white">Ticket</th>
-                                                            {['Pix','Pix_On','Fiado','Dinh','Ifood','Débito','Crédito','VR','Ticket','Alelo'].map(h=><th key={h} className="p-2">{h}</th>)}
-                                                            <th className="p-2 text-orange-400 bg-orange-950">Entrega</th><th className="p-2 text-red-400 bg-red-950">Motoboy</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y font-bold">
-                                                        {salesDays.map(d => {
-                                                            const r = dailyRecords[d] || {}; const total = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
-                                                            return (
-                                                                <tr key={d} className="hover:bg-slate-50">
-                                                                    <td className="p-0 border-r bg-white sticky left-0">{d.split('-').reverse().join('/')}</td>
-                                                                    <td className="p-2 bg-yellow-50 font-black">{formatMoney(total)}</td>
-                                                                    <td className="p-0 border-r bg-blue-50/30"><DailyInput dateStr={d} field="qtdPedidos" initialValue={r.qtdPedidos} activeUid={user.uid} className="!text-blue-700" placeholder="0" /></td>
-                                                                    <td className="p-2 bg-blue-50/50 font-black text-blue-900">{formatMoney(p(r.qtdPedidos) > 0 ? total / p(r.qtdPedidos) : 0)}</td>
-                                                                    {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => <td key={f} className="p-0 border-r"><DailyInput dateStr={d} field={f} initialValue={r[f]} activeUid={user.uid} /></td>)}
-                                                                    <td className="p-0 border-r bg-slate-50/50"><DailyInput dateStr={d} field="taxaEntrega" initialValue={r.taxaEntrega} activeUid={user.uid} className="!text-orange-500" /></td>
-                                                                    <td className="p-0 border-r bg-slate-50/50"><DailyInput dateStr={d} field="motoboy" initialValue={r.motoboy} activeUid={user.uid} className="!text-red-500" /></td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                    </tbody>
-                                                    <tfoot>
-                                                        <tr className="bg-[#1A202C] text-white font-black uppercase border-t-4 border-[#D97757]">
-                                                            <td className="p-0 sticky left-0 bg-[#1A202C] z-10 text-center text-amber-300">SOMA TOTAL</td>
-                                                            <td className="p-2 bg-amber-500 text-black">{formatMoney(columnTotals.totalDia)}</td>
-                                                            <td className="p-2 bg-blue-600">{columnTotals.pedidos}</td>
-                                                            <td className="p-2 bg-blue-800 text-[#F8CC82]">{formatMoney(columnTotals.pedidos > 0 ? columnTotals.totalDia / columnTotals.pedidos : 0)}</td>
-                                                            {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => ( <td key={f} className="p-2 border-r bg-slate-800">{formatMoney(columnTotals[f])}</td> ))}
-                                                            <td className="p-2 border-r text-orange-400 bg-orange-950/25">{formatMoney(columnTotals.taxaEntrega)}</td>
-                                                            <td className="p-2 border-r text-red-400 bg-red-950/25">{formatMoney(columnTotals.motoboy)}</td>
-                                                        </tr>
-                                                    </tfoot>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-
-                                {activeTab === 'a_pagar' && (() => {
-                                    const pendings = transactions.filter(t => {
-                                        const accInfo = accounts.find(a => a.name === t.account);
-                                        const { clearanceDate } = getTransactionDates(t);
-                                        return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accInfo?.type !== 'cartao';
-                                    });
-                                    
-                                    const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
-                                        const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
-                                        const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                        const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                        const remaining = totalPurchases - totalPaid;
-                                        
-                                        if (remaining <= 0.01) return null;
-                                        const cardDueDay = card.due || card.dueDay || 10;
-                                        return { 
-                                            id: "card-" + card.name, 
-                                            description: "Fatura " + card.name, 
-                                            amount: remaining, 
-                                            account: card.name, 
-                                            clearanceDate: filterMonth + "-" + String(cardDueDay).padStart(2, '0'), 
-                                            isInvoice: true 
-                                        };
-                                    }).filter(Boolean);
-                                    
-                                    const combined = [...pendings, ...invoices].sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
-                                    
-                                    return (
-                                        <div className="space-y-4 fade-in">
-                                            <div className="stat-banner !border-black !bg-red-500 p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Total A Pagar ({filterMonth})</p><h3 className="text-3xl font-black">{formatMoney(combined.reduce((sum, t) => sum + p(t.amount), 0))}</h3></div>
-                                            <div className="glass-card rounded-2xl overflow-hidden border shadow-sm">
-                                                <table className="w-full text-left">
-                                                    <thead className="bg-slate-100 text-slate-500 uppercase font-black tracking-widest border-b"><tr><th className="p-3">Vencimento</th><th className="p-3">Descrição</th><th className="p-3">Conta/Cartão</th><th className="p-3 text-right">Valor</th><th className="p-3 text-center">Ação</th></tr></thead>
-                                                    <tbody className="divide-y font-bold text-slate-700">
-                                                        {combined.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400">Nenhuma conta pendente.</td></tr> : combined.map((t, idx) => (
-                                                            <tr key={idx} className="hover:bg-slate-50">
-                                                                <td className={"p-3 " + (new Date(t.clearanceDate) < new Date() ? 'text-red-500' : '')}>{t.clearanceDate.split('-').reverse().join('/')}</td>
-                                                                <td className="p-3 uppercase">{t.description}</td>
-                                                                <td className="p-3 uppercase"><span className="bg-slate-200 px-2 py-0.5 rounded">{t.account}</span></td>
-                                                                <td className="p-3 text-right text-red-500 font-black">{formatMoney(t.amount)}</td>
-                                                                <td className="p-3 text-center"><button onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-black uppercase hover:bg-green-200">Baixar Pgt</button></td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-
-                                {activeTab === 'a_receber' && (() => {
-                                    const list = transactions.filter(t => {
-                                        const { clearanceDate } = getTransactionDates(t);
-                                        return t.type === 'entrada' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth);
-                                    }).sort((a,b) => {
-                                        return (getTransactionDates(a).clearanceDate||"").localeCompare(getTransactionDates(b).clearanceDate||"");
-                                    });
-
-                                    return (
-                                        <div className="space-y-4 fade-in">
-                                            <div className="stat-banner !border-black !bg-green-500 p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Total A Receber ({filterMonth})</p><h3 className="text-3xl font-black">{formatMoney(list.reduce((sum, t) => sum + p(t.amount), 0))}</h3></div>
-                                            <div className="glass-card rounded-2xl overflow-hidden border shadow-sm">
-                                                <table className="w-full text-left">
-                                                    <thead className="bg-slate-100 text-slate-500 uppercase font-black tracking-widest border-b"><tr><th className="p-3">Previsão</th><th className="p-3">Descrição</th><th className="p-3">Conta Destino</th><th className="p-3 text-right">Valor</th><th className="p-3 text-center">Ação</th></tr></thead>
-                                                    <tbody className="divide-y font-bold text-slate-700">
-                                                        {list.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400">Nenhum recebimento pendente.</td></tr> : list.map((t) => {
-                                                            const { clearanceDate } = getTransactionDates(t);
-                                                            return (
-                                                                <tr key={t.id} className="hover:bg-slate-50">
-                                                                    <td className="p-3">{clearanceDate?.split('-').reverse().join('/')}</td>
-                                                                    <td className="p-3 uppercase">{t.description}</td>
-                                                                    <td className="p-3 uppercase"><span className="bg-slate-200 px-2 py-0.5 rounded">{t.account}</span></td>
-                                                                    <td className="p-3 text-right text-green-600 font-black">{formatMoney(t.amount)}</td>
-                                                                    <td className="p-3 text-center"><button onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-black uppercase hover:bg-green-200">Confirmar Rec.</button></td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-
-                                {/* ================= ABA DE CARTÕES OTIMIZADA ================= */}
-                                {activeTab === 'cartoes' && (() => {
-                                    const cStats = accounts.filter(a => a.type === 'cartao').map(card => {
-                                        const txs = transactions.filter(t => t.account === card.name);
-                                        const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                        const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                        const currentBalance = totalPurchases - totalPaid;
-                                        const limit = p(card.limit || 0); const available = limit > 0 ? limit - currentBalance : 0;
-                                        return { ...card, currentBalance, limit, available };
-                                    });
-
-                                    return (
-                                        <div className="space-y-4 fade-in">
-                                            <div className="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm"><div><h2 className="font-black uppercase text-slate-800">Cartões de Crédito</h2><p className="font-bold text-slate-400 uppercase mt-0.5">Limites e Faturas ({filterMonth})</p></div></div>
-                                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                                                {cStats.length === 0 ? <div className="col-span-full p-8 text-center text-slate-400 uppercase font-black glass-card rounded-2xl border-dashed">Nenhum cartão cadastrado. Vá em "Ajustes" para adicionar.</div> : cStats.map(card => {
-                                                    const currentMonthTxs = transactions.filter(t => { if (t.account !== card.name) return false; const { clearanceDate } = getTransactionDates(t); return clearanceDate?.startsWith(filterMonth) && !isInvoicePayment(t); });
-                                                    const invoiceTotal = currentMonthTxs.reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                                    const invoicePayments = transactions.filter(t => t.account === card.name && isInvoicePayment(t) && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
-                                                    const paidAmount = invoicePayments.reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                                    const isPaid = paidAmount >= invoiceTotal && invoiceTotal > 0;
-
-                                                    return (
-                                                        <div key={card.id} className="glass-card rounded-2xl overflow-hidden shadow-md border-t-4 border-[#1A202C] flex flex-col">
-                                                            <div className="p-5 pb-4 bg-white">
-                                                                <div className="flex justify-between items-start mb-4"><div><h3 className="font-black text-lg text-slate-900 uppercase">{card.name}</h3><p className="font-bold text-slate-400 uppercase mt-0.5">Fecho: dia {card.closing} • Venc: dia {card.due}</p></div><CreditCard size={24} className="text-slate-300" /></div>
-                                                                <div className="space-y-2">
-                                                                    <div>
-                                                                        <div className="flex justify-between items-end mb-1"><p className="font-black text-slate-400 uppercase tracking-widest">Limite Comprometido</p><span className="font-black text-slate-700">{formatMoney(card.currentBalance)}</span></div>
-                                                                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div className="bg-[#D97757] h-full transition-all" style={{width: `${Math.min(100, (card.currentBalance/card.limit)*100)}%`}}></div></div>
-                                                                        <div className="flex justify-between font-black uppercase text-slate-500 mt-1"><span>Tot: {formatMoney(card.limit)}</span><span className="text-emerald-500">Disp: {formatMoney(card.available)}</span></div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <div className="bg-slate-50 p-4 flex-1 flex flex-col border-t">
-                                                                <div className="flex justify-between items-center mb-4">
-                                                                    <div><p className="font-black uppercase text-slate-400 tracking-widest">Fatura Atual</p><h4 className={"text-xl font-black " + (isPaid ? "text-emerald-500" : "text-red-500")}>{formatMoney(invoiceTotal)}</h4></div>
-                                                                    {isPaid ? <span className="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg font-black uppercase border border-emerald-200">Fatura Paga</span> : ( invoiceTotal > 0 && <button onClick={() => setInvoiceModal({ cardName: card.name, total: invoiceTotal })} className="bg-black text-[#F8CC82] px-4 py-2 rounded-xl font-black uppercase shadow-lg active:scale-95 transition-all">Pagar Fatura</button> )}
-                                                                </div>
-                                                                <div className="flex-1 bg-white rounded-xl border shadow-sm overflow-hidden flex flex-col max-h-[250px]">
-                                                                    <div className="p-3 bg-slate-100 border-b font-black uppercase text-slate-500 tracking-widest flex items-center gap-1.5"><FileText size={12}/> Compras Fatura</div>
-                                                                    <div className="overflow-y-auto flex-1 divide-y p-1 no-scrollbar">
-                                                                        {currentMonthTxs.length === 0 ? <div className="p-6 text-center font-bold text-slate-400 uppercase">Sem gastos nesta fatura.</div> : currentMonthTxs.sort((a,b)=>a.date.localeCompare(b.date)).map(t => (
-                                                                            <div key={t.id} className="py-2 px-3 flex justify-between items-center hover:bg-slate-50 transition-colors rounded-lg"><div><p className="font-black uppercase text-slate-800 leading-tight">{t.description}</p><p className="font-bold text-slate-400 uppercase mt-0.5">{t.date.split('-').reverse().join('/')} • {t.category}</p></div><span className="font-black text-red-500">{formatMoney(t.amount)}</span></div>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-
-                                {activeTab === 'resultados' && (
-                                    <div className="space-y-4 animate-in fade-in">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                            <div className="glass-card p-5 rounded-2xl shadow-md border-t-4 border-orange-500 text-center flex flex-col justify-between">
-                                                <div><p className="font-black text-slate-400 uppercase tracking-widest mb-2">Meta de Vendas</p><div className="flex items-center justify-center gap-1"><span className="font-black text-slate-400">R$</span><input type="text" className="text-xl font-black w-24 text-center bg-transparent border-b-2 outline-none focus:border-black" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} onBlur={e=>saveMeta(e.target.value)} /></div></div>
-                                                <div><div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-3 mb-1.5"><div className="bg-green-500 h-full transition-all" style={{width: Math.min(100, (stats.rb/(metaVendas || 1))*100) + "%"}}></div></div><p className="font-black text-green-600">{((stats.rb/(metaVendas || 1))*100).toFixed(1)}% Atingido</p></div>
-                                                {stats.metaDiaria > 0 && stats.diasUteisRestantes > 0 && <div className="mt-3 p-2 bg-orange-50 rounded-xl border border-orange-100"><p className="font-black text-orange-600 uppercase">Faltam {stats.diasUteisRestantes} dias úteis</p><p className="font-black text-orange-800">Alvo: {formatMoney(stats.metaDiaria)} / dia</p></div>}
-                                            </div>
-                                            <div className="glass-card p-5 rounded-2xl shadow-md border-t-4 border-blue-500 flex flex-col justify-between">
-                                                <div className="text-center"><div className="flex justify-center mb-1.5 text-blue-500"><Target size={20} /></div><p className="font-black text-slate-400 uppercase tracking-widest">Projeção (Mês)</p></div>
-                                                <h3 className="text-xl font-black text-center text-slate-800 my-2">{formatMoney(stats.projecaoMensal)}</h3>
-                                                {stats.projecaoMensal > 0 && <div className="bg-slate-50 rounded-xl p-2 border border-slate-100 flex items-center justify-center gap-1">{stats.projecaoMensal >= (metaVendas || 1) ? <span className="flex items-center gap-1 font-black text-green-600 uppercase"><TrendingUp size={10}/> Vai bater!</span> : <span className="flex items-center gap-1 font-black text-red-500 uppercase"><TrendingDown size={10}/> Abaixo da meta</span>}</div>}
-                                            </div>
-                                            <div className="glass-card p-5 rounded-2xl shadow-md border-t-4 border-green-500 text-center flex flex-col justify-center">
-                                                <p className="font-black text-slate-400 uppercase mb-2 tracking-widest">Média Diária Ativa</p><h3 className="text-2xl font-black text-green-600">{formatMoney(stats.ticketDiario)}</h3>
-                                            </div>
-                                            <div className="glass-card p-5 rounded-2xl shadow-md border-t-4 border-purple-500 text-center flex flex-col justify-center">
-                                                <p className="font-black text-slate-400 uppercase mb-2 tracking-widest">Ticket Médio (Pedidos)</p><h3 className="text-2xl font-black text-purple-600">{formatMoney(stats.ticketPedido)}</h3><p className="font-black text-slate-400 mt-1 uppercase">{stats.diasAtivos} DIAS • {(stats.totalPedidos || 0)} PDS</p>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                            <div className="glass-card p-5 rounded-2xl shadow-sm border-t-2 border-slate-800">
-                                                <h3 className="font-black uppercase text-slate-800 mb-4 flex items-center gap-2"><CalendarDays size={14}/> Comparativo Semanal</h3>
-                                                <div className="space-y-2">
-                                                    <div className="flex font-black text-slate-400 border-b pb-1 uppercase"><span className="w-12">Sem.</span><span className="flex-1 text-center">Mês Atual</span><span className="flex-1 text-center">Mês Anterior</span><span className="w-12 text-right">Evol.</span></div>
-                                                    {[1, 2, 3, 4, 5].map(wk => {
-                                                        const current = stats.weeklyCurrent[wk] || 0; const prev = stats.weeklyPrev[wk] || 0; const diff = current - prev; const percent = prev > 0 ? (diff / prev) * 100 : (current > 0 ? 100 : 0);
-                                                        return <div key={wk} className="flex font-black items-center py-1.5 hover:bg-slate-50 rounded-lg px-1"><span className="w-12 text-slate-500 uppercase">S{wk}</span><span className="flex-1 text-center text-slate-800">{formatMoney(current)}</span><span className="flex-1 text-center text-slate-400">{formatMoney(prev)}</span><span className={"w-12 text-right " + (diff >= 0 ? 'text-green-500' : 'text-red-500')}>{diff >= 0 ? '+' : ''}{percent.toFixed(0)}%</span></div>;
-                                                    })}
-                                                </div>
-                                            </div>
-                                            <div className="glass-card p-5 rounded-2xl shadow-sm border-t-2 border-slate-800">
-                                                <h3 className="font-black uppercase text-slate-800 mb-4 flex items-center gap-2"><TrendingUp size={14}/> Ranking de Vendas por Dia</h3>
-                                                <div className="space-y-3">
-                                                    {stats.weekdayAverages.length === 0 ? <p className="text-slate-400 text-center font-black uppercase">Sem dados</p> : stats.weekdayAverages.map((day, idx) => {
-                                                        const maxAvg = stats.weekdayAverages[0]?.avg || 1; const width = Math.max(10, (day.avg / maxAvg) * 100);
-                                                        let badgeClass = "text-slate-400"; if (idx === 0) badgeClass = "bg-yellow-100 text-yellow-700 px-1 rounded"; else if (idx === 1) badgeClass = "bg-slate-200 text-slate-700 px-1 rounded"; else if (idx === 2) badgeClass = "bg-orange-100 text-orange-700 px-1 rounded";
-                                                        return <div key={day.name} className="space-y-1"><div className="flex justify-between items-center font-black uppercase"><div className="flex items-center gap-1.5"><span className={badgeClass}>{idx + 1}º</span><span className="text-slate-700">{day.name} <span className="text-slate-400 font-bold lowercase ml-0.5">({day.count} d)</span></span></div><span className="text-green-600">{formatMoney(day.avg)}</span></div><div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden"><div className={"h-full transition-all " + (idx === 0 ? 'bg-green-500' : 'bg-blue-400')} style={{width: width + "%"}}></div></div></div>;
-                                                    })}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeTab === 'relatorios' && (() => {
-                                    const pendings = transactions.filter(t => {
-                                        const { clearanceDate } = getTransactionDates(t);
-                                        return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao';
-                                    });
-                                    
-                                    const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
-                                        const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
-                                        const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                        const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                        return totalPurchases - totalPaid;
-                                    }).filter(val => val > 0.01);
-                                    
-                                    const sumPendings = pendings.reduce((acc, t) => acc + p(t.amount), 0);
-                                    const sumInvoices = invoices.reduce((acc, val) => acc + val, 0);
-                                    const totalAPagar = sumPendings + sumInvoices;
-
-                                    const totalAReceber = transactions.filter(t => {
-                                        const { clearanceDate } = getTransactionDates(t);
-                                        return t.type === 'entrada' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth);
-                                    }).reduce((acc, t) => acc + p(t.amount), 0);
-                                    
-                                    const somaDespesasCategoria = Object.values(stats.catCosts).reduce((a, b) => a + b, 0);
-
-                                    return (
-                                        <div className="space-y-6 animate-in fade-in pb-10" id="printable-report">
-                                            <div className="flex flex-col md:flex-row justify-between items-center bg-white p-5 rounded-2xl border shadow-sm print:shadow-none print:border-b print:rounded-none gap-3">
-                                                <div><h2 className="font-black uppercase text-slate-800 flex items-center gap-2"><FileText className="text-[#D97757]" size={18}/> Relatório Financeiro Gerencial</h2><p className="font-bold text-slate-400 uppercase mt-0.5">Consolidado: <span className="text-[#D97757] bg-orange-50 px-1.5 py-0.5 rounded">{filterMonth}</span></p></div>
-                                                <button onClick={() => window.print()} className="print:hidden bg-black text-[#F8CC82] px-4 py-2 rounded-xl font-black uppercase flex items-center gap-2 hover:bg-slate-800 transition-all shadow-md active:scale-95"><Printer size={12}/> Imprimir</button>
-                                            </div>
-                                            <div className="glass-card p-6 rounded-3xl shadow-sm border-t-4 border-blue-500">
-                                                <h3 className="font-black uppercase text-slate-800 mb-4 flex items-center gap-2"><TrendingUp size={14}/> 1. Fluxo de Caixa Realizado</h3>
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                    <div className="bg-green-50 p-4 rounded-2xl text-center border border-green-100"><p className="font-black text-green-600 uppercase mb-1 tracking-widest">Total Entradas</p><h4 className="text-xl font-black text-green-700">{formatMoney(stats.entradas)}</h4></div>
-                                                    <div className="bg-red-50 p-4 rounded-2xl text-center border border-red-100"><p className="font-black text-red-600 uppercase mb-1 tracking-widest">Contas Pagas</p><h4 className="text-xl font-black text-red-700">{formatMoney(stats.contasPagas)}</h4></div>
-                                                    <div className={"p-4 rounded-2xl text-center border shadow-sm " + (stats.lucroCaixa >= 0 ? "bg-blue-50 border-blue-200" : "bg-orange-50 border-orange-200")}><p className={"font-black uppercase mb-1 tracking-widest " + (stats.lucroCaixa >= 0 ? "text-blue-600" : "text-orange-600")}>Geração Caixa</p><h4 className={"text-xl font-black " + (stats.lucroCaixa >= 0 ? "text-blue-700" : "text-orange-700")}>{formatMoney(stats.lucroCaixa)}</h4></div>
-                                                </div>
-                                            </div>
-                                            <div className="glass-card p-6 rounded-3xl shadow-sm border-t-4 border-slate-800">
-                                                <div className="flex flex-col md:flex-row justify-between md:items-center mb-4 gap-3"><h3 className="font-black uppercase text-slate-800 flex items-center gap-2"><Wallet size={14}/> 2. Saldos Atuais</h3><span className="bg-slate-100 text-slate-800 font-black px-3 py-1.5 rounded-lg border uppercase tracking-widest">Patrimônio: {formatMoney(totalPatrimony)}</span></div>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                                    {accounts.filter(a => a.type === 'corrente').length === 0 ? <p className="text-slate-400 uppercase font-black">Nenhuma conta</p> : accounts.filter(a => a.type === 'corrente').map(acc => <div key={acc.id} className="flex justify-between items-center border p-3 rounded-xl bg-white/60 hover:bg-white transition-all shadow-sm"><span className="font-black uppercase text-slate-500 truncate">{acc.name}</span><span className={"font-black " + (accountBalances[acc.name] >= 0 ? 'text-slate-900' : 'text-red-500')}>{formatMoney(accountBalances[acc.name] || 0)}</span></div>)}
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <div className="glass-card p-6 rounded-3xl shadow-sm border-t-4 border-red-500 flex flex-col justify-between"><div><h3 className="font-black uppercase text-red-600 mb-4 flex items-center gap-2"><TrendingDown size={14}/> 3. Provisão A Pagar</h3><h4 className="text-2xl font-black text-red-600 mb-2">{formatMoney(totalAPagar)}</h4><p className="font-bold text-slate-400 uppercase leading-relaxed">Soma de saídas pendentes e faturas de cartão no mês.</p></div></div>
-                                                <div className="glass-card p-6 rounded-3xl shadow-sm border-t-4 border-emerald-500 flex flex-col justify-between"><div><h3 className="font-black uppercase text-emerald-600 mb-4 flex items-center gap-2"><TrendingUp size={14}/> 4. Provisão A Receber</h3><h4 className="text-2xl font-black text-emerald-600 mb-2">{formatMoney(totalReceitasPendentes)}</h4><p className="font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar pendentes no mês.</p></div></div>
-                                            </div>
-                                            <div className="glass-card p-6 rounded-3xl shadow-sm border-t-4 border-orange-500">
-                                                <div className="flex justify-between items-center mb-4"><h3 className="font-black uppercase text-slate-800 flex items-center gap-2"><PieChart size={14}/> 5. Despesas por Categoria</h3></div>
-                                                {Object.keys(stats.catCosts).length === 0 ? <p className="text-slate-400 font-black uppercase text-center py-4">Nenhuma despesa.</p> : (
-                                                    <div className="space-y-3 bg-white/40 p-4 rounded-2xl border">
-                                                        {Object.entries(stats.catCosts).sort((a,b)=>b[1]-a[1]).map(([catName, valor]) => {
-                                                            const pct = somaDespesasCategoria > 0 ? (valor / somaDespesasCategoria) * 100 : 0;
-                                                            return <div key={catName} className="flex flex-col gap-1"><div className="flex justify-between items-end"><div className="flex items-center gap-2"><span className="font-black uppercase text-slate-700">{catName}</span><span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-black">{pct.toFixed(0)}%</span></div><span className="text-red-500 font-black">{formatMoney(valor)}</span></div><div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner"><div className="h-full bg-orange-400 rounded-full" style={{ width: `${pct}%` }}></div></div></div>;
-                                                        })}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-
-                                {activeTab === 'fornecedores' && (
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 fade-in">
-                                        <div className="glass-card p-6 rounded-3xl shadow-sm h-fit">
-                                            <h3 className="font-black uppercase text-slate-800 mb-3">Add Fornecedor</h3>
-                                            <form onSubmit={addSupplier} className="space-y-3">
-                                                <input type="text" className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:border-black" placeholder="Nome..." value={supForm} onChange={e=>setSupForm(e.target.value)} required />
-                                                <button className="w-full bg-black text-[#F8CC82] p-3 rounded-xl font-black uppercase">Salvar</button>
-                                            </form>
-                                        </div>
-                                        <div className="md:col-span-2 glass-card rounded-3xl overflow-hidden border shadow-sm">
-                                            <table className="w-full text-left">
-                                                <thead className="bg-slate-100 text-slate-500 uppercase font-black tracking-widest border-b"><tr><th className="p-3">Nome Fornecedor</th><th className="p-3 text-right">Ação</th></tr></thead>
-                                                <tbody className="divide-y font-bold text-slate-700">
-                                                    {suppliers.length === 0 ? <tr><td colSpan="2" className="p-8 text-center text-slate-400">Vazio.</td></tr> : suppliers.sort((a,b)=>a.name.localeCompare(b.name)).map(s => (
-                                                        <tr key={s.id} className="hover:bg-slate-50">
-                                                            <td className="p-3 uppercase">{s.name}</td>
-                                                            <td className="p-3 text-right"><button onClick={() => executeDelete('suppliers', s.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === s.id ? 'delete-confirm text-white' : 'text-red-400 hover:text-red-600')}>{deleteConfirmId === s.id ? <span className="font-black uppercase">Sim</span> : <Trash2 size={12}/>}</button></td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeTab === 'dre' && (
-                                    <div className="max-w-2xl mx-auto glass-card rounded-3xl p-6 shadow-xl border-t-4 border-[#D97757] animate-in fade-in print-area" id="print-area">
-                                        <div className="flex justify-between items-center mb-6 border-b pb-3 print:border-b-2 print:border-black">
-                                            <h2 className="font-black uppercase text-center w-full">DRE Operacional - {filterMonth}</h2>
-                                            <button onClick={()=>window.print()} className="bg-slate-100 text-slate-600 p-2 rounded-lg absolute right-10 print:hidden hover:bg-slate-200"><Printer size={14}/></button>
-                                        </div>
-                                        <div className="space-y-3">
-                                            <div className="flex justify-between p-3 bg-green-50 rounded-xl font-black uppercase"><span>(+) Receita Bruta</span><span>{formatMoney(stats.rb)}</span></div>
-                                            <div className="py-3 border-b">
-                                                <h3 className="font-black uppercase text-slate-400 mb-2 px-3">Despesas Operacionais</h3>
-                                                {Object.entries(stats.catCosts).map(([c, v]) => (
-                                                    <div key={c} className="flex justify-between px-3 py-1 font-bold text-slate-600 uppercase"><span>(-) {c}</span><span className="text-red-400 font-black">{formatMoney(v)}</span></div>
-                                                ))}
-                                            </div>
-                                            <div className={"flex justify-between items-center p-5 rounded-2xl mt-4 shadow-md " + (stats.lucro>=0?'bg-[#1A202C] text-[#F8CC82]':'bg-red-600 text-white')}>
-                                                <div><h3 className="font-black uppercase text-base">Resultado Líquido</h3><p className="font-black uppercase opacity-70">Margem: {stats.margemDRE.toFixed(1)}%</p></div>
-                                                <span className="text-2xl font-black">{formatMoney(stats.lucro)}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* ================= MÓDULO CMV ================= */}
-                                {activeTab === 'cmv_dashboard' && (
-                                    <div className="space-y-6 fade-in">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                            <div className="bg-[#1A202C] text-white border border-slate-700 p-5 rounded-2xl shadow-lg text-center">
-                                                <p className="font-bold uppercase tracking-widest text-slate-400">CMV Médio Geral</p>
-                                                <h3 className="text-2xl font-black text-[#F27A18] mt-1">{(() => { let sumCmv = 0, count = 0; [...recipes, ...complements, ...combos].forEach(item => { if (!item.ignoreCMV) { const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items); const sp = p(item.sellingPrice); if(sp>0){ sumCmv += (cost/sp)*100; count++; } } }); return count>0 ? (sumCmv/count).toFixed(1) : 0; })()}%</h3>
-                                            </div>
-                                            <div className="bg-white border p-5 rounded-2xl shadow-sm text-center">
-                                                <p className="font-bold uppercase tracking-widest text-slate-500">Meta de CMV</p>
-                                                <h3 className="text-2xl font-black text-amber-500 mt-1">{cmvSettings.targetCMV}%</h3>
-                                            </div>
-                                            <div className="bg-white border p-5 rounded-2xl shadow-sm text-center">
-                                                <p className="font-bold uppercase tracking-widest text-slate-500">Insumos Cad.</p>
-                                                <h3 className="text-2xl font-black text-slate-800 mt-1">{ingredients.length}</h3>
-                                            </div>
-                                            <div className="bg-white border p-5 rounded-2xl shadow-sm text-center">
-                                                <p className="font-bold uppercase tracking-widest text-slate-500">Produtos Ativos</p>
-                                                <h3 className="text-2xl font-black text-slate-800 mt-1">{recipes.length + complements.length + combos.length}</h3>
-                                            </div>
-                                        </div>
-
-                                        <div className="glass-card rounded-3xl p-6 shadow-sm">
-                                            <h3 className="font-black text-slate-800 uppercase tracking-wider mb-4">Relação de Margens do Cardápio</h3>
-                                            <div className="overflow-x-auto no-scrollbar">
-                                                <table className="w-full text-left">
-                                                    <thead className="bg-slate-100 text-slate-500 uppercase font-black tracking-widest">
-                                                        <tr><th className="p-3 rounded-l-lg">Produto</th><th className="p-3">Custo CMV</th><th className="p-3">Preço Venda</th><th className="p-3">CMV Real</th><th className="p-3 text-right rounded-r-lg">Status</th></tr>
-                                                    </thead>
-                                                    <tbody className="divide-y font-bold text-slate-700">
-                                                        {[...recipes.map(r=>({...r, _t:'Ficha'})), ...complements.map(c=>({...c, _t:'Extra'})), ...combos.map(c=>({...c, _t:'Combo'}))].sort((a,b)=>a.name.localeCompare(b.name)).map(item => {
-                                                            const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items);
-                                                            const sp = p(item.sellingPrice); const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
-                                                            return (
-                                                                <tr key={item.id} className={"hover:bg-slate-50 " + (item.ignoreCMV ? "opacity-40" : "")}>
-                                                                    <td className="p-3">{item.name} <span className="bg-slate-100 text-slate-400 px-1 rounded uppercase">{item._t}</span> {item.ignoreCMV && <span className="text-red-400 ml-1">(Ignorado)</span>}</td>
-                                                                    <td className="p-3 text-right text-slate-500">{formatMoney(cost)}</td><td className="p-3 text-right text-slate-900">{formatMoney(sp)}</td>
-                                                                    <td className="p-3 text-right text-emerald-600">{item.ignoreCMV ? '-' : formatMoney(suggested)}</td>
-                                                                    <td className={"p-3 text-center " + (item.ignoreCMV ? '' : (cmv > cmvSettings.targetCMV ? 'text-red-600' : 'text-emerald-600'))}>{item.ignoreCMV ? '-' : cmv + '%'}</td>
-                                                                    <td className={"p-3 text-right " + (item.ignoreCMV ? '' : (marginVal > 0 ? 'text-emerald-600' : 'text-red-500'))}>{item.ignoreCMV ? '-' : formatMoney(marginVal)}</td>
-                                                                    <td className={"p-3 text-center " + (item.ignoreCMV ? '' : (marginVal > 0 ? 'text-emerald-600' : 'text-red-500'))}>{item.ignoreCMV ? '-' : marginPct + '%'}</td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeTab === 'insumos' && (
-                                    <div className="space-y-4 fade-in">
-                                        <div className="flex justify-between items-center bg-white p-5 rounded-2xl border shadow-sm">
-                                            <div><h2 className="font-black uppercase text-slate-800">Insumos</h2><p className="font-bold text-slate-400 uppercase mt-0.5">{ingredients.length} cadastrados</p></div>
-                                            <button onClick={() => {setIngForm({ id: '', name: '', category: ingCats[0], cost: '', unit: 'g', qty: '' }); setIsIngModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Add</button>
-                                        </div>
-                                        <div className="space-y-6">
-                                            {ingCats.map(cat => {
-                                                const catIngs = ingredients.filter(i => (i.category || 'Outros') === cat);
-                                                if (catIngs.length === 0) return null;
-                                                const isCollapsed = ingCollapsed[cat];
-                                                return (
-                                                    <div key={cat} className="space-y-3">
-                                                        <div className="flex justify-between items-center border-b-2 border-slate-200 pb-1.5 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => setIngCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }))}>
-                                                            <div className="flex items-center gap-2 ml-1"><span className="text-emerald-600"><Box size={14}/></span><h3 className="font-black uppercase text-slate-800 tracking-widest">{cat}</h3><span className="bg-slate-200 text-slate-600 px-1.5 rounded uppercase font-black">{catIngs.length}</span></div>
-                                                            {isCollapsed ? <ChevronDown size={14} className="text-slate-400"/> : <ChevronUp size={14} className="text-slate-400"/>}
-                                                        </div>
-                                                        {!isCollapsed && (
-                                                            <div className="glass-card rounded-2xl overflow-hidden border shadow-sm">
-                                                                <table className="w-full text-left">
-                                                                    <thead className="bg-slate-100 font-black text-slate-500 uppercase tracking-widest border-b"><tr><th className="p-3">Ingrediente</th><th className="p-3">Preço Pct</th><th className="p-3">Custo Unitário</th><th className="p-3 text-right">Ação</th></tr></thead>
-                                                                    <tbody className="divide-y font-bold text-slate-700">
-                                                                        {catIngs.sort((a,b)=>a.name.localeCompare(b.name)).map(ing => (
-                                                                            <tr key={ing.id} className="hover:bg-slate-50">
-                                                                                <td className="p-3 text-slate-900">{ing.name}</td>
-                                                                                <td className="p-3">{formatMoney(ing.cost)} <span className="text-slate-400">/ {ing.qty}{ing.unit}</span></td>
-                                                                                <td className="p-3 text-emerald-600">{formatMoney(getIngCost(ing.id, ing.unit==='kg'||ing.unit==='L'?1000:1))} <span className="text-slate-400">/ {ing.unit==='kg'?'g':ing.unit==='L'?'ml':ing.unit}</span></td>
-                                                                                <td className="p-3 text-right"><button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 p-1.5"><Edit2 size={12}/></button><button onClick={() => executeDelete('cmv_data/state', ing.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === ing.id ? 'delete-confirm text-white' : 'text-red-400 hover:text-red-600')}><Trash2 size={12}/></button></td>
-                                                                            </tr>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeTab === 'fichas' && (
-                                    <div className="space-y-6 fade-in">
-                                        <div className="flex justify-between items-center bg-white p-5 rounded-2xl border shadow-sm">
-                                            <div><h2 className="font-black uppercase text-slate-800">Fichas Técnicas</h2><p className="font-bold text-slate-400 uppercase mt-0.5">{recipes.length} produtos</p></div>
-                                            <button onClick={() => {setRecipeForm({ id: '', name: '', category: recCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsRecipeModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Criar</button>
-                                        </div>
-                                        <div className="space-y-6">
-                                            {recCats.map(cat => {
-                                                const catRecs = recipes.filter(r => (r.category || 'Outros') === cat);
-                                                if (catRecs.length === 0) return null;
-                                                const isCollapsed = recipeCollapsed[cat];
-                                                return (
-                                                    <div key={cat} className="space-y-3">
-                                                        <div className="flex justify-between items-center border-b-2 border-slate-200 pb-1.5 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => setRecipeCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }))}>
-                                                            <div className="flex items-center gap-2 ml-1"><span className="text-[#F27A18]"><Utensils size={14}/></span><h3 className="font-black uppercase text-slate-800 tracking-widest">{cat}</h3><span className="bg-slate-200 text-slate-600 px-1.5 rounded uppercase font-black">{catRecs.length}</span></div>
-                                                            {isCollapsed ? <ChevronDown size={14} className="text-slate-400"/> : <ChevronUp size={14} className="text-slate-400"/>}
-                                                        </div>
-                                                        {!isCollapsed && (
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                                {catRecs.sort((a,b)=>a.name.localeCompare(b.name)).map(rec => {
-                                                                    const cost = calcItemCost(rec.ingredients); const sp = p(rec.sellingPrice); const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
-                                                                    return (
-                                                                        <div key={rec.id} className={"glass-card rounded-2xl p-5 shadow-sm border-t-4 " + (rec.ignoreCMV ? "border-slate-300 opacity-70" : "border-[#1A202C]")}>
-                                                                            <div className="flex justify-between items-start mb-3"><span className="font-black bg-slate-100 px-1.5 py-0.5 rounded uppercase tracking-widest">{rec.category}</span><div className="flex gap-1"><button onClick={()=>{setRecipeForm({...rec}); setIsRecipeModalOpen(true);}} className="text-blue-500"><Edit2 size={12}/></button><button onClick={()=>delActionCMV('recipes', recipes, rec.id)} className="text-red-400"><Trash2 size={12}/></button></div></div>
-                                                                            <h3 className="font-black text-base uppercase text-slate-900 leading-tight mb-3">{rec.name}</h3>
-                                                                            <div className="grid grid-cols-2 gap-2 mt-3">
-                                                                                <div className="bg-slate-50 p-2 rounded-xl text-center border"><span className="font-black uppercase text-slate-500 block mb-0.5">Custo</span><span className="font-black text-slate-800">{formatMoney(cost)}</span></div>
-                                                                                <div className={"p-2 rounded-xl text-center border " + (cmv > cmvSettings.targetCMV ? 'bg-red-50 border-red-100 text-red-600' : 'bg-green-50 border-green-100 text-green-700')}><span className="font-black uppercase block mb-0.5">CMV Real</span><span className="font-black">{cmv}%</span></div>
-                                                                            </div>
-                                                                            <div className="flex justify-between items-center mt-3 pt-3 border-t"><span className="font-black uppercase text-slate-500">Venda:</span><span className="font-black text-slate-900 text-base">{formatMoney(sp)}</span></div>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeTab === 'complementos' && (
-                                     <div className="space-y-6 fade-in">
-                                         <div className="flex justify-between items-center bg-white p-5 rounded-2xl border shadow-sm">
-                                             <div><h2 className="font-black uppercase text-slate-800">Complementos</h2><p className="font-bold text-slate-400 uppercase mt-0.5">{complements.length} ativos</p></div>
-                                             <button onClick={() => {setCompForm({ id: '', name: '', category: compCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsCompModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Criar Adicional</button>
-                                         </div>
-                                         <div className="space-y-6">
-                                             {compCats.map(cat => {
-                                                 const catComps = complements.filter(c => (c.category || 'Outros') === cat);
-                                                 if (catComps.length === 0) return null;
-                                                 const isCollapsed = compCollapsed[cat];
-                                                 return (
-                                                     <div key={cat} className="space-y-3">
-                                                         <div className="flex justify-between items-center border-b-2 border-slate-200 pb-1.5 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => setCompCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }))}>
-                                                             <div className="flex items-center gap-2 ml-1"><span className="text-indigo-600"><Layers size={14}/></span><h3 className="font-black uppercase text-slate-800 tracking-widest">{cat}</h3><span className="bg-slate-200 text-slate-600 px-1.5 rounded uppercase font-black">{catComps.length}</span></div>
-                                                             {isCollapsed ? <ChevronDown size={14} className="text-slate-400"/> : <ChevronUp size={14} className="text-slate-400"/>}
-                                                         </div>
-                                                         {!isCollapsed && (
-                                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                                                 {catComps.sort((a,b)=>a.name.localeCompare(b.name)).map(comp => (
-                                                                     <div key={comp.id} className="glass-card rounded-[1.5rem] p-4 shadow-sm border flex flex-col justify-between">
-                                                                         <div><span className="font-black bg-indigo-50 text-indigo-600 px-1.5 rounded uppercase tracking-widest mb-2 inline-block">{comp.category}</span><h3 className="font-black uppercase text-slate-900 leading-tight">{comp.name}</h3></div>
-                                                                         <div className="mt-3 pt-2 border-t space-y-1">
-                                                                             <div className="flex justify-between"><span className="text-slate-500 font-bold">Custo:</span><span className="font-black text-slate-800">{formatMoney(calcItemCost(comp.ingredients))}</span></div>
-                                                                             <div className="flex justify-between"><span className="text-slate-500 font-bold">Venda:</span><span className="font-black text-slate-800">{formatMoney(p(comp.sellingPrice))}</span></div>
-                                                                         </div>
-                                                                         <div className="flex gap-2 mt-3"><button onClick={()=>{setCompForm({...comp}); setIsCompModalOpen(true);}} className="flex-1 bg-slate-100 py-1.5 rounded text-blue-600 font-black uppercase">Editar</button><button onClick={()=>delActionCMV('complements', complements, comp.id)} className="flex-1 bg-red-50 py-1.5 rounded text-red-500 font-black uppercase">Excluir</button></div>
-                                                                     </div>
-                                                                 ))}
-                                                             </div>
-                                                         )}
-                                                     </div>
-                                                 );
-                                             })}
-                                         </div>
-                                     </div>
-                                 )}
-
-                                 {activeTab === 'combos' && (
-                                     <div className="space-y-6 fade-in">
-                                         <div className="flex justify-between items-center bg-white p-5 rounded-2xl border shadow-sm">
-                                             <div><h2 className="font-black uppercase text-slate-800">Fichas de Combos</h2><p className="font-bold text-slate-400 uppercase mt-0.5">{combos.length} ativos</p></div>
-                                             <button onClick={() => {setComboForm({ id: '', name: '', category: comboCats[0], sellingPrice: '', items: [], ignoreCMV: false }); setIsComboModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Criar Combo</button>
-                                         </div>
-                                         <div className="space-y-6">
-                                             {comboCats.map(cat => {
-                                                 const catCombos = combos.filter(c => (c.category || 'Outros') === cat);
-                                                 if (catCombos.length === 0) return null;
-                                                 const isCollapsed = comboCollapsed[cat];
-                                                 return (
-                                                     <div key={cat} className="space-y-3">
-                                                         <div className="flex justify-between items-center border-b-2 border-slate-200 pb-1.5 cursor-pointer hover:opacity-80 transition-opacity select-none" onClick={() => setComboCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }))}>
-                                                             <div className="flex items-center gap-2 ml-1"><span className="text-amber-500"><Layers size={14}/></span><h3 className="font-black uppercase text-slate-800 tracking-widest">{cat}</h3><span className="bg-slate-200 text-slate-600 px-1.5 rounded uppercase font-black">{catCombos.length}</span></div>
-                                                             {isCollapsed ? <ChevronDown size={14} className="text-slate-400"/> : <ChevronUp size={14} className="text-slate-400"/>}
-                                                         </div>
-                                                         {!isCollapsed && (
-                                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                                 {catCombos.sort((a,b)=>a.name.localeCompare(b.name)).map(combo => {
-                                                                     const cost = calcComboCost(combo.items); const sp = p(combo.sellingPrice); const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
-                                                                     return (
-                                                                         <div key={combo.id} className={"glass-card rounded-2xl p-5 shadow-sm border-t-4 " + (combo.ignoreCMV ? "border-slate-300 opacity-70" : "border-amber-500")}>
-                                                                             <div className="flex justify-between items-start mb-3"><span className="font-black bg-amber-50 text-amber-600 px-1.5 rounded uppercase tracking-widest">{combo.category}</span><div className="flex gap-1"><button onClick={()=>{setComboForm({...combo}); setIsComboModalOpen(true);}} className="text-blue-500"><Edit2 size={12}/></button><button onClick={()=>delActionCMV('combos', combos, combo.id)} className="text-red-400"><Trash2 size={12}/></button></div></div>
-                                                                             <h3 className="font-black text-base uppercase text-slate-900 leading-tight mb-3">{combo.name}</h3>
-                                                                             <div className="grid grid-cols-2 gap-2 mt-3">
-                                                                                 <div className="bg-slate-50 p-2 rounded-xl text-center border"><span className="font-black uppercase text-slate-500 block mb-0.5">Custo Combo</span><span className="font-black text-slate-800">{formatMoney(cost)}</span></div>
-                                                                                 <div className={"p-2 rounded-xl text-center border " + (cmv > cmvSettings.targetCMV ? 'bg-red-50 border-red-100 text-red-600' : 'bg-green-50 border-green-100 text-green-700')}><span className="font-black uppercase block mb-0.5">CMV Real</span><span className="font-black">{cmv}%</span></div>
-                                                                             </div>
-                                                                             <div className="flex justify-between items-center mt-3 pt-3 border-t"><span className="font-black uppercase text-slate-500">Venda:</span><span className="font-black text-slate-900 text-base">{formatMoney(sp)}</span></div>
-                                                                         </div>
-                                                                     );
-                                                                 })}
-                                                             </div>
-                                                         )}
-                                                     </div>
-                                                 );
-                                             })}
-                                         </div>
-                                     </div>
-                                 )}
-
-                                 {activeTab === 'analise' && (() => {
-                                    const totalFixedCosts = fixedCosts.reduce((s,c)=>s+p(c.value),0);
-                                    const margemContribuicao = 1 - (p(cmvSettings.targetCMV)/100) - ((p(cmvSettings.tax) + p(cmvSettings.apps) + p(cmvSettings.card))/100);
-                                    const pontoEquilibrio = margemContribuicao > 0 ? totalFixedCosts / margemContribuicao : 0;
-                                    const faturamentoReal = stats.rb;
-                                    const faltaParaPe = pontoEquilibrio - faturamentoReal;
-
-                                    return (
-                                    <div className="space-y-6 fade-in print-area" id="print-area">
-                                        <div className="flex justify-between items-center bg-[#1A202C] text-white p-6 rounded-2xl shadow-xl print:shadow-none print:text-black print:bg-white print:border-b-2 print:border-black print:rounded-none">
-                                            <div><h2 className="text-xl font-black uppercase tracking-widest">Relatório Consolidado CMV</h2><p className="font-bold text-[#F8CC82] uppercase mt-0.5 print:text-slate-500">Rentabilidade de Cardápio</p></div>
-                                            <button onClick={()=>window.print()} className="bg-[#F27A18] text-black px-4 py-2 rounded-xl font-black uppercase print:hidden shadow-lg hover:scale-105 transition-transform"><Printer size={14} className="inline mr-1.5"/>Imprimir</button>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 print:hidden">
-                                            <div className="glass-card p-5 rounded-2xl shadow text-center border-l-4 border-blue-500 flex flex-col justify-center">
-                                                <p className="font-black uppercase text-slate-400">Faturamento Real (Vendas)</p>
-                                                <h3 className="text-xl font-black text-slate-800 mt-1">{formatMoney(faturamentoReal)}</h3>
-                                            </div>
-                                            <div className="glass-card p-5 rounded-2xl shadow text-center border-l-4 border-red-500 flex flex-col justify-center">
-                                                <p className="font-black uppercase text-slate-400">Custos Fixos</p>
-                                                <h3 className="text-xl font-black text-red-500 mt-1">{formatMoney(totalFixedCosts)}</h3>
-                                                <p className="font-bold text-slate-500 mt-1">{faturamentoReal > 0 ? ((totalFixedCosts/faturamentoReal)*100).toFixed(1) : 0}% do Faturamento</p>
-                                            </div>
-                                            <div className="glass-card p-5 rounded-2xl shadow text-center border-l-4 border-emerald-500 flex flex-col justify-center">
-                                                <p className="font-black uppercase text-slate-400">Ponto de Equilíbrio</p>
-                                                <h3 className="text-xl font-black text-emerald-600 mt-1">{formatMoney(pontoEquilibrio)}</h3>
-                                                {faltaParaPe > 0 ? (
-                                                    <p className="font-black text-orange-600 mt-2 bg-orange-50 py-1.5 rounded-lg uppercase">Faltam {formatMoney(faltaParaPe)}</p>
-                                                ) : (
-                                                    <p className="font-black text-emerald-600 mt-2 bg-emerald-50 py-1.5 rounded-lg uppercase flex items-center justify-center gap-1"><CheckCircle size={12}/> Atingido! (+{formatMoney(Math.abs(faltaParaPe))})</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="glass-card rounded-2xl overflow-hidden border shadow-sm">
-                                            <table className="w-full text-left font-bold">
-                                                <thead className="bg-[#1A202C] text-white uppercase tracking-widest"><tr className="print:text-black print:bg-slate-200"><th className="p-3">Produto</th><th className="p-3 text-right">Custo Insumo</th><th className="p-3 text-right">Venda Real</th><th className="p-3 text-right text-[#F8CC82] print:text-slate-800">Sugestão</th><th className="p-3 text-center">CMV (%)</th><th className="p-3 text-right">Margem Líq.</th><th className="p-3 text-center">Margem %</th></tr></thead>
-                                                <tbody className="divide-y text-slate-700">
-                                                    {[...recipes.map(r=>({...r, _t:'Ficha'})), ...complements.map(c=>({...c, _t:'Extra'})), ...combos.map(c=>({...c, _t:'Combo'}))].sort((a,b)=>a.name.localeCompare(b.name)).map(item => {
-                                                        const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items); const sp = p(item.sellingPrice); const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
-                                                        const suggested = cmvSettings.targetCMV > 0 ? cost / (cmvSettings.targetCMV/100) : 0;
-                                                        const impostos = sp * ((p(cmvSettings.tax) + p(cmvSettings.apps) + p(cmvSettings.card))/100);
-                                                        const marginVal = sp - cost - impostos; const marginPct = sp > 0 ? ((marginVal/sp)*100).toFixed(1) : 0;
-                                                        return (
-                                                            <tr key={item.id} className={"hover:bg-slate-50 " + (item.ignoreCMV ? "opacity-40" : "")}>
-                                                                <td className="p-3">{item.name} <span className="bg-slate-100 text-slate-400 px-1 rounded uppercase">{item._t}</span> {item.ignoreCMV && <span className="text-red-400 ml-1">(Ignorado)</span>}</td>
-                                                                <td className="p-3 text-right text-slate-500">{formatMoney(cost)}</td><td className="p-3 text-right text-slate-900">{formatMoney(sp)}</td>
-                                                                <td className="p-3 text-right text-emerald-600">{item.ignoreCMV ? '-' : formatMoney(suggested)}</td>
-                                                                <td className={"p-3 text-center " + (item.ignoreCMV ? '' : (cmv > cmvSettings.targetCMV ? 'text-red-600' : 'text-emerald-600'))}>{item.ignoreCMV ? '-' : cmv + '%'}</td>
-                                                                <td className={"p-3 text-right " + (item.ignoreCMV ? '' : (marginVal > 0 ? 'text-emerald-600' : 'text-red-500'))}>{item.ignoreCMV ? '-' : formatMoney(marginVal)}</td>
-                                                                <td className={"p-3 text-center " + (item.ignoreCMV ? '' : (marginVal > 0 ? 'text-emerald-600' : 'text-red-500'))}>{item.ignoreCMV ? '-' : marginPct + '%'}</td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                    );
-                                })()}
-
-                                {activeTab === 'custos_fixos' && (
-                                     <div className="space-y-6 fade-in">
-                                         <div className="flex justify-between items-center bg-white p-5 rounded-2xl border shadow-sm">
-                                             <div><h2 className="font-black uppercase text-slate-800">Custos Fixos Operacionais</h2></div>
-                                             <button onClick={() => {setFcForm({ id: '', description: '', category: fcCats[0], value: '' }); setIsFcModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Nova Despesa</button>
-                                         </div>
-                                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                             <div className="lg:col-span-2 glass-card rounded-2xl overflow-hidden border shadow-sm">
-                                                 <table className="w-full text-left font-bold text-slate-700">
-                                                     <thead className="bg-slate-100 text-slate-500 uppercase tracking-widest border-b"><tr><th className="p-3">Descrição</th><th className="p-3">Categoria</th><th className="p-3 text-right">Valor Mensal (R$)</th><th className="p-3 text-right">Ações</th></tr></thead>
-                                                     <tbody className="divide-y">
-                                                         {fixedCosts.map(fc => (
-                                                             <tr key={fc.id} className="hover:bg-slate-50">
-                                                                 <td className="p-3 uppercase">{fc.description}</td>
-                                                                 <td className="p-3"><span className="bg-slate-100 px-2 py-0.5 rounded uppercase tracking-widest">{fc.category}</span></td>
-                                                                 <td className="p-3 text-right text-red-500">{formatMoney(p(fc.value))}</td>
-                                                                 <td className="p-3 text-right"><button onClick={()=>{setFcForm({...fc}); setIsFcModalOpen(true);}} className="text-blue-500 p-1.5"><Edit2 size={12}/></button><button onClick={()=>delActionCMV('fixedCosts', fixedCosts, fc.id)} className="text-red-400 p-1.5"><Trash2 size={12}/></button></td>
-                                                             </tr>
-                                                         ))}
-                                                     </tbody>
-                                                 </table>
-                                             </div>
-                                             <div className="glass-card rounded-2xl p-6 border text-center h-fit bg-[#1A202C] text-white">
-                                                 <p className="font-black text-slate-400 uppercase tracking-widest mb-3">Soma Despesas Mensais</p>
-                                                 <h3 className="text-3xl font-black text-red-400">{formatMoney(fixedCosts.reduce((s,c)=>s+p(c.value),0))}</h3>
-                                             </div>
-                                         </div>
-                                     </div>
-                                )}
-
-                                {activeTab === 'ajustes' && (
-                                     <div className="space-y-6 fade-in">
-                                         <div className="glass-card p-6 rounded-3xl border-t-8 border-[#D97757] shadow-xl grid grid-cols-1 md:grid-cols-2 gap-6">
-                                             
-                                             {/* PARÂMETROS CMV */}
-                                             <div className="space-y-5">
-                                                 <div><h3 className="font-black uppercase text-slate-800 text-base">Parâmetros & Taxas</h3><p className="font-bold text-slate-400 uppercase mt-1">Configurações Base (Financeiro e CMV)</p></div>
-                                                 <div className="grid grid-cols-2 gap-3">
-                                                     <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Meta CMV (%)</label><input type="number" step="0.1" className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:border-black" value={cmvSettings.targetCMV} onChange={e=>setCmvSettings({...cmvSettings, targetCMV: e.target.value})} /></div>
-                                                     <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Impostos (%)</label><input type="number" step="0.1" className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:border-black" value={cmvSettings.tax} onChange={e=>setCmvSettings({...cmvSettings, tax: e.target.value})} /></div>
-                                                     <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Taxa Débito (%)</label><input type="number" step="0.01" className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:border-black" value={cmvSettings.taxaDebito} onChange={e=>setCmvSettings({...cmvSettings, taxaDebito: e.target.value})} /></div>
-                                                     <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Taxa Crédito (%)</label><input type="number" step="0.01" className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:border-black" value={cmvSettings.taxaCredito} onChange={e=>setCmvSettings({...cmvSettings, taxaCredito: e.target.value})} /></div>
-                                                     <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Taxa Auto (Aba Vendas)</label>
-                                                         <select className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:border-black text-emerald-600" value={cmvSettings.autoFeeVendas ? 'sim' : 'nao'} onChange={e=>setCmvSettings({...cmvSettings, autoFeeVendas: e.target.value === 'sim'})}>
-                                                             <option value="sim">SIM (DEDUZIR DO DRE)</option><option value="nao">NÃO DEDUZIR</option>
-                                                         </select>
-                                                     </div>
-                                                     <div className="space-y-1"><label className="font-black uppercase text-red-500 ml-1">Taxa iFood (%)</label><input type="number" step="0.1" className="w-full p-3 bg-red-50/30 border border-red-100 rounded-xl font-bold text-red-600 outline-none focus:border-red-500" value={cmvSettings.ifoodTax} onChange={e=>setCmvSettings({...cmvSettings, ifoodTax: e.target.value})} /></div>
-                                                     <div className="col-span-2 space-y-1"><label className="font-black uppercase text-blue-500 ml-1">Meta Vendas Mensal (R$)</label><input type="number" step="0.01" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-bold outline-none focus:border-blue-500" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} /></div>
-                                                 </div>
-                                                 <button onClick={async()=>{if(!user)return; await saveCMVDoc('settings', {...cmvSettings, targetCMV:p(cmvSettings.targetCMV), tax:p(cmvSettings.tax), apps:p(cmvSettings.apps), taxaDebito:p(cmvSettings.taxaDebito), taxaCredito:p(cmvSettings.taxaCredito), ifoodTax:p(cmvSettings.ifoodTax), autoFeeVendas: cmvSettings.autoFeeVendas}); await saveMeta(metaVendas); alert('Parâmetros Salvos!');}} className="w-full bg-[#1A202C] text-[#F8CC82] p-3 rounded-xl font-black uppercase shadow-lg hover:bg-black transition-all">Salvar Parâmetros Globais</button>
-                                             </div>
-                                             
-                                             {/* CADASTROS RÁPIDOS */}
-                                             <div className="space-y-5">
-                                                 <div><h3 className="font-black uppercase text-slate-800 text-base">Contas, Cartões & Categorias</h3><p className="font-bold text-slate-400 uppercase mt-1">Gestão da Estrutura Financeira</p></div>
-                                                 
-                                                 <div className="space-y-2">
-                                                     <form onSubmit={addCat} className="flex gap-2"><input type="text" placeholder="Nova Categoria..." className="flex-1 p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={catForm} onChange={e=>setCatForm(e.target.value)} required /><button className="bg-black text-[#F8CC82] px-4 rounded-xl font-black">Add</button></form>
-                                                     
-                                                     <form onSubmit={handleSaveAcc} className="flex flex-col gap-2 bg-slate-50 p-3 rounded-xl border">
-                                                         <div className="flex justify-between items-center mb-1">
-                                                             <span className="font-black text-[9px] text-slate-600 uppercase">{accForm.id ? 'A Editar Conta/Cartão' : 'Nova Conta ou Cartão'}</span>
-                                                             {accForm.id && <button type="button" onClick={()=>setAccForm({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' })} className="text-[8px] text-red-500 font-black uppercase hover:underline">Cancelar Edição</button>}
-                                                         </div>
-                                                         <div className="flex gap-2">
-                                                             <input type="text" placeholder="Nome Conta/Cartão" className="flex-1 p-2 bg-white border rounded-lg font-bold outline-none min-w-[100px]" value={accForm.name} onChange={e=>setAccForm({...accForm, name: e.target.value})} required />
-                                                             <select className="p-2 bg-white border rounded-lg font-bold outline-none" value={accForm.type} onChange={e=>setAccForm({...accForm, type: e.target.value})}><option value="corrente">Corrente</option><option value="cartao">Cartão</option></select>
-                                                         </div>
-                                                         {accForm.type === 'cartao' && (
-                                                             <div className="grid grid-cols-3 gap-2">
-                                                                 <input type="number" placeholder="Limite R$" className="w-full p-2 bg-white border rounded-lg font-bold" value={accForm.limit} onChange={e=>setAccForm({...accForm, limit: e.target.value})} />
-                                                                 <input type="number" placeholder="Dia Fecho" className="w-full p-2 bg-white border rounded-lg font-bold" value={accForm.closing} onChange={e=>setAccForm({...accForm, closing: e.target.value})} />
-                                                                 <input type="number" placeholder="Dia Venc" className="w-full p-2 bg-white border rounded-lg font-bold" value={accForm.due} onChange={e=>setAccForm({...accForm, due: e.target.value})} />
-                                                             </div>
-                                                         )}
-                                                         <button className="w-full bg-[#1A202C] text-white py-2 rounded-lg font-black uppercase mt-1">{accForm.id ? 'Atualizar' : 'Salvar'} Conta/Cartão</button>
-                                                     </form>
-                                                 </div>
-
-                                                 {/* LISTA DE CONTAS E CARTÕES COM EXCLUSÃO/EDIÇÃO */}
-                                                 <div className="mt-4 border-t pt-4">
-                                                     <h4 className="font-black text-slate-800 mb-3 flex items-center gap-1.5"><Wallet size={12}/> Contas & Cartões Ativos</h4>
-                                                     <div className="space-y-1.5 overflow-y-auto max-h-[300px] no-scrollbar">
-                                                         {accounts.length === 0 ? <p className="text-center font-bold text-slate-400 p-2">Vazio</p> : accounts.sort((a,b)=>a.name.localeCompare(b.name)).map(a => (
-                                                             <div key={a.id} className="p-2.5 flex justify-between items-center bg-white border rounded-lg shadow-sm hover:border-slate-300 transition-all">
-                                                                 <div>
-                                                                     <div className="flex items-center gap-1.5">
-                                                                         {a.type === 'cartao' ? <CreditCard size={12} className="text-orange-500" /> : <Wallet size={12} className="text-blue-500" />}
-                                                                         <span className="font-black uppercase text-slate-800">{a.name}</span>
-                                                                     </div>
-                                                                     <p className="font-bold text-slate-400 uppercase mt-0.5 ml-4 text-[8px]">
-                                                                         {a.type} {a.type === 'cartao' && ` • Limite: ${formatMoney(a.limit)} • Fecho: ${a.closing || a.closingDay || '25'} • Venc: ${a.due || a.dueDay || '10'}`}
-                                                                     </p>
-                                                                 </div>
-                                                                 <div className="flex gap-1 items-center">
-                                                                     <button type="button" onClick={()=>setAccForm({ ...a, closing: a.closing || a.closingDay || '', due: a.due || a.dueDay || '' })} className="text-blue-500 p-1.5 rounded hover:bg-blue-50"><Edit2 size={12}/></button>
-                                                                     <button type="button" onClick={() => executeDelete('accounts', a.id)} className={"transition-all p-1.5 rounded hover:bg-red-50 " + (deleteConfirmId === a.id ? 'delete-confirm text-white' : 'text-red-400')} title="Excluir">{deleteConfirmId === a.id ? <span className="font-black uppercase">Sim</span> : <Trash2 size={12}/>}</button>
-                                                                 </div>
-                                                             </div>
-                                                         ))}
-                                                     </div>
-                                                 </div>
-                                             </div>
-                                         </div>
-                                     </div>
-                                )}
-                            </div>
-                        </main>
-                    </div>
-                </div>
-            );
-        }
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+                                                            {['Pix','Pix_On','Fiado','Dinh','Ifood','Débito
