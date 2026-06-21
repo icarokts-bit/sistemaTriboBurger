@@ -100,7 +100,7 @@
             'Bell', 'Calendar', 'CreditCard', 'TrendingUp', 'CheckSquare', 'PlusCircle', 
             'CalendarDays', 'ShoppingCart', 'CheckCircle', 'Lock', 'ShieldCheck', 'Copy', 'Download', 'CloudLightning',
             'Target', 'TrendingDown', 'AlertTriangle', 'FileText', 'PieChart', 'Printer', 'Wallet', 'Star', 'Menu', 'X',
-            'ChevronUp', 'ChevronDown', 'Box', 'Layers'
+            'ChevronUp', 'ChevronDown', 'Box', 'Layers', 'Filter'
         ];
         
         const IconComponents = {};
@@ -109,7 +109,7 @@
             IconComponents[iconName] = (props) => <Icon name={normalized} size={props.size || 16} className={props.className || ""} />;
         });
 
-        const { Utensils, Edit2, Trash2, Plus, Search, CreditCard, TrendingUp, CalendarDays, CheckCircle, Target, TrendingDown, FileText, PieChart, Printer, Wallet, Star, ChevronUp, ChevronDown, Box, Layers, Lock, Menu, X } = IconComponents;
+        const { Utensils, Edit2, Trash2, Plus, Search, CreditCard, TrendingUp, CalendarDays, CheckCircle, Target, TrendingDown, FileText, PieChart, Printer, Wallet, Star, ChevronUp, ChevronDown, Box, Layers, Lock, Menu, X, Filter } = IconComponents;
 
         const parseDateUTC = (dateStr) => {
             if (!dateStr || dateStr.includes('NaN')) return new Date();
@@ -141,7 +141,7 @@
             const [activeTab, setActiveTab] = useState('fin_dashboard');
             const [isMenuOpen, setIsMenuOpen] = useState(false);
             
-            // ESTADOS GERAIS
+            // ESTADOS GERAIS E FILTROS DE HISTÓRICO
             const [transactions, setTransactions] = useState([]);
             const [dailyRecords, setDailyRecords] = useState({});
             const [accounts, setAccounts] = useState([]);
@@ -152,8 +152,10 @@
             const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
             const [searchQuery, setSearchQuery] = useState('');
             const [typeFilter, setTypeFilter] = useState('todos');
+            const [statusFilter, setStatusFilter] = useState('todos');
+            const [accFilter, setAccFilter] = useState('todas');
+            const [catFilter, setCatFilter] = useState('todas');
             
-            // OTIMIZAÇÃO: Limite visível do Dashboard para performance
             const [visibleTxCount, setVisibleTxCount] = useState(10);
             
             const [txForm, setTxForm] = useState({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1 });
@@ -230,27 +232,32 @@
                 return () => { unsubTx(); unsubDaily(); unsubAcc(); unsubCat(); unsubSup(); unsubMeta(); unsubCmv(); };
             }, [user]);
 
-            // Reseta a paginação ao trocar o filtro
-            useEffect(() => { setVisibleTxCount(10); }, [filterMonth, searchQuery, typeFilter]);
+            useEffect(() => {
+                setVisibleTxCount(10);
+            }, [filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
 
             const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-            // ================= MEMOS INTELIGENTES PARA AUTOCOMPLETAR =================
             const uniqueDescriptions = useMemo(() => {
                 const descs = transactions.map(t => t.description).filter(Boolean);
                 return [...new Set(descs)].sort((a, b) => a.localeCompare(b));
             }, [transactions]);
 
-            // ================= LOGICA FINANCEIRA COMPUTADA =================
+            // ================= LÓGICA FINANCEIRA COMPUTADA COM FILTROS AVANÇADOS =================
             const filteredDashboard = useMemo(() => transactions.filter(t => {
                 if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
                 const { clearanceDate, billingMonth } = getTransactionDates(t);
                 const isMonth = (t.date?.startsWith(filterMonth) || clearanceDate?.startsWith(filterMonth) || billingMonth === filterMonth);
+                
                 const matchSearch = (t.description || "").toLowerCase().includes(searchQuery.toLowerCase());
                 const matchType = typeFilter === 'todos' || t.type === typeFilter;
-                return isMonth && matchSearch && matchType;
-            }).sort((a,b) => (b.timestamp || "").localeCompare(a.timestamp || "")), [transactions, filterMonth, searchQuery, typeFilter]);
+                const matchStatus = statusFilter === 'todos' || t.status === statusFilter;
+                const matchAcc = accFilter === 'todas' || t.account === accFilter;
+                const matchCat = catFilter === 'todas' || t.category === catFilter;
+
+                return isMonth && matchSearch && matchType && matchStatus && matchAcc && matchCat;
+            }).sort((a,b) => (b.timestamp || "").localeCompare(a.timestamp || "")), [transactions, filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
 
             const accountBalances = useMemo(() => {
                 const bal = {}; accounts.forEach(a => bal[a.name] = 0);
@@ -527,8 +534,6 @@
                 await saveCMVDoc(collectionStr, list); setModalOpen(false);
             };
 
-            const delActionCMV = async (collectionStr, stateArr, id) => { if(window.confirm("Confirmar exclusão?")) await saveCMVDoc(collectionStr, stateArr.filter(x => x.id !== id)); };
-
             if (loading) return <div className="h-screen w-full flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase tracking-widest text-[10px]">A Inicializar o Motor Unificado...</div>;
             if (!user || user.isAnonymous) return (
                 <div className="h-screen w-full flex items-center justify-center bg-[#1A202C] p-4">
@@ -668,7 +673,15 @@
                         </div>
                     )}
 
-                    {/* ================= BARRA LATERAL FIXA & MENU RESPONSIVO ================= */}
+                    {/* BARRA LATERAL FIXA & MENU RESPONSIVO */}
+                    <header className="bg-[#1A202C] text-white p-3 shadow-md flex items-center justify-between md:hidden print:hidden z-50 relative">
+                        <div className="flex items-center gap-3">
+                            <button onClick={() => setIsMenuOpen(true)} className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"><Menu size={18} /></button>
+                            <div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div>
+                        </div>
+                        <span className="font-black text-[#F8CC82] uppercase tracking-widest">{activeTab.replace('fin_', '').replace('cmv_', '').replace('_', ' ')}</span>
+                    </header>
+
                     <div className="flex w-full h-full overflow-hidden">
                         
                         <aside className="hidden md:flex w-52 flex-shrink-0 bg-[#1A202C] text-white flex-col shadow-2xl z-40 print:hidden h-full">
@@ -708,32 +721,14 @@
                         <div className={`fixed inset-y-0 left-0 z-[95] w-64 bg-[#1A202C] shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col md:hidden print:hidden ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                             <div className="p-4 border-b border-white/10 flex justify-between items-center"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div><span className="font-black text-[#F8CC82] uppercase tracking-widest">Menu</span></div><button onClick={() => setIsMenuOpen(false)} className="text-slate-400 hover:text-white p-2 bg-white/5 rounded-lg"><X size={16}/></button></div>
                             <div className="flex-1 overflow-y-auto no-scrollbar p-3 space-y-5">
-                                <div>
-                                    <h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><Wallet size={12}/> Finanças</h3>
-                                    <div className="flex flex-col gap-0.5">{['fin_dashboard', 'saldos', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'resultados', 'relatorios', 'fornecedores'].map(t => (<button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-white/10 text-[#F8CC82] shadow-inner" : "text-slate-400 hover:text-white hover:bg-white/5")}>{t.replace('fin_', '').replace('_', ' ')}</button>))}</div>
-                                </div>
-                                <div>
-                                    <h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><PieChart size={12}/> Custos & CMV</h3>
-                                    <div className="flex flex-col gap-0.5">{['cmv_dashboard', 'insumos', 'fichas', 'complementos', 'combos', 'analise', 'custos_fixos', 'ajustes'].map(t => (<button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-[#F27A18] text-black shadow-md" : "text-slate-400 hover:text-white hover:bg-white/5")}>{t.replace('cmv_', '').replace('_', ' ')}</button>))}</div>
-                                </div>
+                                <div><h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><Wallet size={12}/> Finanças</h3><div className="flex flex-col gap-0.5">{['fin_dashboard', 'saldos', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'resultados', 'relatorios', 'fornecedores'].map(t => (<button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-white/10 text-[#F8CC82] shadow-inner" : "text-slate-400 hover:text-white hover:bg-white/5")}>{t.replace('fin_', '').replace('_', ' ')}</button>))}</div></div>
+                                <div><h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><PieChart size={12}/> Custos & CMV</h3><div className="flex flex-col gap-0.5">{['cmv_dashboard', 'insumos', 'fichas', 'complementos', 'combos', 'analise', 'custos_fixos', 'ajustes'].map(t => (<button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-[#F27A18] text-black shadow-md" : "text-slate-400 hover:text-white hover:bg-white/5")}>{t.replace('cmv_', '').replace('_', ' ')}</button>))}</div></div>
                             </div>
                             <div className="p-4 border-t border-white/10 text-center"><button onClick={()=>auth.signOut()} className="w-full py-2 bg-red-500/10 text-red-400 rounded-lg font-black uppercase hover:bg-red-500/20 transition-all">Sair</button></div>
                         </div>
 
                         {/* ÁREA PRINCIPAL */}
                         <main className="flex-1 flex flex-col h-screen overflow-y-auto w-full print:overflow-visible relative">
-                            
-                            {/* Cabecalho Mobile */}
-                            <header className="bg-[#1A202C] text-white p-3 shadow-md flex items-center justify-between md:hidden print:hidden">
-                                <div className="flex items-center gap-3">
-                                    <button onClick={() => setIsMenuOpen(true)} className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"><Menu size={18} /></button>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div>
-                                    </div>
-                                </div>
-                                <span className="font-black text-[#F8CC82] uppercase tracking-widest">{activeTab.replace('fin_', '').replace('cmv_', '').replace('_', ' ')}</span>
-                            </header>
-
                             <div className="p-4 md:p-6 w-full max-w-full space-y-4 print:p-0 mx-auto">
                                 
                                 {/* CABEÇALHO COM FILTRO MÊS */}
@@ -754,6 +749,7 @@
                                             {txForm.id && <div className="absolute -top-3 right-4 bg-blue-600 text-white font-black px-2 py-0.5 rounded uppercase">A Editar</div>}
                                             <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">{['entrada','saida','transferencia'].map(t=>(<button key={t} type="button" onClick={()=>setTxForm({...txForm, type: t})} className={"flex-1 py-2 rounded-lg font-black uppercase " + (txForm.type===t ? 'bg-white shadow text-black' : 'text-slate-400')}>{t}</button>))}</div>
                                             
+                                            {/* AUTOCOMPLETAR DESCRIÇÃO */}
                                             <input type="text" list="desc-history" placeholder="Descrição" required className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={txForm.desc} onChange={e=>setTxForm({...txForm, desc: e.target.value})} />
                                             <datalist id="desc-history">{uniqueDescriptions.map((desc, idx) => <option key={idx} value={desc} />)}</datalist>
 
@@ -768,6 +764,7 @@
                                                 ) : (
                                                     <div className="space-y-0.5">
                                                         <label className="font-black text-slate-400 ml-1">Categoria</label>
+                                                        {/* CATEGORIAS EM ORDEM ALFABÉTICA */}
                                                         <select className="w-full p-2 bg-white border rounded-lg font-black outline-none" value={txForm.cat} onChange={e=>setTxForm({...txForm, cat: e.target.value})}>
                                                             <option value="">Cat...</option>
                                                             {categories.sort((a,b)=>a.name.localeCompare(b.name)).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
@@ -789,8 +786,25 @@
 
                                         <div className="lg:col-span-2 glass-card rounded-2xl shadow-sm h-[600px] flex flex-col border overflow-hidden">
                                             <div className="p-3 bg-slate-50 border-b space-y-3">
-                                                <div className="relative"><Search size={14} className="absolute left-3 top-2.5 text-slate-300" /><input type="text" placeholder="Pesquisar histórico..." className="w-full pl-9 pr-3 py-2 bg-white border rounded-xl font-bold outline-none" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} /></div>
-                                                <div className="flex gap-2"><select className="p-2 border rounded-lg font-black" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option value="todos">Todos</option><option value="entrada">Entradas</option><option value="saida">Saídas</option></select></div>
+                                                <div className="relative"><Search size={14} className="absolute left-3 top-2.5 text-slate-300" /><input type="text" placeholder="Pesquisar histórico..." className="w-full pl-9 pr-3 py-2 bg-white border rounded-xl font-bold outline-none text-[10px]" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} /></div>
+                                                
+                                                {/* BARRA DE FILTROS AVANÇADOS */}
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}>
+                                                        <option value="todos">TIPO: TODOS</option><option value="entrada">ENTRADAS</option><option value="saida">SAÍDAS</option><option value="transferencia">TRANSF.</option>
+                                                    </select>
+                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
+                                                        <option value="todos">STATUS: TODOS</option><option value="pago">PAGOS</option><option value="pendente">PENDENTES</option>
+                                                    </select>
+                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={accFilter} onChange={e=>setAccFilter(e.target.value)}>
+                                                        <option value="todas">CONTA: TODAS</option>
+                                                        {accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+                                                    </select>
+                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={catFilter} onChange={e=>setCatFilter(e.target.value)}>
+                                                        <option value="todas">CAT: TODAS</option>
+                                                        {categories.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                                                    </select>
+                                                </div>
                                             </div>
                                             <div className="flex-1 overflow-y-auto no-scrollbar divide-y">
                                                 {filteredDashboard.slice(0, visibleTxCount).map(t => (
@@ -824,6 +838,7 @@
                                 {activeTab === 'saldos' && (() => {
                                     const highlightedNames = ['MERCADO PAGO', 'C6 BANK', 'IFOOD', 'CAIXA LOJA'];
                                     const fundKeywords = ['FUNDO', 'APLICAÇÃO', 'APLICACAO', 'INVESTIMENTO', 'RESERVA', 'POUPANÇA', 'POUPANCA'];
+                                    
                                     const highlighted = currentAccounts.filter(a => highlightedNames.includes((a.name||'').trim().toUpperCase()));
                                     const funds = currentAccounts.filter(a => !highlightedNames.includes((a.name||'').trim().toUpperCase()) && fundKeywords.some(k => (a.name||'').toUpperCase().includes(k)));
                                     const others = currentAccounts.filter(a => !highlightedNames.includes((a.name||'').trim().toUpperCase()) && !fundKeywords.some(k => (a.name||'').toUpperCase().includes(k)));
@@ -854,12 +869,7 @@
                                 })()}
 
                                 {activeTab === 'vendas' && (() => {
-                                    const salesDays = Object.keys(dailyRecords).filter(d=>d.startsWith(filterMonth)).sort((a,b)=>new Date(b)-new Date(a));
-                                    const totals = { totalDia: 0, pedidos: 0, pix: 0, pixOnline: 0, fiado: 0, dinheiro: 0, ifood: 0, debito: 0, credito: 0, vr: 0, ticket: 0, alelo: 0, taxaEntrega: 0, motoboy: 0 };
-                                    salesDays.forEach(d => {
-                                        const r = dailyRecords[d] || {}; const total = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
-                                        totals.totalDia += total; totals.pedidos += p(r.qtdPedidos); ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].forEach(f => { totals[f] += p(r[f]); }); totals.taxaEntrega += p(r.taxaEntrega); totals.motoboy += p(r.motoboy);
-                                    });
+                                    const totals = columnTotals;
                                     return (
                                         <div className="space-y-4 animate-in fade-in">
                                             <div className="stat-banner !border-black !bg-[#D97757] p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Faturamento Mês</p><h3 className="text-2xl font-black">{formatMoney(stats.rb)}</h3></div>
@@ -910,40 +920,14 @@
                                 })()}
 
                                 {activeTab === 'a_pagar' && (() => {
-                                    const pendings = transactions.filter(t => {
-                                        const accInfo = accounts.find(a => a.name === t.account);
-                                        const { clearanceDate } = getTransactionDates(t);
-                                        return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accInfo?.type !== 'cartao';
-                                    });
-                                    
-                                    const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
-                                        const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
-                                        const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                        const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                        const remaining = totalPurchases - totalPaid;
-                                        
-                                        if (remaining <= 0.01) return null;
-                                        const cardDueDay = card.due || card.dueDay || 10;
-                                        return { 
-                                            id: "card-" + card.name, 
-                                            description: "Fatura " + card.name, 
-                                            amount: remaining, 
-                                            account: card.name, 
-                                            clearanceDate: filterMonth + "-" + String(cardDueDay).padStart(2, '0'), 
-                                            isInvoice: true 
-                                        };
-                                    }).filter(Boolean);
-                                    
-                                    const combined = [...pendings, ...invoices].sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
-                                    
                                     return (
                                         <div className="space-y-4 fade-in">
-                                            <div className="stat-banner !border-black !bg-red-500 p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Total A Pagar ({filterMonth})</p><h3 className="text-3xl font-black">{formatMoney(combined.reduce((sum, t) => sum + p(t.amount), 0))}</h3></div>
+                                            <div className="stat-banner !border-black !bg-red-500 p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Total A Pagar ({filterMonth})</p><h3 className="text-3xl font-black">{formatMoney(consolidatedAPagar.reduce((sum, t) => sum + p(t.amount), 0))}</h3></div>
                                             <div className="glass-card rounded-2xl overflow-hidden border shadow-sm">
                                                 <table className="w-full text-left">
                                                     <thead className="bg-slate-100 text-slate-500 uppercase font-black tracking-widest border-b"><tr><th className="p-3">Vencimento</th><th className="p-3">Descrição</th><th className="p-3">Conta/Cartão</th><th className="p-3 text-right">Valor</th><th className="p-3 text-center">Ação</th></tr></thead>
                                                     <tbody className="divide-y font-bold text-slate-700">
-                                                        {combined.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400">Nenhuma conta pendente.</td></tr> : combined.map((t, idx) => (
+                                                        {consolidatedAPagar.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400">Nenhuma conta pendente.</td></tr> : consolidatedAPagar.map((t, idx) => (
                                                             <tr key={idx} className="hover:bg-slate-50">
                                                                 <td className={"p-3 " + (new Date(t.clearanceDate) < new Date() ? 'text-red-500' : '')}>{t.clearanceDate.split('-').reverse().join('/')}</td>
                                                                 <td className="p-3 uppercase">{t.description}</td>
@@ -960,32 +944,22 @@
                                 })()}
 
                                 {activeTab === 'a_receber' && (() => {
-                                    const list = transactions.filter(t => {
-                                        const { clearanceDate } = getTransactionDates(t);
-                                        return t.type === 'entrada' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth);
-                                    }).sort((a,b) => {
-                                        return (getTransactionDates(a).clearanceDate||"").localeCompare(getTransactionDates(b).clearanceDate||"");
-                                    });
-
                                     return (
                                         <div className="space-y-4 fade-in">
-                                            <div className="stat-banner !border-black !bg-green-500 p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Total A Receber ({filterMonth})</p><h3 className="text-3xl font-black">{formatMoney(list.reduce((sum, t) => sum + p(t.amount), 0))}</h3></div>
+                                            <div className="stat-banner !border-black !bg-green-500 p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Total A Receber ({filterMonth})</p><h3 className="text-3xl font-black">{formatMoney(consolidatedAReceber.reduce((sum, t) => sum + p(t.amount), 0))}</h3></div>
                                             <div className="glass-card rounded-2xl overflow-hidden border shadow-sm">
                                                 <table className="w-full text-left">
                                                     <thead className="bg-slate-100 text-slate-500 uppercase font-black tracking-widest border-b"><tr><th className="p-3">Previsão</th><th className="p-3">Descrição</th><th className="p-3">Conta Destino</th><th className="p-3 text-right">Valor</th><th className="p-3 text-center">Ação</th></tr></thead>
                                                     <tbody className="divide-y font-bold text-slate-700">
-                                                        {list.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400">Nenhum recebimento pendente.</td></tr> : list.map((t) => {
-                                                            const { clearanceDate } = getTransactionDates(t);
-                                                            return (
-                                                                <tr key={t.id} className="hover:bg-slate-50">
-                                                                    <td className="p-3">{clearanceDate?.split('-').reverse().join('/')}</td>
-                                                                    <td className="p-3 uppercase">{t.description}</td>
-                                                                    <td className="p-3 uppercase"><span className="bg-slate-200 px-2 py-0.5 rounded">{t.account}</span></td>
-                                                                    <td className="p-3 text-right text-green-600 font-black">{formatMoney(t.amount)}</td>
-                                                                    <td className="p-3 text-center"><button onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-black uppercase hover:bg-green-200">Confirmar Rec.</button></td>
-                                                                </tr>
-                                                            );
-                                                        })}
+                                                        {consolidatedAReceber.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400">Nenhum recebimento pendente.</td></tr> : consolidatedAReceber.map((t) => (
+                                                            <tr key={t.id} className="hover:bg-slate-50">
+                                                                <td className="p-3">{t.clearanceDate.split('-').reverse().join('/')}</td>
+                                                                <td className="p-3 uppercase">{t.description}</td>
+                                                                <td className="p-3 uppercase"><span className="bg-slate-200 px-2 py-0.5 rounded">{t.account}</span></td>
+                                                                <td className="p-3 text-right text-green-600 font-black">{formatMoney(t.amount)}</td>
+                                                                <td className="p-3 text-center"><button onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-black uppercase hover:bg-green-200">Conf. Recib</button></td>
+                                                            </tr>
+                                                        ))}
                                                     </tbody>
                                                 </table>
                                             </div>
@@ -993,25 +967,16 @@
                                     );
                                 })()}
 
-                                {/* ================= ABA DE CARTÕES OTIMIZADA ================= */}
+                                {/* ================= ABA DE CARTÕES ================= */}
                                 {activeTab === 'cartoes' && (() => {
-                                    const cStats = accounts.filter(a => a.type === 'cartao').map(card => {
-                                        const txs = transactions.filter(t => t.account === card.name);
-                                        const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                        const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                        const currentBalance = totalPurchases - totalPaid;
-                                        const limit = p(card.limit || 0); const available = limit > 0 ? limit - currentBalance : 0;
-                                        return { ...card, currentBalance, limit, available };
-                                    });
-
                                     return (
                                         <div className="space-y-4 fade-in">
                                             <div className="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm"><div><h2 className="font-black uppercase text-slate-800">Cartões de Crédito</h2><p className="font-bold text-slate-400 uppercase mt-0.5">Limites e Faturas ({filterMonth})</p></div></div>
                                             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                                                {cStats.length === 0 ? <div className="col-span-full p-8 text-center text-slate-400 uppercase font-black glass-card rounded-2xl border-dashed">Nenhum cartão cadastrado. Vá em "Ajustes" para adicionar.</div> : cStats.map(card => {
-                                                    const currentMonthTxs = transactions.filter(t => { if (t.account !== card.name) return false; const { clearanceDate } = getTransactionDates(t); return clearanceDate?.startsWith(filterMonth) && !isInvoicePayment(t); });
+                                                {cardStats.length === 0 ? <div className="col-span-full p-8 text-center text-slate-400 uppercase font-black glass-card rounded-2xl border-dashed">Nenhum cartão cadastrado. Vá em "Ajustes" para adicionar.</div> : cardStats.map(card => {
+                                                    const currentMonthTxs = transactions.filter(t => { if (t.account !== card.name) return false; const { clearanceDate } = getTransactionDates(t, card); return clearanceDate?.startsWith(filterMonth) && !isInvoicePayment(t); });
                                                     const invoiceTotal = currentMonthTxs.reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                                    const invoicePayments = transactions.filter(t => t.account === card.name && isInvoicePayment(t) && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
+                                                    const invoicePayments = transactions.filter(t => t.account === card.name && isInvoicePayment(t) && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
                                                     const paidAmount = invoicePayments.reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
                                                     const isPaid = paidAmount >= invoiceTotal && invoiceTotal > 0;
 
@@ -1095,27 +1060,8 @@
                                 )}
 
                                 {activeTab === 'relatorios' && (() => {
-                                    const pendings = transactions.filter(t => {
-                                        const { clearanceDate } = getTransactionDates(t);
-                                        return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao';
-                                    });
-                                    
-                                    const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
-                                        const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
-                                        const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                        const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                        return totalPurchases - totalPaid;
-                                    }).filter(val => val > 0.01);
-                                    
-                                    const sumPendings = pendings.reduce((acc, t) => acc + p(t.amount), 0);
-                                    const sumInvoices = invoices.reduce((acc, val) => acc + val, 0);
-                                    const totalAPagar = sumPendings + sumInvoices;
-
-                                    const totalAReceber = transactions.filter(t => {
-                                        const { clearanceDate } = getTransactionDates(t);
-                                        return t.type === 'entrada' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth);
-                                    }).reduce((acc, t) => acc + p(t.amount), 0);
-                                    
+                                    const totalAPagar = consolidatedAPagar.reduce((sum, t) => sum + p(t.amount), 0);
+                                    const totalAReceber = consolidatedAReceber.reduce((sum, t) => sum + p(t.amount), 0);
                                     const somaDespesasCategoria = Object.values(stats.catCosts).reduce((a, b) => a + b, 0);
 
                                     return (
@@ -1140,7 +1086,7 @@
                                             </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div className="glass-card p-6 rounded-3xl shadow-sm border-t-4 border-red-500 flex flex-col justify-between"><div><h3 className="font-black uppercase text-red-600 mb-4 flex items-center gap-2"><TrendingDown size={14}/> 3. Provisão A Pagar</h3><h4 className="text-2xl font-black text-red-600 mb-2">{formatMoney(totalAPagar)}</h4><p className="font-bold text-slate-400 uppercase leading-relaxed">Soma de saídas pendentes e faturas de cartão no mês.</p></div></div>
-                                                <div className="glass-card p-6 rounded-3xl shadow-sm border-t-4 border-emerald-500 flex flex-col justify-between"><div><h3 className="font-black uppercase text-emerald-600 mb-4 flex items-center gap-2"><TrendingUp size={14}/> 4. Provisão A Receber</h3><h4 className="text-2xl font-black text-emerald-600 mb-2">{formatMoney(totalReceitasPendentes)}</h4><p className="font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar pendentes no mês.</p></div></div>
+                                                <div className="glass-card p-6 rounded-3xl shadow-sm border-t-4 border-emerald-500 flex flex-col justify-between"><div><h3 className="font-black uppercase text-emerald-600 mb-4 flex items-center gap-2"><TrendingUp size={14}/> 4. Provisão A Receber</h3><h4 className="text-2xl font-black text-emerald-600 mb-2">{formatMoney(totalAReceber)}</h4><p className="font-bold text-slate-400 uppercase leading-relaxed">Valores previstos para entrar pendentes no mês.</p></div></div>
                                             </div>
                                             <div className="glass-card p-6 rounded-3xl shadow-sm border-t-4 border-orange-500">
                                                 <div className="flex justify-between items-center mb-4"><h3 className="font-black uppercase text-slate-800 flex items-center gap-2"><PieChart size={14}/> 5. Despesas por Categoria</h3></div>
@@ -1238,8 +1184,8 @@
                                                             const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items);
                                                             const sp = p(item.sellingPrice); const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
                                                             return (
-                                                                <tr key={item.id} className={"hover:bg-slate-50 " + (item.ignoreCMV ? "opacity-50" : "")}>
-                                                                    <td className="p-3">{item.name} <span className="uppercase text-slate-400 bg-slate-100 px-1 rounded ml-1">{item._t}</span></td>
+                                                                <tr key={item.id} className={"hover:bg-slate-50 " + (item.ignoreCMV ? "opacity-40" : "")}>
+                                                                    <td className="p-3">{item.name} <span className="bg-slate-100 text-slate-400 px-1 rounded uppercase">{item._t}</span> {item.ignoreCMV && <span className="text-red-400 ml-1">(Ignorado)</span>}</td>
                                                                     <td className="p-3 text-slate-500">{formatMoney(cost)}</td>
                                                                     <td className="p-3 text-slate-900">{formatMoney(sp)}</td>
                                                                     <td className={"p-3 " + (item.ignoreCMV ? '' : (cmv > cmvSettings.targetCMV ? 'text-red-500' : 'text-emerald-500'))}>{item.ignoreCMV ? '-' : cmv + '%'}</td>
@@ -1511,6 +1457,7 @@
                                      <div className="space-y-6 fade-in">
                                          <div className="glass-card p-6 rounded-3xl border-t-8 border-[#D97757] shadow-xl grid grid-cols-1 md:grid-cols-2 gap-6">
                                              
+                                             {/* PARÂMETROS CMV */}
                                              <div className="space-y-5">
                                                  <div><h3 className="font-black uppercase text-slate-800 text-base">Parâmetros & Taxas</h3><p className="font-bold text-slate-400 uppercase mt-1">Configurações Base (Financeiro e CMV)</p></div>
                                                  <div className="grid grid-cols-2 gap-3">
@@ -1523,12 +1470,15 @@
                                                  <button onClick={async()=>{if(!user)return; await saveCMVDoc('settings', {...cmvSettings, targetCMV:p(cmvSettings.targetCMV), tax:p(cmvSettings.tax), apps:p(cmvSettings.apps), card:p(cmvSettings.card), ifoodTax:p(cmvSettings.ifoodTax)}); await saveMeta(metaVendas); alert('Parâmetros Salvos!');}} className="w-full bg-[#1A202C] text-[#F8CC82] p-3 rounded-xl font-black uppercase shadow-lg hover:bg-black transition-all">Salvar Parâmetros Globais</button>
                                              </div>
                                              
+                                             {/* CADASTROS RÁPIDOS */}
                                              <div className="space-y-5">
-                                                 <div><h3 className="font-black uppercase text-slate-800 text-base">Cadastros Rápidos</h3><p className="font-bold text-slate-400 uppercase mt-1">Gestão da Estrutura Financeira</p></div>
+                                                 <div><h3 className="font-black uppercase text-slate-800 text-base">Contas, Cartões & Categorias</h3><p className="font-bold text-slate-400 uppercase mt-1">Gestão da Estrutura Financeira</p></div>
                                                  
                                                  <div className="space-y-2">
+                                                     {/* Nova Categoria */}
                                                      <form onSubmit={addCat} className="flex gap-2"><input type="text" placeholder="Nova Categoria..." className="flex-1 p-2 bg-slate-50 border rounded-lg font-bold outline-none" value={catForm} onChange={e=>setCatForm(e.target.value)} required /><button className="bg-black text-[#F8CC82] px-3 rounded-lg font-black text-[9px]">Add Cat.</button></form>
                                                      
+                                                     {/* Nova Conta/Cartão */}
                                                      <form onSubmit={handleSaveAcc} className="flex flex-col gap-2 bg-slate-50 p-3 rounded-xl border">
                                                          <div className="flex justify-between items-center mb-1">
                                                              <span className="font-black text-[9px] text-slate-600 uppercase">{accForm.id ? 'A Editar Conta/Cartão' : 'Nova Conta ou Cartão'}</span>
@@ -1549,6 +1499,7 @@
                                                      </form>
                                                  </div>
 
+                                                 {/* LISTA DE CONTAS E CARTÕES COM EXCLUSÃO/EDIÇÃO */}
                                                  <div className="mt-4 border-t pt-4">
                                                      <h4 className="font-black text-slate-800 mb-3 flex items-center gap-1.5"><Wallet size={12}/> Contas & Cartões Ativos</h4>
                                                      <div className="space-y-1.5 overflow-y-auto max-h-[300px] no-scrollbar">
