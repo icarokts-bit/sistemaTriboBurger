@@ -158,7 +158,7 @@
             
             const [visibleTxCount, setVisibleTxCount] = useState(10);
             
-            // Adicionado feeType e feePercent ao form de lançamento
+            // Estado Atualizado para Formulário de Lançamento (Com taxas)
             const [txForm, setTxForm] = useState({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1, feeType: '', feePercent: '' });
             const [newDayDate, setNewDayDate] = useState(new Date().toISOString().split('T')[0]);
             
@@ -173,13 +173,13 @@
             const [invoiceSourceAcc, setInvoiceSourceAcc] = useState('');
             const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
-            // ESTADOS CMV (taxaDebito e taxaCredito adicionadas)
+            // ESTADOS CMV
             const [ingredients, setIngredients] = useState([]);
             const [recipes, setRecipes] = useState([]);
             const [complements, setComplements] = useState([]);
             const [combos, setCombos] = useState([]);
             const [fixedCosts, setFixedCosts] = useState([]);
-            const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, taxaDebito: 1.99, taxaCredito: 4.99, ifoodTax: 12, baseRevenue: 0, targetRevenue: 0 });
+            const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, taxaDebito: 1.99, taxaCredito: 4.99, ifoodTax: 12, autoFeeVendas: true, baseRevenue: 0, targetRevenue: 0 });
             
             const [ingCats, setIngCats] = useState(['Proteínas', 'Pães', 'Queijos', 'Molhos', 'Vegetais/Hortifrúti', 'Embalagens', 'Outros']);
             const [recCats, setRecCats] = useState(['Hambúrgueres', 'Acompanhamentos', 'Bebidas', 'Sobremesas', 'Molhos Caseiros', 'Outros', 'Smash']);
@@ -223,7 +223,7 @@
                     if(s.exists) {
                         const d = s.data();
                         setIngredients(d.ingredients || []); setRecipes(d.recipes || []); setComplements(d.complements || []); setCombos(d.combos || []); setFixedCosts(d.fixedCosts || []);
-                        setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, taxaDebito: d.settings?.taxaDebito || 1.99, taxaCredito: d.settings?.taxaCredito || d.settings?.card || 4.99, ifoodTax: 12, baseRevenue: 0, targetRevenue: 0 });
+                        setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, taxaDebito: d.settings?.taxaDebito || 1.99, taxaCredito: d.settings?.taxaCredito || d.settings?.card || 4.99, ifoodTax: 12, autoFeeVendas: d.settings?.autoFeeVendas !== false, baseRevenue: 0, targetRevenue: 0 });
                         if(d.ingredientCategories) setIngCats(d.ingredientCategories); if(d.recipeCategories) setRecCats(d.recipeCategories);
                         if(d.complementCategories) setCompCats(d.complementCategories); if(d.comboCategories) setComboCats(d.comboCategories);
                         if(d.fixedCostCategories) setFcCats(d.fixedCostCategories);
@@ -233,19 +233,16 @@
                 return () => { unsubTx(); unsubDaily(); unsubAcc(); unsubCat(); unsubSup(); unsubMeta(); unsubCmv(); };
             }, [user]);
 
-            // Reseta a paginação ao trocar o filtro
             useEffect(() => { setVisibleTxCount(10); }, [filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
 
             const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-            // AUTOCOMPLETAR DESCRIÇÃO
             const uniqueDescriptions = useMemo(() => {
                 const descs = transactions.map(t => t.description).filter(Boolean);
                 return [...new Set(descs)].sort((a, b) => a.localeCompare(b));
             }, [transactions]);
 
-            // LOGICA FINANCEIRA COMPUTADA COM FILTROS AVANÇADOS
             const filteredDashboard = useMemo(() => transactions.filter(t => {
                 if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
                 const { clearanceDate, billingMonth } = getTransactionDates(t);
@@ -276,25 +273,21 @@
             const currentAccounts = useMemo(() => accounts.filter(a => a.type === 'corrente'), [accounts]);
             const totalPatrimony = useMemo(() => currentAccounts.reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0), [currentAccounts, accountBalances]);
 
+            // ================= ESTATÍSTICAS COM TAXAS AUTOMÁTICAS =================
             const stats = useMemo(() => {
                 let rb = 0; let custos = 0; let catCosts = {}; let diasAtivos = 0; let totalPedidos = 0;
-                let entradas = 0; let contasPagas = 0;
+                let entradas = 0; let contasPagas = 0; let autoCardFees = 0;
+                const calcAutoFees = cmvSettings.autoFeeVendas !== false;
 
-                const parts = filterMonth.split('-');
-                const anoFiltro = parseInt(parts[0]);
-                const mesFiltro = parseInt(parts[1]) - 1;
-
-                let prevMes = mesFiltro - 1; let prevAno = anoFiltro;
-                if (prevMes < 0) { prevMes = 11; prevAno--; }
+                const parts = filterMonth.split('-'); const anoFiltro = parseInt(parts[0]); const mesFiltro = parseInt(parts[1]) - 1;
+                let prevMes = mesFiltro - 1; let prevAno = anoFiltro; if (prevMes < 0) { prevMes = 11; prevAno--; }
                 const prevMonthStr = prevAno + "-" + String(prevMes + 1).padStart(2, '0');
 
                 const buildWeekMap = (ano, mes) => {
-                    const map = {}; const lastDay = new Date(ano, mes + 1, 0).getDate();
-                    let currentWeek = 1; let seenWorkingDay = false;
+                    const map = {}; const lastDay = new Date(ano, mes + 1, 0).getDate(); let currentWeek = 1; let seenWorkingDay = false;
                     for(let d = 1; d <= lastDay; d++) {
                         const wd = new Date(ano, mes, d).getDay(); 
-                        if (wd === 3) { if (seenWorkingDay) { currentWeek++; seenWorkingDay = false; } seenWorkingDay = true; } 
-                        else if (wd === 0 || wd > 3) { seenWorkingDay = true; }
+                        if (wd === 3) { if (seenWorkingDay) { currentWeek++; seenWorkingDay = false; } seenWorkingDay = true; } else if (wd === 0 || wd > 3) { seenWorkingDay = true; }
                         map[ano + "-" + String(mes+1).padStart(2, '0') + "-" + String(d).padStart(2,'0')] = currentWeek;
                     }
                     return map;
@@ -310,7 +303,17 @@
                     const r = dailyRecords[d]; const totalDia = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((s,f)=>s+p(r[f]), 0);
                     
                     if (d.startsWith(filterMonth)) {
-                        if (totalDia > 0) diasAtivos++; rb += totalDia; custos += p(r.motoboy) + p(r.taxaEntrega); totalPedidos += p(r.qtdPedidos);
+                        if (totalDia > 0) diasAtivos++; rb += totalDia; 
+                        
+                        let txDia = 0;
+                        if (calcAutoFees) {
+                            const tDeb = p(r.debito) * (p(cmvSettings.taxaDebito)/100);
+                            const tCred = p(r.credito) * (p(cmvSettings.taxaCredito)/100);
+                            txDia = tDeb + tCred;
+                            autoCardFees += txDia;
+                        }
+
+                        custos += p(r.motoboy) + p(r.taxaEntrega) + txDia; totalPedidos += p(r.qtdPedidos);
                         if(currentMonthWeeks[d]) weeklyCurrent[currentMonthWeeks[d]] += totalDia;
                         const wd = new Date(parseInt(d.split('-')[0]), parseInt(d.split('-')[1])-1, parseInt(d.split('-')[2])).getDay();
                         if(weekdaySums[wd] !== undefined && totalDia > 0) { weekdaySums[wd] += totalDia; weekdayCounts[wd]++; }
@@ -318,6 +321,10 @@
                         if(prevMonthWeeks[d]) weeklyPrev[prevMonthWeeks[d]] += totalDia;
                     }
                 });
+
+                if (autoCardFees > 0) {
+                    catCosts['Taxas de Cartão (Auto Vendas)'] = (catCosts['Taxas de Cartão (Auto Vendas)'] || 0) + autoCardFees;
+                }
 
                 transactions.forEach(t => {
                     const { clearanceDate } = getTransactionDates(t);
@@ -333,8 +340,7 @@
                 for (let dia = 1; dia <= ultimoDiaMes; dia++) {
                     const diaDaSemana = new Date(anoFiltro, mesFiltro, dia).getDay(); 
                     if (diaDaSemana !== 1 && diaDaSemana !== 2) { 
-                        diasUteisTotaisMes++;
-                        if (anoFiltro === hoje.getFullYear() && mesFiltro === hoje.getMonth() && dia <= hoje.getDate()) diasUteisPassados++;
+                        diasUteisTotaisMes++; if (anoFiltro === hoje.getFullYear() && mesFiltro === hoje.getMonth() && dia <= hoje.getDate()) diasUteisPassados++;
                     }
                 }
 
@@ -342,8 +348,7 @@
                 if (anoFiltro === hoje.getFullYear() && mesFiltro === hoje.getMonth()) {
                     const diasUteisRestantes = diasUteisTotaisMes - diasUteisPassados; const ticketDiarioAtual = diasAtivos > 0 ? rb / diasAtivos : 0;
                     if (diasUteisRestantes > 0) projecaoMensal = rb + (ticketDiarioAtual * diasUteisRestantes);
-                    const restanteMeta = p(metaVendas) - rb;
-                    if (restanteMeta > 0 && diasUteisRestantes > 0) metaDiaria = restanteMeta / diasUteisRestantes;
+                    const restanteMeta = p(metaVendas) - rb; if (restanteMeta > 0 && diasUteisRestantes > 0) metaDiaria = restanteMeta / diasUteisRestantes;
                 } else if (new Date(anoFiltro, mesFiltro, 1) > hoje) {
                     if (diasUteisTotaisMes > 0) metaDiaria = p(metaVendas) / diasUteisTotaisMes;
                 }
@@ -354,9 +359,9 @@
                 const weekdayAverages = Object.keys(weekdaySums).map(wd => ({ name: weekdayNames[wd], avg: weekdayCounts[wd] > 0 ? weekdaySums[wd] / weekdayCounts[wd] : 0, total: weekdaySums[wd], count: weekdayCounts[wd] })).filter(x => x.avg > 0).sort((a, b) => b.avg - a.avg);
 
                 return { 
-                    rb, totalCosts: operCosts + custos, lucro: lucroDRE, catCosts, diasAtivos, totalPedidos, ticketDiario: diasAtivos > 0 ? rb / diasAtivos : 0, ticketPedido: totalPedidos > 0 ? rb / totalPedidos : 0, entradas, contasPagas, lucroCaixa, projecaoMensal, metaDiaria, margemDRE: rb > 0 ? (lucroDRE / rb) * 100 : 0, margemCaixa: entradas > 0 ? (lucroCaixa / entradas) * 100 : 0, weeklyCurrent, weeklyPrev, weekdayAverages, diasUteisRestantes: Math.max(0, diasUteisTotaisMes - diasUteisPassados)
+                    rb, totalCosts: operCosts + custos, lucro: lucroDRE, catCosts, diasAtivos, totalPedidos, ticketDiario: diasAtivos > 0 ? rb / diasAtivos : 0, ticketPedido: totalPedidos > 0 ? rb / totalPedidos : 0, entradas, contasPagas, lucroCaixa, projecaoMensal, metaDiaria, margemDRE: rb > 0 ? (lucroDRE / rb) * 100 : 0, margemCaixa: entradas > 0 ? (lucroCaixa / entradas) * 100 : 0, weeklyCurrent, weeklyPrev, weekdayAverages, diasUteisRestantes: Math.max(0, diasUteisTotaisMes - diasUteisPassados), autoCardFees
                 };
-            }, [dailyRecords, transactions, filterMonth, metaVendas]);
+            }, [dailyRecords, transactions, filterMonth, metaVendas, cmvSettings]);
 
             const salesDays = useMemo(() => Object.keys(dailyRecords).filter(d=>d.startsWith(filterMonth)).sort((a,b)=>new Date(b)-new Date(a)), [dailyRecords, filterMonth]);
             const columnTotals = useMemo(() => {
@@ -374,9 +379,8 @@
 
             const consolidatedAPagar = useMemo(() => {
                 const pendings = transactions.filter(t => {
-                    const accInfo = accounts.find(a => a.name === t.account);
                     const { clearanceDate } = getTransactionDates(t);
-                    return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accInfo?.type !== 'cartao';
+                    return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao';
                 });
                 
                 const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
@@ -420,16 +424,36 @@
                 const batch = db.batch();
                 const numInst = txForm.type === 'transferencia' ? 1 : parseInt(txForm.inst || 1);
                 
+                const baseDate = parseDateUTC(txForm.date);
+                const baseClearance = parseDateUTC(txForm.clearance);
+                const cardInfo = accounts.find(a => a.name === txForm.acc && a.type === 'cartao');
+                const baseAmount = p(txForm.val) / numInst;
+
                 for (let i = 0; i < numInst; i++) {
-                    const d = new Date(txForm.date); d.setMonth(d.getMonth() + i); const dateStr = d.toISOString().split('T')[0];
-                    const c = new Date(txForm.clearance); c.setMonth(c.getMonth() + i); const clearStr = c.toISOString().split('T')[0];
+                    const d = new Date(baseDate.getTime()); d.setUTCMonth(d.getUTCMonth() + i);
+                    const dateStr = d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, '0') + "-" + String(d.getUTCDate()).padStart(2, '0');
                     
-                    const baseAmount = p(txForm.val) / numInst;
-                    
+                    let clearStr = ''; let billingM = dateStr.slice(0, 7);
+
+                    if (cardInfo && txForm.type === 'saida') {
+                        const closing = parseInt(cardInfo.closing || cardInfo.closingDay || 25);
+                        const due = parseInt(cardInfo.due || cardInfo.dueDay || 10);
+                        let bDate = new Date(d.getTime()); bDate.setUTCDate(1); 
+                        if (d.getUTCDate() >= closing) bDate.setUTCMonth(bDate.getUTCMonth() + 1);
+                        billingM = bDate.getUTCFullYear() + "-" + String(bDate.getUTCMonth() + 1).padStart(2, '0');
+                        let dueDate = new Date(bDate.getTime()); dueDate.setUTCDate(1);
+                        if (due < closing) dueDate.setUTCMonth(dueDate.getUTCMonth() + 1);
+                        dueDate.setUTCDate(due);
+                        clearStr = dueDate.getUTCFullYear() + "-" + String(dueDate.getUTCMonth() + 1).padStart(2, '0') + "-" + String(dueDate.getUTCDate()).padStart(2, '0');
+                    } else {
+                        const c = new Date(baseClearance.getTime()); c.setUTCMonth(c.getUTCMonth() + i);
+                        clearStr = c.getUTCFullYear() + "-" + String(c.getUTCMonth() + 1).padStart(2, '0') + "-" + String(c.getUTCDate()).padStart(2, '0');
+                    }
+
                     const payload = {
                         description: numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc,
                         amount: baseAmount, type: txForm.type, status: txForm.status,
-                        date: dateStr, clearanceDate: clearStr, billingMonth: dateStr.slice(0, 7),
+                        date: dateStr, clearanceDate: clearStr, billingMonth: billingM,
                         account: txForm.acc, destinationAccount: txForm.destAcc, category: txForm.type === 'transferencia' ? 'Transferência' : (txForm.cat || 'Geral'),
                         supplier: txForm.sup, timestamp: new Date().toISOString()
                     };
@@ -439,13 +463,13 @@
                     } else {
                         batch.set(db.collection(path).doc(), payload);
                         
-                        // LANÇAMENTO AUTOMÁTICO DE TAXA DE CARTÃO
+                        // LANÇAMENTO AUTOMÁTICO DE TAXA (CRÉDITO/DÉBITO) NAS ENTRADAS MANUAIS
                         if (txForm.type === 'entrada' && p(txForm.feePercent) > 0) {
                             const feeAmt = baseAmount * (p(txForm.feePercent) / 100);
                             const feePayload = {
-                                description: `Taxa Cartão (${txForm.feeType || 'Add'}) - ` + (numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc),
+                                description: `Taxa Cartão (${txForm.feeType || 'Auto'}) - ` + (numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc),
                                 amount: feeAmt, type: 'saida', status: txForm.status,
-                                date: dateStr, clearanceDate: clearStr, billingMonth: dateStr.slice(0, 7),
+                                date: dateStr, clearanceDate: clearStr, billingMonth: billingM,
                                 account: txForm.acc, destinationAccount: '', category: 'Taxas Bancárias',
                                 supplier: '', timestamp: new Date().toISOString()
                             };
@@ -570,7 +594,7 @@
             return (
                 <div className="flex h-screen w-full overflow-hidden bg-[#FDFCF9] fade-in">
                     
-                    {/* ================= MODAIS (FINANCEIROS E CMV) SOBREPOSTOS ================= */}
+                    {/* MODAIS (FINANCEIROS E CMV) SOBREPOSTOS */}
                     {liqModal && (
                         <div className="modal-overlay z-[110]">
                             <div className="glass-card w-full max-w-sm p-6 rounded-2xl shadow-2xl border-t-4 border-green-500 flex flex-col gap-4 scale-up-center">
@@ -799,10 +823,10 @@
                                             
                                             {/* LANÇAMENTO AUTOMÁTICO DE TAXAS DE CARTÃO PARA ENTRADAS */}
                                             {txForm.type === 'entrada' && !txForm.id && (
-                                                <div className="grid grid-cols-2 gap-2 mt-2 p-2 bg-orange-50 rounded-lg border border-orange-100">
-                                                    <div className="space-y-0.5">
-                                                        <label className="font-black text-orange-800 ml-1 text-[8px]">Descontar Taxa?</label>
-                                                        <select className="w-full p-2 bg-white border border-orange-200 rounded-lg font-black outline-none" 
+                                                <div className="flex flex-col gap-2 mt-2 p-2 bg-emerald-50 rounded-lg border border-emerald-200">
+                                                    <label className="font-black text-emerald-800 text-[9px] flex items-center gap-1"><CreditCard size={12}/> Descontar Taxa Cartão?</label>
+                                                    <div className="flex gap-2">
+                                                        <select className="flex-1 p-2 bg-white border border-emerald-200 rounded-lg font-black outline-none text-[9px]" 
                                                             value={txForm.feeType} 
                                                             onChange={e => {
                                                                 const ft = e.target.value; let fp = '';
@@ -810,14 +834,17 @@
                                                                 if (ft === 'credito') fp = cmvSettings.taxaCredito;
                                                                 setTxForm({...txForm, feeType: ft, feePercent: fp});
                                                             }}>
-                                                            <option value="">Sem Taxa</option><option value="debito">Débito ({cmvSettings.taxaDebito}%)</option><option value="credito">Crédito ({cmvSettings.taxaCredito}%)</option><option value="custom">Outra Taxa</option>
+                                                            <option value="">NÃO DESCONTAR</option><option value="debito">DÉBITO ({cmvSettings.taxaDebito}%)</option><option value="credito">CRÉDITO ({cmvSettings.taxaCredito}%)</option><option value="custom">OUTRA TAXA</option>
                                                         </select>
+                                                        {txForm.feeType && (
+                                                            <div className="flex items-center gap-1 w-20">
+                                                                <input type="number" step="0.01" className="w-full p-2 bg-white border border-emerald-200 rounded-lg font-black outline-none text-red-500 text-center" value={txForm.feePercent} onChange={e=>setTxForm({...txForm, feePercent: e.target.value})} placeholder="%" />
+                                                                <span className="font-black text-emerald-800">%</span>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    {txForm.feeType && (
-                                                        <div className="space-y-0.5">
-                                                            <label className="font-black text-orange-800 ml-1 text-[8px]">% Taxa</label>
-                                                            <input type="number" step="0.01" className="w-full p-2 bg-white border border-orange-200 rounded-lg font-black outline-none text-red-500" value={txForm.feePercent} onChange={e=>setTxForm({...txForm, feePercent: e.target.value})} />
-                                                        </div>
+                                                    {txForm.feeType && txForm.val && (
+                                                        <p className="text-[8px] font-bold text-emerald-700 uppercase">A Entrada será {formatMoney(p(txForm.val))} e lançará uma Saída automática de {formatMoney(p(txForm.val) * (p(txForm.feePercent)/100))} como taxa.</p>
                                                     )}
                                                 </div>
                                             )}
@@ -918,15 +945,19 @@
                                 })()}
 
                                 {activeTab === 'vendas' && (() => {
-                                    const salesDays = Object.keys(dailyRecords).filter(d=>d.startsWith(filterMonth)).sort((a,b)=>new Date(b)-new Date(a));
-                                    const totals = { totalDia: 0, pedidos: 0, pix: 0, pixOnline: 0, fiado: 0, dinheiro: 0, ifood: 0, debito: 0, credito: 0, vr: 0, ticket: 0, alelo: 0, taxaEntrega: 0, motoboy: 0 };
-                                    salesDays.forEach(d => {
-                                        const r = dailyRecords[d] || {}; const total = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
-                                        totals.totalDia += total; totals.pedidos += p(r.qtdPedidos); ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].forEach(f => { totals[f] += p(r[f]); }); totals.taxaEntrega += p(r.taxaEntrega); totals.motoboy += p(r.motoboy);
-                                    });
                                     return (
                                         <div className="space-y-4 animate-in fade-in">
-                                            <div className="stat-banner !border-black !bg-[#D97757] p-5 rounded-2xl"><p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Faturamento Mês</p><h3 className="text-2xl font-black">{formatMoney(stats.rb)}</h3></div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="stat-banner !border-black !bg-[#D97757] p-5 rounded-2xl">
+                                                    <p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Faturamento Mês</p>
+                                                    <h3 className="text-3xl font-black">{formatMoney(stats.rb)}</h3>
+                                                </div>
+                                                <div className="stat-banner !border-black !bg-slate-800 p-5 rounded-2xl">
+                                                    <p className="font-black uppercase tracking-[0.4em] opacity-80 mb-1">Taxas Cartão (Auto)</p>
+                                                    <h3 className="text-3xl font-black text-red-400">-{formatMoney(stats.autoCardFees || 0)}</h3>
+                                                    {cmvSettings.autoFeeVendas !== false && <span className="text-[8px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded mt-2 inline-block">DEDUZIDO NO DRE</span>}
+                                                </div>
+                                            </div>
                                             <div className="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm">
                                                 <div className="flex items-center gap-2"><CalendarDays className="text-slate-400" /><h2 className="font-black uppercase tracking-widest">Caixa Diário</h2></div>
                                                 <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border"><input type="date" className="font-bold bg-transparent outline-none border-0" value={newDayDate} onChange={e=>setNewDayDate(e.target.value)} /><button onClick={()=>db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/dailyRecords`).doc(newDayDate).set({initialized:true},{merge:true})} className="bg-black text-[#F8CC82] px-3 py-1.5 rounded-lg font-black uppercase">Abrir</button></div>
@@ -959,12 +990,12 @@
                                                     <tfoot>
                                                         <tr className="bg-[#1A202C] text-white font-black uppercase border-t-4 border-[#D97757]">
                                                             <td className="p-0 sticky left-0 bg-[#1A202C] z-10 text-center text-amber-300">SOMA TOTAL</td>
-                                                            <td className="p-2 bg-amber-500 text-black">{formatMoney(totals.totalDia)}</td>
-                                                            <td className="p-2 bg-blue-600">{totals.pedidos}</td>
-                                                            <td className="p-2 bg-blue-800 text-[#F8CC82]">{formatMoney(totals.pedidos > 0 ? totals.totalDia / totals.pedidos : 0)}</td>
-                                                            {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => ( <td key={f} className="p-2 border-r bg-slate-800">{formatMoney(totals[f])}</td> ))}
-                                                            <td className="p-2 border-r text-orange-400 bg-orange-950/25">{formatMoney(totals.taxaEntrega)}</td>
-                                                            <td className="p-2 border-r text-red-400 bg-red-950/25">{formatMoney(totals.motoboy)}</td>
+                                                            <td className="p-2 bg-amber-500 text-black">{formatMoney(columnTotals.totalDia)}</td>
+                                                            <td className="p-2 bg-blue-600">{columnTotals.pedidos}</td>
+                                                            <td className="p-2 bg-blue-800 text-[#F8CC82]">{formatMoney(columnTotals.pedidos > 0 ? columnTotals.totalDia / columnTotals.pedidos : 0)}</td>
+                                                            {['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].map(f => ( <td key={f} className="p-2 border-r bg-slate-800">{formatMoney(columnTotals[f])}</td> ))}
+                                                            <td className="p-2 border-r text-orange-400 bg-orange-950/25">{formatMoney(columnTotals.taxaEntrega)}</td>
+                                                            <td className="p-2 border-r text-red-400 bg-red-950/25">{formatMoney(columnTotals.motoboy)}</td>
                                                         </tr>
                                                     </tfoot>
                                                 </table>
@@ -976,12 +1007,12 @@
                                 {activeTab === 'a_pagar' && (() => {
                                     const pendings = transactions.filter(t => {
                                         const accInfo = accounts.find(a => a.name === t.account);
-                                        const { clearanceDate } = getTransactionDates(t, accInfo);
+                                        const { clearanceDate } = getTransactionDates(t);
                                         return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accInfo?.type !== 'cartao';
                                     });
                                     
                                     const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
-                                        const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
+                                        const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
                                         const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
                                         const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
                                         const remaining = totalPurchases - totalPaid;
@@ -1025,13 +1056,10 @@
 
                                 {activeTab === 'a_receber' && (() => {
                                     const list = transactions.filter(t => {
-                                        const accInfo = accounts.find(a => a.name === t.account);
-                                        const { clearanceDate } = getTransactionDates(t, accInfo);
+                                        const { clearanceDate } = getTransactionDates(t);
                                         return t.type === 'entrada' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth);
                                     }).sort((a,b) => {
-                                        const accA = accounts.find(acc => acc.name === a.account);
-                                        const accB = accounts.find(acc => acc.name === b.account);
-                                        return (getTransactionDates(a, accA).clearanceDate||"").localeCompare(getTransactionDates(b, accB).clearanceDate||"");
+                                        return (getTransactionDates(a).clearanceDate||"").localeCompare(getTransactionDates(b).clearanceDate||"");
                                     });
 
                                     return (
@@ -1042,8 +1070,7 @@
                                                     <thead className="bg-slate-100 text-slate-500 uppercase font-black tracking-widest border-b"><tr><th className="p-3">Previsão</th><th className="p-3">Descrição</th><th className="p-3">Conta Destino</th><th className="p-3 text-right">Valor</th><th className="p-3 text-center">Ação</th></tr></thead>
                                                     <tbody className="divide-y font-bold text-slate-700">
                                                         {list.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400">Nenhum recebimento pendente.</td></tr> : list.map((t) => {
-                                                            const accInfo = accounts.find(a => a.name === t.account);
-                                                            const { clearanceDate } = getTransactionDates(t, accInfo);
+                                                            const { clearanceDate } = getTransactionDates(t);
                                                             return (
                                                                 <tr key={t.id} className="hover:bg-slate-50">
                                                                     <td className="p-3">{clearanceDate?.split('-').reverse().join('/')}</td>
@@ -1077,9 +1104,9 @@
                                             <div className="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm"><div><h2 className="font-black uppercase text-slate-800">Cartões de Crédito</h2><p className="font-bold text-slate-400 uppercase mt-0.5">Limites e Faturas ({filterMonth})</p></div></div>
                                             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                                 {cStats.length === 0 ? <div className="col-span-full p-8 text-center text-slate-400 uppercase font-black glass-card rounded-2xl border-dashed">Nenhum cartão cadastrado. Vá em "Ajustes" para adicionar.</div> : cStats.map(card => {
-                                                    const currentMonthTxs = transactions.filter(t => { if (t.account !== card.name) return false; const { clearanceDate } = getTransactionDates(t, card); return clearanceDate?.startsWith(filterMonth) && !isInvoicePayment(t); });
+                                                    const currentMonthTxs = transactions.filter(t => { if (t.account !== card.name) return false; const { clearanceDate } = getTransactionDates(t); return clearanceDate?.startsWith(filterMonth) && !isInvoicePayment(t); });
                                                     const invoiceTotal = currentMonthTxs.reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                                    const invoicePayments = transactions.filter(t => t.account === card.name && isInvoicePayment(t) && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
+                                                    const invoicePayments = transactions.filter(t => t.account === card.name && isInvoicePayment(t) && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
                                                     const paidAmount = invoicePayments.reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
                                                     const isPaid = paidAmount >= invoiceTotal && invoiceTotal > 0;
 
@@ -1164,13 +1191,12 @@
 
                                 {activeTab === 'relatorios' && (() => {
                                     const pendings = transactions.filter(t => {
-                                        const accInfo = accounts.find(a => a.name === t.account);
-                                        const { clearanceDate } = getTransactionDates(t, accInfo);
-                                        return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accInfo?.type !== 'cartao';
+                                        const { clearanceDate } = getTransactionDates(t);
+                                        return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao';
                                     });
                                     
                                     const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
-                                        const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
+                                        const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
                                         const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
                                         const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
                                         return totalPurchases - totalPaid;
@@ -1181,8 +1207,7 @@
                                     const totalAPagar = sumPendings + sumInvoices;
 
                                     const totalAReceber = transactions.filter(t => {
-                                        const accInfo = accounts.find(a => a.name === t.account);
-                                        const { clearanceDate } = getTransactionDates(t, accInfo);
+                                        const { clearanceDate } = getTransactionDates(t);
                                         return t.type === 'entrada' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth);
                                     }).reduce((acc, t) => acc + p(t.amount), 0);
                                     
@@ -1412,7 +1437,7 @@
                                      <div className="space-y-6 fade-in">
                                          <div className="flex justify-between items-center bg-white p-5 rounded-2xl border shadow-sm">
                                              <div><h2 className="font-black uppercase text-slate-800">Complementos</h2><p className="font-bold text-slate-400 uppercase mt-0.5">{complements.length} ativos</p></div>
-                                             <button onClick={() => {setCompForm({ id: '', name: '', category: compCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsCompModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Criar</button>
+                                             <button onClick={() => {setCompForm({ id: '', name: '', category: compCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsCompModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Criar Adicional</button>
                                          </div>
                                          <div className="space-y-6">
                                              {compCats.map(cat => {
@@ -1450,7 +1475,7 @@
                                      <div className="space-y-6 fade-in">
                                          <div className="flex justify-between items-center bg-white p-5 rounded-2xl border shadow-sm">
                                              <div><h2 className="font-black uppercase text-slate-800">Fichas de Combos</h2><p className="font-bold text-slate-400 uppercase mt-0.5">{combos.length} ativos</p></div>
-                                             <button onClick={() => {setComboForm({ id: '', name: '', category: comboCats[0], sellingPrice: '', items: [], ignoreCMV: false }); setIsComboModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Criar</button>
+                                             <button onClick={() => {setComboForm({ id: '', name: '', category: comboCats[0], sellingPrice: '', items: [], ignoreCMV: false }); setIsComboModalOpen(true);}} className="btn-accent px-4 py-2 rounded-xl flex items-center gap-1"><Plus size={12}/> Criar Combo</button>
                                          </div>
                                          <div className="space-y-6">
                                              {comboCats.map(cat => {
@@ -1582,6 +1607,7 @@
                                      <div className="space-y-6 fade-in">
                                          <div className="glass-card p-6 rounded-3xl border-t-8 border-[#D97757] shadow-xl grid grid-cols-1 md:grid-cols-2 gap-6">
                                              
+                                             {/* PARÂMETROS CMV */}
                                              <div className="space-y-5">
                                                  <div><h3 className="font-black uppercase text-slate-800 text-base">Parâmetros & Taxas</h3><p className="font-bold text-slate-400 uppercase mt-1">Configurações Base (Financeiro e CMV)</p></div>
                                                  <div className="grid grid-cols-2 gap-3">
@@ -1589,16 +1615,23 @@
                                                      <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Impostos (%)</label><input type="number" step="0.1" className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:border-black" value={cmvSettings.tax} onChange={e=>setCmvSettings({...cmvSettings, tax: e.target.value})} /></div>
                                                      <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Taxa Débito (%)</label><input type="number" step="0.01" className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:border-black" value={cmvSettings.taxaDebito} onChange={e=>setCmvSettings({...cmvSettings, taxaDebito: e.target.value})} /></div>
                                                      <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Taxa Crédito (%)</label><input type="number" step="0.01" className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:border-black" value={cmvSettings.taxaCredito} onChange={e=>setCmvSettings({...cmvSettings, taxaCredito: e.target.value})} /></div>
+                                                     <div className="space-y-1"><label className="font-black uppercase text-slate-400 ml-1">Taxa Auto (Aba Vendas)</label>
+                                                         <select className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:border-black text-emerald-600" value={cmvSettings.autoFeeVendas ? 'sim' : 'nao'} onChange={e=>setCmvSettings({...cmvSettings, autoFeeVendas: e.target.value === 'sim'})}>
+                                                             <option value="sim">SIM (DEDUZIR DO DRE)</option><option value="nao">NÃO DEDUZIR</option>
+                                                         </select>
+                                                     </div>
                                                      <div className="space-y-1"><label className="font-black uppercase text-red-500 ml-1">Taxa iFood (%)</label><input type="number" step="0.1" className="w-full p-3 bg-red-50/30 border border-red-100 rounded-xl font-bold text-red-600 outline-none focus:border-red-500" value={cmvSettings.ifoodTax} onChange={e=>setCmvSettings({...cmvSettings, ifoodTax: e.target.value})} /></div>
-                                                     <div className="space-y-1"><label className="font-black uppercase text-blue-500 ml-1">Meta Vendas (R$)</label><input type="number" step="0.01" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-bold outline-none focus:border-blue-500" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} /></div>
+                                                     <div className="col-span-2 space-y-1"><label className="font-black uppercase text-blue-500 ml-1">Meta Vendas Mensal (R$)</label><input type="number" step="0.01" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-bold outline-none focus:border-blue-500" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} /></div>
                                                  </div>
-                                                 <button onClick={async()=>{if(!user)return; await saveCMVDoc('settings', {...cmvSettings, targetCMV:p(cmvSettings.targetCMV), tax:p(cmvSettings.tax), apps:p(cmvSettings.apps), taxaDebito:p(cmvSettings.taxaDebito), taxaCredito:p(cmvSettings.taxaCredito), ifoodTax:p(cmvSettings.ifoodTax)}); await saveMeta(metaVendas); alert('Parâmetros Salvos!');}} className="w-full bg-[#1A202C] text-[#F8CC82] p-3 rounded-xl font-black uppercase shadow-lg hover:bg-black transition-all">Salvar Parâmetros Globais</button>
+                                                 <button onClick={async()=>{if(!user)return; await saveCMVDoc('settings', {...cmvSettings, targetCMV:p(cmvSettings.targetCMV), tax:p(cmvSettings.tax), apps:p(cmvSettings.apps), taxaDebito:p(cmvSettings.taxaDebito), taxaCredito:p(cmvSettings.taxaCredito), ifoodTax:p(cmvSettings.ifoodTax), autoFeeVendas: cmvSettings.autoFeeVendas}); await saveMeta(metaVendas); alert('Parâmetros Salvos!');}} className="w-full bg-[#1A202C] text-[#F8CC82] p-3 rounded-xl font-black uppercase shadow-lg hover:bg-black transition-all">Salvar Parâmetros Globais</button>
                                              </div>
                                              
+                                             {/* CADASTROS RÁPIDOS */}
                                              <div className="space-y-5">
-                                                 <div><h3 className="font-black uppercase text-slate-800 text-base">Cadastros Rápidos</h3><p className="font-bold text-slate-400 uppercase mt-1">Gestão da Estrutura Financeira</p></div>
+                                                 <div><h3 className="font-black uppercase text-slate-800 text-base">Contas, Cartões & Categorias</h3><p className="font-bold text-slate-400 uppercase mt-1">Gestão da Estrutura Financeira</p></div>
+                                                 
                                                  <div className="space-y-2">
-                                                     <form onSubmit={addCat} className="flex gap-2"><input type="text" placeholder="Nova Categoria..." className="flex-1 p-2 bg-slate-50 border rounded-lg font-bold outline-none" value={catForm} onChange={e=>setCatForm(e.target.value)} required /><button className="bg-black text-[#F8CC82] px-3 rounded-lg font-black text-[9px]">Add Cat.</button></form>
+                                                     <form onSubmit={addCat} className="flex gap-2"><input type="text" placeholder="Nova Categoria..." className="flex-1 p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={catForm} onChange={e=>setCatForm(e.target.value)} required /><button className="bg-black text-[#F8CC82] px-4 rounded-xl font-black">Add</button></form>
                                                      
                                                      <form onSubmit={handleSaveAcc} className="flex flex-col gap-2 bg-slate-50 p-3 rounded-xl border">
                                                          <div className="flex justify-between items-center mb-1">
@@ -1606,7 +1639,7 @@
                                                              {accForm.id && <button type="button" onClick={()=>setAccForm({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' })} className="text-[8px] text-red-500 font-black uppercase hover:underline">Cancelar Edição</button>}
                                                          </div>
                                                          <div className="flex gap-2">
-                                                             <input type="text" placeholder="Nome Conta/Cartão" className="flex-1 p-2 bg-white border rounded-lg font-bold outline-none" value={accForm.name} onChange={e=>setAccForm({...accForm, name: e.target.value})} required />
+                                                             <input type="text" placeholder="Nome Conta/Cartão" className="flex-1 p-2 bg-white border rounded-lg font-bold outline-none min-w-[100px]" value={accForm.name} onChange={e=>setAccForm({...accForm, name: e.target.value})} required />
                                                              <select className="p-2 bg-white border rounded-lg font-bold outline-none" value={accForm.type} onChange={e=>setAccForm({...accForm, type: e.target.value})}><option value="corrente">Corrente</option><option value="cartao">Cartão</option></select>
                                                          </div>
                                                          {accForm.type === 'cartao' && (
@@ -1620,6 +1653,7 @@
                                                      </form>
                                                  </div>
 
+                                                 {/* LISTA DE CONTAS E CARTÕES COM EXCLUSÃO/EDIÇÃO */}
                                                  <div className="mt-4 border-t pt-4">
                                                      <h4 className="font-black text-slate-800 mb-3 flex items-center gap-1.5"><Wallet size={12}/> Contas & Cartões Ativos</h4>
                                                      <div className="space-y-1.5 overflow-y-auto max-h-[300px] no-scrollbar">
