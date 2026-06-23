@@ -75,7 +75,6 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        // COMPONENTE DE ÍCONES (BLINDADO)
         const Icon = memo(({ name, size = 16, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
@@ -87,7 +86,6 @@
             return <span ref={containerRef} className={`inline-flex items-center justify-center ${className}`}></span>;
         });
 
-        // INPUT DO CAIXA DIÁRIO (OTIMIZADO)
         const DailyInput = memo(({ dateStr, field, initialValue, activeUid, className, placeholder }) => {
             const [val, setVal] = useState(initialValue || '');
             useEffect(() => { setVal(initialValue || ''); }, [initialValue]);
@@ -144,7 +142,6 @@
             
             const [visibleTxCount, setVisibleTxCount] = useState(10);
             
-            // ESTADO DO FORMULÁRIO (Com taxas automáticas)
             const [txForm, setTxForm] = useState({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1, feeType: 'none', feePercent: 0 });
             const [newDayDate, setNewDayDate] = useState(new Date().toISOString().split('T')[0]);
             
@@ -230,7 +227,6 @@
                 return [...new Set(descs)].sort((a, b) => a.localeCompare(b));
             }, [transactions]);
 
-            // LOGICA FINANCEIRA COMPUTADA COM FILTROS AVANÇADOS
             const filteredDashboard = useMemo(() => transactions.filter(t => {
                 if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
                 const { clearanceDate, billingMonth } = getTransactionDates(t);
@@ -532,8 +528,11 @@
                 e.preventDefault();
                 if (!accForm.name || !user) return;
                 const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/accounts";
-                if (accForm.id) { await db.collection(path).doc(accForm.id).update(accForm); } 
-                else { await db.collection(path).add(accForm); }
+                if (accForm.id) {
+                    await db.collection(path).doc(accForm.id).update(accForm);
+                } else {
+                    await db.collection(path).add(accForm);
+                }
                 setAccForm({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' });
             };
 
@@ -594,6 +593,7 @@
                             </div>
                         </div>
                     )}
+
                     {isIngModalOpen && (
                         <div className="modal-overlay z-[110]">
                             <div className="bg-white w-full max-w-sm p-6 rounded-2xl shadow-2xl flex flex-col gap-3 scale-up-center">
@@ -609,6 +609,7 @@
                             </div>
                         </div>
                     )}
+
                     {(isRecipeModalOpen || isCompModalOpen) && (() => {
                         const isRec = isRecipeModalOpen; const formObj = isRec ? recipeForm : compForm; const setFormObj = isRec ? setRecipeForm : setCompForm;
                         const catList = isRec ? recCats : compCats; const title = formObj.id ? `Editar ${isRec?'Ficha':'Complemento'}` : `Novo ${isRec?'Ficha':'Complemento'}`;
@@ -644,6 +645,7 @@
                             </div>
                         );
                     })()}
+
                     {isComboModalOpen && (
                         <div className="modal-overlay z-[110]">
                             <div className="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 rounded-2xl shadow-2xl flex flex-col gap-4 scale-up-center">
@@ -678,6 +680,7 @@
                             </div>
                         </div>
                     )}
+
                     {isFcModalOpen && (
                         <div className="modal-overlay z-[110]">
                             <div className="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl flex flex-col gap-3 scale-up-center">
@@ -866,6 +869,7 @@
                                             {txForm.id && <div className="absolute -top-3 right-4 bg-blue-600 text-white font-black px-2 py-0.5 rounded uppercase">A Editar</div>}
                                             <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">{['entrada','saida','transferencia'].map(t=>(<button key={t} type="button" onClick={()=>setTxForm({...txForm, type: t, feeType: 'none', feePercent: 0})} className={"flex-1 py-2 rounded-lg font-black uppercase " + (txForm.type===t ? 'bg-white shadow text-black' : 'text-slate-400')}>{t}</button>))}</div>
                                             
+                                            {/* AUTOCOMPLETAR DESCRIÇÃO */}
                                             <input type="text" list="desc-history" placeholder="Descrição" required className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={txForm.desc} onChange={e=>setTxForm({...txForm, desc: e.target.value})} />
                                             <datalist id="desc-history">{uniqueDescriptions.map((desc, idx) => <option key={idx} value={desc} />)}</datalist>
 
@@ -880,6 +884,7 @@
                                                 ) : (
                                                     <div className="space-y-0.5">
                                                         <label className="font-black text-slate-400 ml-1">Categoria</label>
+                                                        {/* CATEGORIAS EM ORDEM ALFABÉTICA */}
                                                         <select className="w-full p-2 bg-white border rounded-lg font-black outline-none" value={txForm.cat} onChange={e=>setTxForm({...txForm, cat: e.target.value})}>
                                                             <option value="">Cat...</option>
                                                             {categories.sort((a,b)=>a.name.localeCompare(b.name)).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
@@ -889,9 +894,12 @@
                                                 <div className="space-y-0.5"><label className="font-black text-slate-400 ml-1">Fornecedor</label><select className="w-full p-2 bg-white border rounded-lg font-black outline-none" value={txForm.sup} onChange={e=>setTxForm({...txForm, sup: e.target.value})} disabled={txForm.type==='transferencia'}><option value="">Forn...</option>{suppliers.map(s=><option key={s.id} value={s.name}>{s.name}</option>)}</select></div>
                                             </div>
                                             
+                                            {/* LANÇAMENTO AUTOMÁTICO DE TAXAS DE CARTÃO PARA ENTRADAS */}
                                             {txForm.type === 'entrada' && !txForm.id && (
                                                 <div className="col-span-full bg-emerald-50 border border-emerald-200 p-3 rounded-xl mt-2">
-                                                    <label className="text-[9px] font-black text-emerald-800 uppercase flex items-center gap-1 mb-2"><Icon name="credit-card" size={12} /> Descontar Taxa Cartão?</label>
+                                                    <label className="text-[9px] font-black text-emerald-800 uppercase flex items-center gap-1 mb-2">
+                                                        <Icon name="credit-card" size={12} /> Descontar Taxa Cartão?
+                                                    </label>
                                                     <div className="flex gap-2">
                                                         <button type="button" onClick={() => setTxForm({...txForm, feeType: 'none', feePercent: 0})} className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase ${txForm.feeType === 'none' ? 'bg-emerald-600 text-white' : 'bg-white border text-emerald-600'}`}>Não</button>
                                                         <button type="button" onClick={() => setTxForm({...txForm, feeType: 'debito', feePercent: cmvSettings.taxaDebito})} className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase ${txForm.feeType === 'debito' ? 'bg-emerald-600 text-white' : 'bg-white border text-emerald-600'}`}>Débito</button>
@@ -927,11 +935,22 @@
                                             <div className="p-3 bg-slate-50 border-b space-y-3">
                                                 <div className="relative"><Icon name="search" size={14} className="absolute left-3 top-2.5 text-slate-300" /><input type="text" placeholder="Pesquisar histórico..." className="w-full pl-9 pr-3 py-2 bg-white border rounded-xl font-bold outline-none text-[10px]" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} /></div>
                                                 
+                                                {/* BARRA DE FILTROS AVANÇADOS */}
                                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option value="todos">TIPO: TODOS</option><option value="entrada">ENTRADAS</option><option value="saida">SAÍDAS</option><option value="transferencia">TRANSF.</option></select>
-                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="todos">STATUS: TODOS</option><option value="pago">PAGOS</option><option value="pendente">PENDENTES</option></select>
-                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={accFilter} onChange={e=>setAccFilter(e.target.value)}><option value="todas">CONTA: TODAS</option>{accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}</select>
-                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={catFilter} onChange={e=>setCatFilter(e.target.value)}><option value="todas">CAT: TODAS</option>{categories.sort((a,b)=>a.name.localeCompare(b.name)).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select>
+                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}>
+                                                        <option value="todos">TIPO: TODOS</option><option value="entrada">ENTRADAS</option><option value="saida">SAÍDAS</option><option value="transferencia">TRANSF.</option>
+                                                    </select>
+                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
+                                                        <option value="todos">STATUS: TODOS</option><option value="pago">PAGOS</option><option value="pendente">PENDENTES</option>
+                                                    </select>
+                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={accFilter} onChange={e=>setAccFilter(e.target.value)}>
+                                                        <option value="todas">CONTA: TODAS</option>
+                                                        {accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+                                                    </select>
+                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={catFilter} onChange={e=>setCatFilter(e.target.value)}>
+                                                        <option value="todas">CAT: TODAS</option>
+                                                        {categories.sort((a,b)=>a.name.localeCompare(b.name)).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                                                    </select>
                                                 </div>
                                             </div>
                                             <div className="flex-1 overflow-y-auto no-scrollbar divide-y">
@@ -947,14 +966,18 @@
                                                         <div className="flex items-center gap-3">
                                                             <p className={"font-black " + (t.type==='entrada'?'text-green-600':'text-slate-800')}>{formatMoney(t.amount)}</p>
                                                             <div className="flex gap-1">
-                                                                <button onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val: t.amount ? t.amount.toString() : '', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1, feeType: 'none', feePercent: 0}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-400 p-1.5 hover:bg-blue-50 rounded"><Icon name="edit-2" size={12}/></button>
-                                                                <button onClick={() => executeDelete('transactions', t.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === t.id ? 'delete-confirm text-white' : 'text-red-400 hover:text-red-600')}>{deleteConfirmId === t.id ? <span className="font-black uppercase text-[8px]">Sim</span> : <Icon name="trash-2" size={12}/>}</button>
+                                                                <button onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1, feeType: 'none', feePercent: 0}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-400 p-1.5 hover:bg-blue-50 rounded"><Icon name="edit-2" size={12}/></button>
+                                                                <button onClick={() => executeDelete('transactions', t.id)} className={"transition-all p-1.5 rounded hover:bg-red-50 " + (deleteConfirmId === t.id ? 'delete-confirm text-white' : 'text-red-400')}>
+                                                                    {deleteConfirmId === t.id ? <span className="font-black uppercase text-[8px]">Sim</span> : <Icon name="trash-2" size={12} />}
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 ))}
                                                 {filteredDashboard.length > visibleTxCount && (
-                                                    <button onClick={() => setVisibleTxCount(prev => prev + 15)} className="w-full p-4 bg-slate-50 text-slate-500 font-black text-[9px] uppercase hover:bg-slate-100 transition-colors">Carregar Mais (+{filteredDashboard.length - visibleTxCount} Ocultos)</button>
+                                                    <button onClick={() => setVisibleTxCount(prev => prev + 15)} className="w-full p-4 bg-slate-50 text-slate-500 font-black text-[9px] uppercase hover:bg-slate-100 transition-colors">
+                                                        Carregar Mais (+{filteredDashboard.length - visibleTxCount} Ocultos)
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>
@@ -964,6 +987,7 @@
                                 {activeTab === 'saldos' && (() => {
                                     const highlightedNames = ['MERCADO PAGO', 'C6 BANK', 'IFOOD', 'CAIXA LOJA'];
                                     const fundKeywords = ['FUNDO', 'APLICAÇÃO', 'APLICACAO', 'INVESTIMENTO', 'RESERVA', 'POUPANÇA', 'POUPANCA'];
+                                    
                                     const highlighted = currentAccounts.filter(a => highlightedNames.includes((a.name||'').trim().toUpperCase()));
                                     const funds = currentAccounts.filter(a => !highlightedNames.includes((a.name||'').trim().toUpperCase()) && fundKeywords.some(k => (a.name||'').toUpperCase().includes(k)));
                                     const others = currentAccounts.filter(a => !highlightedNames.includes((a.name||'').trim().toUpperCase()) && !fundKeywords.some(k => (a.name||'').toUpperCase().includes(k)));
@@ -1272,7 +1296,7 @@
                                                     {suppliers.length === 0 ? <tr><td colSpan="2" className="p-8 text-center text-slate-400">Vazio.</td></tr> : suppliers.sort((a,b)=>a.name.localeCompare(b.name)).map(s => (
                                                         <tr key={s.id} className="hover:bg-slate-50">
                                                             <td className="p-3 uppercase">{s.name}</td>
-                                                            <td className="p-3 text-right"><button onClick={() => executeDelete('suppliers', s.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === s.id ? 'delete-confirm text-white' : 'text-red-400 hover:text-red-600')}>{deleteConfirmId === s.id ? <span className="font-black uppercase">Sim</span> : <Icon name="trash-2" size={12}/>}</button></td>
+                                                            <td className="p-3 text-right"><button onClick={() => executeDelete('suppliers', s.id)} className={"transition-all p-1.5 rounded hover:bg-red-50 " + (deleteConfirmId === s.id ? 'delete-confirm text-white' : 'text-red-400')}>{deleteConfirmId === s.id ? <span className="font-black uppercase text-[8px]">Sim</span> : <Icon name="trash-2" size={12}/>}</button></td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -1380,7 +1404,7 @@
                                                                                 <td className="p-3 text-slate-900">{ing.name}</td>
                                                                                 <td className="p-3">{formatMoney(ing.cost)} <span className="text-slate-400">/ {ing.qty}{ing.unit}</span></td>
                                                                                 <td className="p-3 text-emerald-600">{formatMoney(getIngCost(ing.id, ing.unit==='kg'||ing.unit==='L'?1000:1))} <span className="text-slate-400">/ {ing.unit==='kg'?'g':ing.unit==='L'?'ml':ing.unit}</span></td>
-                                                                                <td className="p-3 text-right"><button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 p-1.5"><Icon name="edit-2" size={12}/></button><button onClick={() => executeDelete('cmv_data/state', ing.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === ing.id ? 'delete-confirm text-white' : 'text-red-400 hover:text-red-600')}><Icon name="trash-2" size={12}/></button></td>
+                                                                                <td className="p-3 text-right"><button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 p-1.5"><Icon name="edit-2" size={12}/></button><button onClick={() => executeDelete('cmv_data/state', ing.id)} className={"transition-all p-1.5 rounded hover:bg-red-50 " + (deleteConfirmId === ing.id ? 'delete-confirm text-white' : 'text-red-400')} title="Excluir">{deleteConfirmId === ing.id ? <span className="font-black uppercase">Sim</span> : <Icon name="trash-2" size={12}/>}</button></td>
                                                                             </tr>
                                                                         ))}
                                                                     </tbody>
@@ -1610,6 +1634,7 @@
                                      <div className="space-y-6 fade-in">
                                          <div className="glass-card p-6 rounded-3xl border-t-8 border-[#D97757] shadow-xl grid grid-cols-1 md:grid-cols-2 gap-6">
                                              
+                                             {/* PARÂMETROS CMV */}
                                              <div className="space-y-5">
                                                  <div><h3 className="font-black uppercase text-slate-800 text-base">Parâmetros & Taxas</h3><p className="font-bold text-slate-400 uppercase mt-1">Configurações Base (Financeiro e CMV)</p></div>
                                                  <div className="grid grid-cols-2 gap-3">
@@ -1628,6 +1653,7 @@
                                                  <button onClick={async()=>{if(!user)return; await saveCMVDoc('settings', {...cmvSettings, targetCMV:p(cmvSettings.targetCMV), tax:p(cmvSettings.tax), apps:p(cmvSettings.apps), taxaDebito:p(cmvSettings.taxaDebito), taxaCredito:p(cmvSettings.taxaCredito), ifoodTax:p(cmvSettings.ifoodTax), autoFeeVendas: cmvSettings.autoFeeVendas}); await saveMeta(metaVendas); alert('Parâmetros Salvos!');}} className="w-full bg-[#1A202C] text-[#F8CC82] p-3 rounded-xl font-black uppercase shadow-lg hover:bg-black transition-all">Salvar Parâmetros Globais</button>
                                              </div>
                                              
+                                             {/* CADASTROS RÁPIDOS */}
                                              <div className="space-y-5">
                                                  <div><h3 className="font-black uppercase text-slate-800 text-base">Contas, Cartões & Categorias</h3><p className="font-bold text-slate-400 uppercase mt-1">Gestão da Estrutura Financeira</p></div>
                                                  
@@ -1670,7 +1696,7 @@
                                                                  </div>
                                                                  <div className="flex gap-1 items-center">
                                                                      <button type="button" onClick={()=>setAccForm({ ...a, closing: a.closing || a.closingDay || '', due: a.due || a.dueDay || '' })} className="text-blue-500 p-1.5 rounded hover:bg-blue-50"><Icon name="edit-2" size={12}/></button>
-                                                                     <button type="button" onClick={() => executeDelete('accounts', a.id)} className={"transition-all p-1.5 rounded hover:bg-red-50 " + (deleteConfirmId === a.id ? 'delete-confirm text-white' : 'text-red-400')} title="Excluir">{deleteConfirmId === a.id ? <span className="font-black uppercase">Sim</span> : <Icon name="trash-2" size={12}/></button>
+                                                                     <button type="button" onClick={() => executeDelete('accounts', a.id)} className={"transition-all p-1.5 rounded hover:bg-red-50 " + (deleteConfirmId === a.id ? 'delete-confirm text-white' : 'text-red-400')} title="Excluir">{deleteConfirmId === a.id ? <span className="font-black uppercase text-[8px]">Sim</span> : <Icon name="trash-2" size={12}/>}</button>
                                                                  </div>
                                                              </div>
                                                          ))}
