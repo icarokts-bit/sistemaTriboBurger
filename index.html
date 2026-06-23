@@ -55,25 +55,10 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, memo } = React;
 
-        // ================= BLINDAGEM GLOBAL (FIREBASE E MATEMÁTICA) =================
-        // Utilizando 'var' e 'function' garantimos que o Babel não esconde as variáveis do React
-        if (!firebase.apps.length) {
-            firebase.initializeApp({
-                apiKey: "AIzaSyCL0o0TQYbPXoo7Yo_qJpc1oa7jib8KBcc",
-                authDomain: "tribo-burger-app.firebaseapp.com",
-                projectId: "tribo-burger-app",
-                storageBucket: "tribo-burger-app.firebasestorage.app",
-                messagingSenderId: "490245681469",
-                appId: "1:490245681469:web:189b1d2e35bd142cc31554"
-            });
-        }
-        var auth = firebase.auth();
-        var db = firebase.firestore();
+        // PARSERS MATEMÁTICOS TÉCNICOS GLOBAIS ANTES DA RENDERIZAÇÃO
+        const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
+        const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-        function p(v) { return parseFloat(String(v || 0).replace(',', '.')) || 0; }
-        function formatMoney(v) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0); }
-
-        // ================= COMPONENTES BASE =================
         const Icon = memo(({ name, size = 14, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
@@ -85,41 +70,6 @@
             return <span ref={containerRef} className={`inline-flex items-center justify-center ${className}`}></span>;
         });
 
-        const DailyInput = memo(({ dateStr, field, initialValue, activeUid, className, placeholder }) => {
-            const [val, setVal] = useState(initialValue || '');
-            useEffect(() => { setVal(initialValue || ''); }, [initialValue]);
-            const handleBlur = () => {
-                if (val !== (initialValue || '')) db.collection(`artifacts/tribo-burger-financeiro/users/${activeUid}/dailyRecords`).doc(dateStr).set({[field]: val}, {merge:true});
-            };
-            return <input className={`table-input ${className || ''}`} value={val} onChange={e=>setVal(e.target.value)} onBlur={handleBlur} placeholder={placeholder || "0,00"} />;
-        });
-
-        // ================= FUNÇÕES AUXILIARES DE DATA =================
-        function parseDateUTC(dateStr) {
-            if (!dateStr || dateStr.includes('NaN')) return new Date();
-            if (dateStr.includes('-')) {
-                const parts = dateStr.split('-');
-                if (parts[0].length === 4) return new Date(Date.UTC(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2])));
-            }
-            return new Date(dateStr);
-        }
-
-        function isInvoicePayment(t) {
-            if (!t) return false;
-            const desc = (t.description || "").toLowerCase();
-            const cat = (t.category || "").toLowerCase();
-            return (desc.includes("baixa fatura") || desc.includes("pagamento fatura") || desc.includes("pagamento de fatura") || desc.includes("baixa de fatura") || cat.includes("baixa fatura"));
-        }
-
-        function getTransactionDates(t) {
-            if (!t) return { clearanceDate: '', billingMonth: '' };
-            return {
-                clearanceDate: t.clearanceDate || t.date || '',
-                billingMonth: t.billingMonth || (t.date ? t.date.slice(0, 7) : '')
-            };
-        }
-
-        // ================= SISTEMA PRINCIPAL (APP) =================
         function App() {
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
@@ -197,23 +147,20 @@
             useEffect(() => {
                 if (!user || user.isAnonymous) return;
                 const pathFin = "artifacts/tribo-burger-financeiro/users/" + user.uid;
-                
-                const unsubTx = db.collection(pathFin + "/transactions").onSnapshot(s => setTransactions(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
-                const unsubDaily = db.collection(pathFin + "/dailyRecords").onSnapshot(s => { const r = {}; s.docs.forEach(d => { if (d.exists) r[d.id] = d.data(); }); setDailyRecords(r); });
-                const unsubAcc = db.collection(pathFin + "/accounts").onSnapshot(s => setAccounts(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
-                const unsubCat = db.collection(pathFin + "/categories").onSnapshot(s => setCategories(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
-                const unsubSup = db.collection(pathFin + "/suppliers").onSnapshot(s => setSuppliers(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
-                const unsubMeta = db.doc(pathFin + "/settings/config").onSnapshot(s => { if(s.exists) setMetaVendas(s.data().meta || 0); });
+                db.collection(pathFin + "/transactions").onSnapshot(s => setTransactions(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
+                db.collection(pathFin + "/dailyRecords").onSnapshot(s => { const r = {}; s.docs.forEach(d => { if (d.exists) r[d.id] = d.data(); }); setDailyRecords(r); });
+                db.collection(pathFin + "/accounts").onSnapshot(s => setAccounts(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
+                db.collection(pathFin + "/categories").onSnapshot(s => setCategories(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
+                db.collection(pathFin + "/suppliers").onSnapshot(s => setSuppliers(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
+                db.doc(pathFin + "/settings/config").onSnapshot(s => { if(s.exists) setMetaVendas(s.data().meta || 0); });
 
-                const unsubCmv = db.collection(pathFin + "/cmv_data").doc("state").onSnapshot(s => {
+                db.collection(pathFin + "/cmv_data").doc("state").onSnapshot(s => {
                     if(s.exists) {
                         const d = s.data();
                         setIngredients(d.ingredients || []); setRecipes(d.recipes || []); setComplements(d.complements || []); setCombos(d.combos || []); setFixedCosts(d.fixedCosts || []);
                         setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, taxaDebito: d.settings?.taxaDebito || 1.99, taxaCredito: d.settings?.taxaCredito || 4.99, ifoodTax: 12, autoFeeVendas: d.settings?.autoFeeVendas !== false });
                     }
                 });
-
-                return () => { unsubTx(); unsubDaily(); unsubAcc(); unsubCat(); unsubSup(); unsubMeta(); unsubCmv(); };
             }, [user]);
 
             useEffect(() => { setVisibleTxCount(10); }, [filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
@@ -383,75 +330,57 @@
             const handleSaveTx = async (e) => {
                 e.preventDefault(); if (!user || !txForm.val) return;
                 const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/transactions";
-                const batch = db.batch();
-                const numInst = txForm.type === 'transferencia' ? 1 : parseInt(txForm.inst || 1);
+                const batch = db.batch(); const numInst = txForm.type === 'transferencia' ? 1 : parseInt(txForm.inst || 1);
                 
-                const baseDate = parseDateUTC(txForm.date);
-                const baseClearance = parseDateUTC(txForm.clearance);
-                const cardInfo = accounts.find(a => a.name === txForm.acc && a.type === 'cartao');
-                const baseAmount = p(txForm.val) / numInst;
-
                 for (let i = 0; i < numInst; i++) {
-                    const d = new Date(baseDate.getTime()); d.setUTCMonth(d.getUTCMonth() + i);
-                    const dateStr = d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, '0') + "-" + String(d.getUTCDate()).padStart(2, '0');
-                    
-                    let clearStr = ''; let billingM = dateStr.slice(0, 7);
-
-                    if (cardInfo && txForm.type === 'saida') {
-                        const closing = parseInt(cardInfo.closing || cardInfo.closingDay || 25);
-                        const due = parseInt(cardInfo.due || cardInfo.dueDay || 10);
-                        let bDate = new Date(d.getTime()); bDate.setUTCDate(1); 
-                        if (d.getUTCDate() >= closing) bDate.setUTCMonth(bDate.getUTCMonth() + 1);
-                        billingM = bDate.getUTCFullYear() + "-" + String(bDate.getUTCMonth() + 1).padStart(2, '0');
-                        let dueDate = new Date(bDate.getTime()); dueDate.setUTCDate(1);
-                        if (due < closing) dueDate.setUTCMonth(dueDate.getUTCMonth() + 1);
-                        dueDate.setUTCDate(due);
-                        clearStr = dueDate.getUTCFullYear() + "-" + String(dueDate.getUTCMonth() + 1).padStart(2, '0') + "-" + String(dueDate.getUTCDate()).padStart(2, '0');
-                    } else {
-                        const c = new Date(baseClearance.getTime()); c.setUTCMonth(c.getUTCMonth() + i);
-                        clearStr = c.getUTCFullYear() + "-" + String(c.getUTCMonth() + 1).padStart(2, '0') + "-" + String(c.getUTCDate()).padStart(2, '0');
-                    }
+                    const d = new Date(parseDateUTC(txForm.date)); d.setMonth(d.getMonth() + i); const dateStr = d.toISOString().split('T')[0];
+                    const c = new Date(parseDateUTC(txForm.clearance)); c.setMonth(c.getMonth() + i); const clearStr = c.toISOString().split('T')[0];
+                    const baseAmount = p(txForm.val) / numInst;
 
                     const payload = {
-                        description: numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc,
-                        amount: baseAmount, type: txForm.type, status: txForm.status,
-                        date: dateStr, clearanceDate: clearStr, billingMonth: billingM,
-                        account: txForm.acc, destinationAccount: txForm.destAcc, category: txForm.type === 'transferencia' ? 'Transferência' : (txForm.cat || 'Geral'),
-                        supplier: txForm.sup, timestamp: new Date().toISOString()
+                        description: numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc, amount: baseAmount, type: txForm.type, status: txForm.status,
+                        date: dateStr, clearanceDate: clearStr, billingMonth: dateStr.slice(0, 7), account: txForm.acc, destinationAccount: txForm.destAcc,
+                        category: txForm.type === 'transferencia' ? 'Transferência' : (txForm.cat || 'Geral'), supplier: txForm.sup, timestamp: new Date().toISOString()
                     };
                     
-                    if (txForm.id && i === 0) {
-                        batch.update(db.collection(path).doc(txForm.id), payload);
-                    } else {
-                        batch.set(db.collection(path).doc(), payload);
-                        
-                        // Lançamento de Taxa Automático para Cartões
-                        if (txForm.type === 'entrada' && txForm.feeType && txForm.feeType !== 'none' && p(txForm.feePercent) > 0) {
-                            const feeAmt = baseAmount * (p(txForm.feePercent) / 100);
-                            const feePayload = {
-                                description: `Taxa Cartão (${txForm.feeType.toUpperCase()}) - ${numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc}`,
-                                amount: feeAmt, type: 'saida', status: txForm.status,
-                                date: dateStr, clearanceDate: clearStr, billingMonth: billingM,
-                                account: txForm.acc, destinationAccount: '', category: 'Taxas Bancárias',
-                                supplier: '', timestamp: new Date().toISOString()
-                            };
-                            batch.set(db.collection(path).doc(), feePayload);
+                    if (txForm.id && i === 0) { db.collection(path).doc(txForm.id).update(payload); } 
+                    else {
+                        const newRef = db.collection(path).doc(); batch.set(newRef, payload);
+                        if (txForm.type === 'entrada' && txForm.feeType !== 'none' && p(txForm.feePercent) > 0) {
+                            batch.set(db.collection(path).doc(), {
+                                description: `Taxa Cartão (${txForm.feeType.toUpperCase()}) - ${txForm.desc}`, amount: baseAmount * (p(txForm.feePercent) / 100), type: 'saida', status: txForm.status,
+                                date: dateStr, clearanceDate: clearStr, billingMonth: dateStr.slice(0, 7), account: txForm.acc, category: 'Taxas Bancárias', supplier: '', timestamp: new Date().toISOString()
+                            });
                         }
                     }
                 }
-                await batch.commit(); 
+                await batch.commit();
                 setTxForm({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1, feeType: 'none', feePercent: 0 });
+            };
+
+            const handleExecuteInvoicePayment = async () => {
+                if (!user || !invoiceModal || !invoiceSourceAcc) return;
+                const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/transactions";
+                const totalInvoiceAmount = invoiceModal.total; const paidAmount = invoicePayType === 'integral' ? totalInvoiceAmount : p(invoicePartialVal);
+                if (paidAmount <= 0) return; const todayStr = new Date().toISOString().split('T')[0]; const batch = db.batch();
+
+                batch.set(db.collection(path).doc(), { description: "Baixa Fatura " + invoiceModal.cardName, amount: paidAmount, type: 'saida', status: 'pago', date: todayStr, clearanceDate: todayStr, billingMonth: filterMonth, account: invoiceSourceAcc, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString() });
+                batch.set(db.collection(path).doc(), { description: "Pagamento de Fatura Mês " + filterMonth, amount: paidAmount, type: 'entrada', status: 'pago', date: todayStr, clearanceDate: filterMonth + "-28", billingMonth: filterMonth, account: invoiceModal.cardName, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString() });
+                await batch.commit(); setInvoiceModal(null);
+            };
+
+            const crudActionCMV = async (collectionStr, stateArr, formObj, setModalOpen) => {
+                if (!user) return; const list = [...stateArr]; const id = formObj.id || crypto.randomUUID(); const index = list.findIndex(x => x.id === id);
+                let record = { ...formObj, id };
+                ['sellingPrice', 'cost', 'qty', 'value'].forEach(k => { if(record[k]) record[k] = p(record[k]); });
+                if (index > -1) list[index] = record; else list.push(record);
+                await saveCMVDoc(collectionStr, list); setModalOpen(false);
             };
 
             const executeDelete = async (collectionName, id) => {
                 if (!user) return;
-                if (deleteConfirmId === id) {
-                    await db.collection("artifacts/tribo-burger-financeiro/users/" + user.uid + "/" + collectionName).doc(id).delete();
-                    setDeleteConfirmId(null);
-                } else {
-                    setDeleteConfirmId(id);
-                    setTimeout(() => setDeleteConfirmId(null), 3000);
-                }
+                if (deleteConfirmId === id) { await db.collection("artifacts/tribo-burger-financeiro/users/" + user.uid + "/" + collectionName).doc(id).delete(); setDeleteConfirmId(null); } 
+                else { setDeleteConfirmId(id); setTimeout(() => setDeleteConfirmId(null), 3000); }
             };
 
             const openLiquidation = (t) => {
@@ -461,92 +390,18 @@
 
             const executeLiquidation = async () => {
                 if (!user || !liqModal) return;
-                try {
-                    await db.collection('artifacts/tribo-burger-financeiro/users/' + user.uid + '/transactions').doc(liqModal.id).update({ status: 'pago', clearanceDate: liqModal.date, amount: p(liqModal.amount), account: liqModal.account });
-                    setLiqModal(null);
-                } catch (e) { console.error(e); }
-            };
-
-            const handleExecuteInvoicePayment = async () => {
-                if (!user || !invoiceModal || !invoiceSourceAcc) return;
-                try {
-                    const activeUid = user.uid;
-                    const path = "artifacts/tribo-burger-financeiro/users/" + activeUid + "/transactions";
-                    const totalInvoiceAmount = invoiceModal.total;
-                    const paidAmount = invoicePayType === 'integral' ? totalInvoiceAmount : p(invoicePartialVal);
-
-                    if (paidAmount <= 0) return; 
-
-                    const todayStr = new Date().toISOString().split('T')[0];
-                    const batch = db.batch();
-
-                    const paymentPayload = {
-                        description: "Baixa Fatura " + invoiceModal.cardName + " (" + invoicePayType.toUpperCase() + ")",
-                        amount: paidAmount, type: 'saida', status: 'pago', date: todayStr, clearanceDate: todayStr,
-                        billingMonth: filterMonth, account: invoiceSourceAcc, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString()
-                    };
-                    batch.set(db.collection(path).doc(), paymentPayload);
-
-                    const cardCreditPayload = {
-                        description: "Pagamento de Fatura Mês " + filterMonth,
-                        amount: paidAmount, type: 'entrada', status: 'pago', date: todayStr, clearanceDate: filterMonth + "-28", 
-                        billingMonth: filterMonth, account: invoiceModal.cardName, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString()
-                    };
-                    batch.set(db.collection(path).doc(), cardCreditPayload);
-
-                    if (invoicePayType === 'parcial' && (totalInvoiceAmount - paidAmount) > 0.01) {
-                        const remainingAmount = totalInvoiceAmount - paidAmount;
-                        const parts = filterMonth.split('-');
-                        let nextM = parseInt(parts[1]) + 1; let nextY = parseInt(parts[0]);
-                        if (nextM > 12) { nextM = 1; nextY += 1; }
-                        const nextMonthStr = nextY + "-" + String(nextM).padStart(2, '0');
-
-                        const rolloverPayload = {
-                            description: "Saldo Restante Fatura Anterior " + filterMonth,
-                            amount: remainingAmount, type: 'saida', status: 'pendente', date: nextMonthStr + "-01", clearanceDate: nextMonthStr + "-10", 
-                            billingMonth: nextMonthStr, account: invoiceModal.cardName, category: 'Saldo Fatura Anterior', supplier: '', timestamp: new Date().toISOString()
-                        };
-                        batch.set(db.collection(path).doc(), rolloverPayload);
-                    }
-
-                    await batch.commit();
-                    setInvoiceModal(null); setInvoicePartialVal(''); setInvoiceSourceAcc('');
-                } catch(e) { console.error(e); }
+                await db.collection('artifacts/tribo-burger-financeiro/users/' + user.uid + '/transactions').doc(liqModal.id).update({ status: 'pago', clearanceDate: liqModal.date, amount: p(liqModal.amount), account: liqModal.account });
+                setLiqModal(null);
             };
 
             const addSupplier = async (e) => { e.preventDefault(); if(supForm) { await db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/suppliers`).add({name: supForm}); setSupForm(''); } };
             const addCat = async (e) => { e.preventDefault(); if(catForm) { await db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/categories`).add({name: catForm}); setCatForm(''); } };
-            
-            const handleSaveAcc = async (e) => {
-                e.preventDefault();
-                if (!accForm.name || !user) return;
-                const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/accounts";
-                if (accForm.id) {
-                    await db.collection(path).doc(accForm.id).update(accForm);
-                } else {
-                    await db.collection(path).add(accForm);
-                }
-                setAccForm({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' });
-            };
+            const handleSaveAcc = async (e) => { e.preventDefault(); if (!accForm.name || !user) return; const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/accounts"; if (accForm.id) { await db.collection(path).doc(accForm.id).update(accForm); } else { await db.collection(path).add(accForm); } setAccForm({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' }); };
 
-            const crudActionCMV = async (collectionStr, stateArr, formObj, setModalOpen) => {
-                if (!user) return;
-                const list = [...stateArr]; const id = formObj.id || crypto.randomUUID(); const index = list.findIndex(x => x.id === id);
-                let record = { ...formObj, id };
-                if (record.sellingPrice) record.sellingPrice = p(record.sellingPrice); if (record.cost) record.cost = p(record.cost);
-                if (record.qty) record.qty = p(record.qty); if (record.value) record.value = p(record.value);
-                if (record.ingredients) record.ingredients = record.ingredients.filter(i => i.ingredientId && p(i.qty) > 0);
-                if (record.items) record.items = record.items.filter(i => i.itemId && p(i.qty) > 0);
-                if (index > -1) list[index] = record; else list.push(record);
-                await saveCMVDoc(collectionStr, list); setModalOpen(false);
-            };
-
-            const delActionCMV = async (collectionStr, stateArr, id) => { if(window.confirm("Confirmar exclusão?")) await saveCMVDoc(collectionStr, stateArr.filter(x => x.id !== id)); };
-
-            if (loading) return <div className="h-screen w-full flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase tracking-widest text-[11px]">A Inicializar o Motor Unificado...</div>;
+            if (loading) return <div className="h-screen w-full flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase text-[11px]">A carregar Motor de Dados...</div>;
             if (!user) return (
                 <div className="h-screen w-full flex items-center justify-center bg-[#1A202C] p-4">
-                    <div className="bg-white p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl">
+                    <div className="bg-white p-6 rounded-xl max-w-sm w-full text-center shadow-2xl">
                         <h2 className="text-base font-black uppercase text-slate-800 mb-4">ERP Tribo Burger</h2>
                         <button onClick={() => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())} className="w-full bg-black text-[#F8CC82] p-3 rounded-lg font-black uppercase flex items-center justify-center gap-2 text-[10px]"><Icon name="lock" size={14}/> Entrar com Google</button>
                     </div>
@@ -556,8 +411,8 @@
             return (
                 <div className="flex h-screen w-full overflow-hidden bg-[#FDFCF9] fade-in">
                     
-                    {/* SIDEBAR OPERACIONAL FIXA */}
-                    <aside className="hidden md:flex w-52 flex-shrink-0 bg-[#1A202C] text-white flex-col shadow-2xl z-40 print:hidden h-full">
+                    {/* MENU LATERAL GERENCIAL COMPACTO */}
+                    <aside className="w-52 flex-shrink-0 bg-[#1A202C] text-white flex flex-col h-full print:hidden">
                         <div className="p-4 border-b border-white/10 flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div>
                             <div><h1 className="font-black text-[#F8CC82] uppercase leading-none text-[10px]">Tribo Burger</h1><span className="text-[7px] font-black text-emerald-400 uppercase">Cantinho Fixo</span></div>
@@ -566,7 +421,7 @@
                             <div>
                                 <h3 className="text-[8px] font-black uppercase text-slate-500 tracking-wider mb-1 px-2 flex items-center gap-1"><Icon name="wallet" size={12}/> Finanças</h3>
                                 <div className="flex flex-col gap-0.5">
-                                    {['fin_dashboard', 'saldos', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'resultados', 'dre', 'fornecedores'].map(t => (
+                                    {['fin_dashboard', 'saldos', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'resultados', 'dre', 'relatorios', 'fornecedores'].map(t => (
                                         <button key={t} onClick={() => setActiveTab(t)} className={"text-left px-3 py-2 text-[9px] font-black uppercase rounded-lg " + (activeTab === t ? "bg-white/10 text-[#F8CC82]" : "text-slate-400 hover:bg-white/5")}>{t.replace('fin_', '').replace('_', ' ')}</button>
                                     ))}
                                 </div>
@@ -587,30 +442,9 @@
                         <div className="p-4 border-t border-white/10 text-center"><button onClick={()=>auth.signOut()} className="w-full py-2 bg-red-500/10 text-red-400 rounded-lg font-black uppercase hover:bg-red-500/20 transition-all">Sair do Sistema</button></div>
                     </aside>
 
-                    {/* MENU MOBILE */}
-                    {isMenuOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] transition-opacity md:hidden print:hidden" onClick={() => setIsMenuOpen(false)}></div>}
-                    <div className={`fixed inset-y-0 left-0 z-[95] w-64 bg-[#1A202C] shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col md:hidden print:hidden ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                        <div className="p-4 border-b border-white/10 flex justify-between items-center"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div><span className="font-black text-[#F8CC82] uppercase tracking-widest">Menu</span></div><button onClick={() => setIsMenuOpen(false)} className="text-slate-400 hover:text-white p-2 bg-white/5 rounded-lg"><Icon name="x" size={16}/></button></div>
-                        <div className="flex-1 overflow-y-auto no-scrollbar p-3 space-y-5">
-                            <div><h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><Icon name="wallet" size={12}/> Finanças</h3><div className="flex flex-col gap-0.5">{['fin_dashboard', 'saldos', 'vendas', 'a_pagar', 'a_receber', 'cartoes', 'resultados', 'dre', 'fornecedores'].map(t => (<button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-white/10 text-[#F8CC82] shadow-inner" : "text-slate-400 hover:text-white hover:bg-white/5")}>{t.replace('fin_', '').replace('_', ' ')}</button>))}</div></div>
-                            <div><h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><Icon name="pie-chart" size={12}/> Custos & CMV</h3><div className="flex flex-col gap-0.5">{['cmv_dashboard', 'insumos', 'fichas', 'complementos', 'combos', 'analise', 'custos_fixos', 'ajustes'].map(t => (<button key={t} onClick={() => {setActiveTab(t); setIsMenuOpen(false);}} className={"text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === t ? "bg-[#F27A18] text-black shadow-md" : "text-slate-400 hover:text-white hover:bg-white/5")}>{t.replace('cmv_', '').replace('_', ' ')}</button>))}</div></div>
-                            <div><h3 className="text-[8px] font-black uppercase text-slate-500 tracking-[0.2em] mb-2 px-2 flex items-center gap-1.5"><Icon name="activity" size={12}/> Síntese</h3><button onClick={() => {setActiveTab('relatorio_unificado'); setIsMenuOpen(false);}} className={"w-full text-left px-3 py-2.5 font-black uppercase transition-all rounded-lg " + (activeTab === 'relatorio_unificado' ? "bg-indigo-600 text-white shadow" : "text-slate-400 hover:text-white hover:bg-white/5")}>Planilha Unificada</button></div>
-                        </div>
-                        <div className="p-4 border-t border-white/10 text-center"><button onClick={()=>auth.signOut()} className="w-full py-2 bg-red-500/10 text-red-400 rounded-lg font-black uppercase hover:bg-red-500/20 transition-all">Sair</button></div>
-                    </div>
-
-                    {/* INTERFACE TÉCNICA PRINCIPAL */}
-                    <main className="flex-1 flex flex-col h-screen overflow-y-auto w-full relative">
-                        
-                        <header className="bg-[#1A202C] text-white p-3 shadow-md flex items-center justify-between md:hidden print:hidden sticky top-0 z-50">
-                            <div className="flex items-center gap-3">
-                                <button onClick={() => setIsMenuOpen(true)} className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"><Icon name="menu" size={18} /></button>
-                                <div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div>
-                            </div>
-                            <span className="font-black text-[#F8CC82] uppercase tracking-widest text-[9px]">{activeTab.replace('fin_', '').replace('cmv_', '').replace('_', ' ')}</span>
-                        </header>
-
-                        <div className="p-4 md:p-6 w-full max-w-full space-y-4 print:p-0 mx-auto">
+                    {/* CONTEÚDO PRINCIPAL DAS ABAS */}
+                    <main className="flex-1 flex flex-col h-screen overflow-y-auto w-full">
+                        <div className="p-4 md:p-6 w-full max-w-full space-y-4 mx-auto">
                             
                             {/* CABEÇALHO FILTRO MÊS */}
                             <div className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border print:hidden sticky top-0 z-30">
@@ -635,8 +469,7 @@
                                 });
 
                                 const faturamentoCaixa = mPix + mPixOn + mDinheiro + mIfood + mDebito + mCredito + mFiado + mVR + mTicket + mAlelo;
-                                const entradasManuais = transactions.filter(t => t.type === 'entrada' && t.status === 'pago' && getTransactionDates(t).clearanceDate?.startsWith(filterMonth) && !isInvoicePayment(t)).reduce((acc, t) => acc + p(t.amount), 0);
-                                const faturamentoTotal = faturamentoCaixa + entradasManuais;
+                                const faturamentoTotal = faturamentoCaixa; // AS ENTRADAS MANUAIS FORAM RETIRADAS DO TOTAL CONFORME PEDIDO
                                 
                                 const custoInsumosCMV = faturamentoTotal * (p(cmvGeral) / 100);
                                 const impostosEstimados = faturamentoTotal * (p(cmvSettings.tax) / 100);
@@ -669,7 +502,6 @@
                                                         <tr><td className="p-2 pl-4 border">Vendas em Cartão Débito / Crédito</td><td className="p-2 text-right border">{formatMoney(mDebito + mCredito)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? (((mDebito + mCredito)/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                         <tr><td className="p-2 pl-4 border">Delivery Apps (iFood)</td><td className="p-2 text-right border">{formatMoney(mIfood)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((mIfood/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                         <tr><td className="p-2 pl-4 border">Vouchers, Tickets & Outros</td><td className="p-2 text-right border">{formatMoney(mFiado + mVR + mTicket + mAlelo)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? (((mFiado + mVR + mTicket + mAlelo)/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
-                                                        <tr><td className="p-2 pl-4 border">Entradas Manuais Diversas</td><td className="p-2 text-right border">{formatMoney(entradasManuais)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((entradasManuais/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                         <tr className="bg-blue-50/50 font-black"><td className="p-2 border">TOTAL RECEITA BRUTA (A)</td><td className="p-2 text-right border text-blue-700">{formatMoney(faturamentoTotal)}</td><td className="p-2 text-center border">100.0%</td></tr>
                                                         
                                                         <tr className="bg-slate-100 font-black"><td colSpan="3" className="p-2 border">2. Custos Variáveis Retidos</td></tr>
@@ -696,7 +528,6 @@
                             {activeTab === 'fin_dashboard' && (
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 fade-in">
                                     <form onSubmit={handleSaveTx} className="lg:col-span-1 glass-card p-4 rounded-xl space-y-3 border-t-4 border-black h-fit relative">
-                                        {txForm.id && <div className="absolute -top-3 right-4 bg-blue-600 text-white font-black px-2 py-0.5 rounded uppercase">A Editar</div>}
                                         <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">{['entrada','saida','transferencia'].map(t=>(<button key={t} type="button" onClick={()=>setTxForm({...txForm, type: t, feeType:'none', feePercent:0})} className={"flex-1 py-1.5 rounded text-[9px] font-black uppercase " + (txForm.type===t ? 'bg-white shadow text-black' : 'text-slate-400')}>{t}</button>))}</div>
                                         <input type="text" list="desc-history" placeholder="Descrição" required className="w-full p-2 bg-slate-50 border rounded-lg font-bold outline-none" value={txForm.desc} onChange={e=>setTxForm({...txForm, desc: e.target.value})} />
                                         <datalist id="desc-history">{uniqueDescriptions.map((desc, idx) => <option key={idx} value={desc} />)}</datalist>
@@ -715,7 +546,7 @@
                                         </div>
                                         {txForm.type === 'entrada' && (
                                             <div className="bg-emerald-50 border border-emerald-200 p-2 rounded-lg text-[9px]">
-                                                <label className="font-black text-emerald-800 flex items-center gap-1 mb-1"><Icon name="credit-card" size={12} /> Auto Taxar Lançamento?</label>
+                                                <label className="font-black text-emerald-800 flex items-center gap-1 mb-1">Auto Taxar Cartão?</label>
                                                 <div className="flex gap-1.5">
                                                     <button type="button" onClick={() => setTxForm({...txForm, feeType: 'none', feePercent: 0})} className={`flex-1 py-1 rounded text-[8px] font-black ${txForm.feeType === 'none' ? 'bg-emerald-600 text-white' : 'bg-white border'}`}>Não</button>
                                                     <button type="button" onClick={() => setTxForm({...txForm, feeType: 'debito', feePercent: cmvSettings.taxaDebito})} className={`flex-1 py-1 rounded text-[8px] font-black ${txForm.feeType === 'debito' ? 'bg-emerald-600 text-white' : 'bg-white border'}`}>Débito</button>
@@ -751,10 +582,7 @@
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         <p className="font-black text-slate-800">{formatMoney(t.amount)}</p>
-                                                        <div className="flex gap-1 items-center">
-                                                            <button onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1, feeType: 'none', feePercent: 0}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-500 font-black text-[8px] bg-slate-100 p-1.5 rounded hover:bg-blue-100">EDITAR</button>
-                                                            <button onClick={() => executeDelete('transactions', t.id)} className={"transition-all p-1.5 font-black text-[8px] rounded " + (deleteConfirmId === t.id ? 'delete-confirm' : 'bg-red-50 text-red-500 hover:bg-red-100')}>{deleteConfirmId === t.id ? "SIM" : "EXCLUIR"}</button>
-                                                        </div>
+                                                        <button onClick={() => executeDelete('transactions', t.id)} className="bg-white text-red-500 border rounded font-black text-[8px] px-2 py-1">{deleteConfirmId === t.id ? "SIM" : "APAGAR"}</button>
                                                     </div>
                                                 </div>
                                             ))}
@@ -816,12 +644,12 @@
                             {/* ABA: CONTAS A PAGAR */}
                             {activeTab === 'a_pagar' && (
                                 <div className="space-y-4 fade-in">
-                                    <div className="stat-banner !border-black !bg-red-500 p-5 rounded-xl text-center"><p className="font-black uppercase tracking-wider text-white opacity-80 mb-1">Total Geral de Provisões A Pagar</p><h3 className="text-3xl font-black text-white">{formatMoney(totalAPagar)}</h3></div>
+                                    <div className="stat-banner !border-black !bg-red-500 p-5 rounded-xl text-center"><p className="font-black uppercase tracking-wider text-white opacity-80 mb-1">Total Geral de Provisões A Pagar</p><h3 className="text-3xl font-black text-white">{formatMoney(consolidatedAPagar.reduce((sum, t) => sum + p(t.amount), 0))}</h3></div>
                                     <div className="glass-card rounded-xl overflow-hidden border shadow-sm">
                                         <table className="w-full text-left text-[11px]">
                                             <thead className="bg-slate-100 text-slate-500 font-black uppercase tracking-widest border-b"><tr><th className="p-3">Vencimento</th><th className="p-3">Descrição Operação</th><th className="p-3">Conta Alocada</th><th className="p-3 text-right">Valor Custo</th><th className="p-3 text-center">Ação</th></tr></thead>
                                             <tbody className="divide-y font-bold text-slate-700">
-                                                {consolidatedAPagar.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400 uppercase">Nenhuma conta pendente para o período selecionado.</td></tr> : consolidatedAPagar.map((t, idx) => (
+                                                {consolidatedAPagar.map((t, idx) => (
                                                     <tr key={idx} className="hover:bg-slate-50">
                                                         <td className="p-3 text-slate-800">{t.clearanceDate.split('-').reverse().join('/')}</td>
                                                         <td className="p-3 uppercase">{t.description}</td>
@@ -839,12 +667,12 @@
                             {/* ABA: CONTAS A RECEBER */}
                             {activeTab === 'a_receber' && (
                                 <div className="space-y-4 fade-in">
-                                    <div className="stat-banner !border-black !bg-green-500 p-5 rounded-xl text-center"><p className="font-black uppercase tracking-wider text-white opacity-80 mb-1">Total Geral de Provisões A Receber</p><h3 className="text-3xl font-black text-white">{formatMoney(totalReceitasPendentes)}</h3></div>
+                                    <div className="stat-banner !border-black !bg-green-500 p-5 rounded-xl text-center"><p className="font-black uppercase tracking-wider text-white opacity-80 mb-1">Total Geral de Provisões A Receber</p><h3 className="text-3xl font-black text-white">{formatMoney(consolidatedAReceber.reduce((sum, t) => sum + p(t.amount), 0))}</h3></div>
                                     <div className="glass-card rounded-xl overflow-hidden border shadow-sm">
                                         <table className="w-full text-left text-[11px]">
                                             <thead className="bg-slate-100 text-slate-500 font-black uppercase tracking-widest border-b"><tr><th className="p-3">Previsão Liberação</th><th className="p-3">Descrição Receita</th><th className="p-3">Conta Destino</th><th className="p-3 text-right">Valor Bruto</th><th className="p-3 text-center">Ação</th></tr></thead>
                                             <tbody className="divide-y font-bold text-slate-700">
-                                                {consolidatedAReceber.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400 uppercase">Nenhum recebimento provisionado em agenda.</td></tr> : consolidatedAReceber.map((t) => (
+                                                {consolidatedAReceber.map((t) => (
                                                     <tr key={t.id} className="hover:bg-slate-50">
                                                         <td className="p-3 text-slate-800">{t.clearanceDate?.split('-').reverse().join('/')}</td>
                                                         <td className="p-3 uppercase">{t.description}</td>
@@ -939,7 +767,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: INSUMOS (RESTAURADA E COMPLETA POR CATEGORIA) */}
+                            {/* ABA: INSUMOS */}
                             {activeTab === 'insumos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -961,7 +789,7 @@
                                                             <thead className="bg-slate-100 font-black text-slate-500 uppercase tracking-widest border-b"><tr><th className="p-3">Ingrediente</th><th className="p-3">Preço Base Compras</th><th className="p-3">Custo Grama/Unidade</th><th className="p-3 text-right">Ação</th></tr></thead>
                                                             <tbody className="divide-y font-bold text-slate-700">
                                                                 {catIngs.sort((a,b)=>a.name.localeCompare(b.name)).map(ing => (
-                                                                    <tr key={ing.id} className="hover:bg-slate-50"><td className="p-3 text-slate-900">{ing.name}</td><td className="p-3">{formatMoney(ing.cost)} <span className="text-slate-400">/ {ing.qty}{ing.unit}</span></td><td className="p-3 text-emerald-600">{formatMoney(getIngCost(ing.id, ing.unit==='kg'||ing.unit==='L'?1000:1))} <span className="text-slate-400">/ {ing.unit==='kg'?'g':ing.unit==='L'?'ml':ing.unit}</span></td><td className="p-3 text-right"><div className="flex justify-end gap-1"><button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 bg-slate-100 p-1.5 rounded text-[8px] font-black uppercase">Editar</button><button onClick={() => executeDelete('cmv_data/state', ing.id)} className="text-red-500 bg-red-50 p-1.5 rounded text-[8px] font-black uppercase">Excluir</button></div></td></tr>
+                                                                    <tr key={ing.id} className="hover:bg-slate-50"><td className="p-3 text-slate-900">{ing.name}</td><td className="p-3">{formatMoney(ing.cost)} <span className="text-slate-400">/ {ing.qty}{ing.unit}</span></td><td className="p-3 text-emerald-600">{formatMoney(getIngCost(ing.id, ing.unit==='kg'||ing.unit==='L'?1000:1))} <span className="text-slate-400">/ {ing.unit==='kg'?'g':ing.unit==='L'?'ml':ing.unit}</span></td><td className="p-3 text-right"><div className="flex justify-end gap-1"><button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 bg-slate-100 px-2 py-1 rounded text-[8px] font-black uppercase">Editar</button><button onClick={() => executeDelete('cmv_data/state', ing.id)} className="text-red-500 bg-red-50 px-2 py-1 rounded text-[8px] font-black uppercase">Excluir</button></div></td></tr>
                                                                 ))}
                                                             </tbody>
                                                         </table></div>
@@ -973,7 +801,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: FICHAS TÉCNICAS (RESTAURADA E COMPLETA) */}
+                            {/* ABA: FICHAS TÉCNICAS */}
                             {activeTab === 'fichas' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1014,7 +842,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: COMPLEMENTOS / ADICIONAIS (RESTAURADA E COMPLETA) */}
+                            {/* ABA: COMPLEMENTOS / ADICIONAIS */}
                             {activeTab === 'complementos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1049,7 +877,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: COMBOS PROMO COMPLETA */}
+                            {/* ABA: COMBOS PROMO */}
                             {activeTab === 'combos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1090,7 +918,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: ANÁLISE OPERACIONAL DE CARDÁPIO COMPLETA */}
+                            {/* ABA: ANÁLISE OPERACIONAL DE CARDÁPIO */}
                             {activeTab === 'analise' && (() => {
                                 const totalFixedCosts = fixedCosts.reduce((s,c)=>s+p(c.value),0);
                                 const cmvGeral = (() => { let sumCmv = 0, count = 0; [...recipes, ...complements, ...combos].forEach(item => { if (!item.ignoreCMV) { const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items); const sp = p(item.sellingPrice); if(sp>0){ sumCmv += (cost/sp)*100; count++; } } }); return count>0 ? (sumCmv/count).toFixed(1) : 0; })();
@@ -1137,10 +965,15 @@
                                      </div>
                                      <div className="lg:col-span-2 glass-card rounded-xl overflow-hidden border shadow-sm">
                                          <table className="w-full text-left text-[11px] font-bold text-slate-700">
-                                             <thead className="bg-slate-100 text-slate-500 uppercase tracking-widest border-b"><tr><th className="p-3">Descrição da Despesa</th><th className="p-3">Categoria Estrutural</th><th className="p-3 text-right">Valor Mensal</th><th className="p-3 text-right">Ação</th></tr></thead>
+                                             <thead className="bg-slate-100 text-slate-500 uppercase tracking-widest border-b"><tr><th className="p-3">Descrição da Despesa</th><th className="p-3">Categoria Estrutural</th><th className="p-3 text-right">Valor Mensal</th><th className="p-3 text-right">Ações</th></tr></thead>
                                              <tbody className="divide-y">
                                                  {fixedCosts.map(fc => (
-                                                     <tr key={fc.id} className="hover:bg-slate-50"><td className="p-3 uppercase">{fc.description}</td><td className="p-3"><span className="bg-slate-100 px-2 py-0.5 rounded text-[8px] font-black">{fc.category}</span></td><td className="p-3 text-right text-red-500">{formatMoney(p(fc.value))}</td><td className="p-3 text-right"><button onClick={()=>delActionCMV('fixedCosts', fixedCosts, fc.id)} className="text-red-500 bg-red-50 p-1.5 rounded text-[8px] font-black uppercase">Excluir</button></td></tr>
+                                                     <tr key={fc.id} className="hover:bg-slate-50">
+                                                         <td className="p-3 uppercase">{fc.description}</td>
+                                                         <td className="p-3"><span className="bg-slate-100 px-2 py-0.5 rounded text-[8px] font-black">{fc.category}</span></td>
+                                                         <td className="p-3 text-right text-red-500">{formatMoney(p(fc.value))}</td>
+                                                         <td className="p-3 text-right"><button onClick={()=>delActionCMV('fixedCosts', fixedCosts, fc.id)} className="text-red-500 bg-red-50 px-2 py-1 rounded text-[8px] font-black uppercase">Excluir</button></td>
+                                                     </tr>
                                                  ))}
                                              </tbody>
                                          </table>
