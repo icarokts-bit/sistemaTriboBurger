@@ -75,7 +75,7 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        // ÍCONES OTIMIZADOS
+        // COMPONENTE DE ÍCONES (BLINDADO)
         const Icon = memo(({ name, size = 16, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
@@ -87,6 +87,7 @@
             return <span ref={containerRef} className={`inline-flex items-center justify-center ${className}`}></span>;
         });
 
+        // INPUT DO CAIXA DIÁRIO (OTIMIZADO)
         const DailyInput = memo(({ dateStr, field, initialValue, activeUid, className, placeholder }) => {
             const [val, setVal] = useState(initialValue || '');
             useEffect(() => { setVal(initialValue || ''); }, [initialValue]);
@@ -95,22 +96,6 @@
             };
             return <input className={`table-input ${className || ''}`} value={val} onChange={e=>setVal(e.target.value)} onBlur={handleBlur} placeholder={placeholder || "0,00"} />;
         });
-
-        const safeIcons = [
-            'Utensils', 'Sprout', 'Edit', 'Edit2', 'Trash', 'Trash2', 'Plus', 'Check', 'Search', 
-            'Bell', 'Calendar', 'CreditCard', 'TrendingUp', 'CheckSquare', 'PlusCircle', 
-            'CalendarDays', 'ShoppingCart', 'CheckCircle', 'Lock', 'ShieldCheck', 'Copy', 'Download', 'CloudLightning',
-            'Target', 'TrendingDown', 'AlertTriangle', 'FileText', 'PieChart', 'Printer', 'Wallet', 'Star', 'Menu', 'X',
-            'ChevronUp', 'ChevronDown', 'Box', 'Layers', 'Filter', 'Activity'
-        ];
-        
-        const IconComponents = {};
-        safeIcons.forEach(iconName => {
-            const normalized = iconName.toLowerCase().replace('2', '-2').replace('square', '-square').replace('circle', '-circle').replace('days', '-days').replace('card', '-card').replace('up', '-up').replace('down', '-down').replace('check', '-check').replace('lightning', '-lightning').replace('triangle', '-triangle').replace('text', '-text').replace('chart', '-chart');
-            IconComponents[iconName] = (props) => <Icon name={normalized} size={props.size || 16} className={props.className || ""} />;
-        });
-
-        const { Utensils, Edit2, Trash2, Plus, Search, CreditCard, TrendingUp, CalendarDays, CheckCircle, Target, TrendingDown, FileText, PieChart, Printer, Wallet, Star, ChevronUp, ChevronDown, Box, Layers, Lock, Menu, X, Activity } = IconComponents;
 
         const parseDateUTC = (dateStr) => {
             if (!dateStr || dateStr.includes('NaN')) return new Date();
@@ -159,6 +144,7 @@
             
             const [visibleTxCount, setVisibleTxCount] = useState(10);
             
+            // ESTADO DO FORMULÁRIO (Com taxas automáticas)
             const [txForm, setTxForm] = useState({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1, feeType: 'none', feePercent: 0 });
             const [newDayDate, setNewDayDate] = useState(new Date().toISOString().split('T')[0]);
             
@@ -203,11 +189,6 @@
             const [comboCollapsed, setComboCollapsed] = useState({});
             const [ingCollapsed, setIngCollapsed] = useState({});
 
-            const uniqueDescriptions = useMemo(() => {
-                const descs = transactions.map(t => t.description).filter(Boolean);
-                return [...new Set(descs)].sort((a, b) => a.localeCompare(b));
-            }, [transactions]);
-
             useEffect(() => {
                 const unsubscribe = auth.onAuthStateChanged(u => { setUser(u); setLoading(false); });
                 return () => unsubscribe();
@@ -243,7 +224,13 @@
             const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-            // ================= LOGICA FINANCEIRA COMPUTADA =================
+            // AUTOCOMPLETAR DESCRIÇÃO INTELIGENTE
+            const uniqueDescriptions = useMemo(() => {
+                const descs = transactions.map(t => t.description).filter(Boolean);
+                return [...new Set(descs)].sort((a, b) => a.localeCompare(b));
+            }, [transactions]);
+
+            // LOGICA FINANCEIRA COMPUTADA COM FILTROS AVANÇADOS
             const filteredDashboard = useMemo(() => transactions.filter(t => {
                 if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
                 const { clearanceDate, billingMonth } = getTransactionDates(t);
@@ -577,7 +564,7 @@
             return (
                 <div className="flex h-screen w-full overflow-hidden bg-[#FDFCF9] fade-in">
                     
-                    {/* MODAIS (FINANCEIROS E CMV) SOBREPOSTOS */}
+                    {/* ================= MODAIS (FINANCEIROS E CMV) SOBREPOSTOS ================= */}
                     {liqModal && (
                         <div className="modal-overlay z-[110]">
                             <div className="glass-card w-full max-w-sm p-6 rounded-2xl shadow-2xl border-t-4 border-green-500 flex flex-col gap-4 scale-up-center">
@@ -904,9 +891,7 @@
                                             
                                             {txForm.type === 'entrada' && !txForm.id && (
                                                 <div className="col-span-full bg-emerald-50 border border-emerald-200 p-3 rounded-xl mt-2">
-                                                    <label className="text-[9px] font-black text-emerald-800 uppercase flex items-center gap-1 mb-2">
-                                                        <Icon name="credit-card" size={12} /> Descontar Taxa Cartão?
-                                                    </label>
+                                                    <label className="text-[9px] font-black text-emerald-800 uppercase flex items-center gap-1 mb-2"><Icon name="credit-card" size={12} /> Descontar Taxa Cartão?</label>
                                                     <div className="flex gap-2">
                                                         <button type="button" onClick={() => setTxForm({...txForm, feeType: 'none', feePercent: 0})} className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase ${txForm.feeType === 'none' ? 'bg-emerald-600 text-white' : 'bg-white border text-emerald-600'}`}>Não</button>
                                                         <button type="button" onClick={() => setTxForm({...txForm, feeType: 'debito', feePercent: cmvSettings.taxaDebito})} className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase ${txForm.feeType === 'debito' ? 'bg-emerald-600 text-white' : 'bg-white border text-emerald-600'}`}>Débito</button>
@@ -943,20 +928,10 @@
                                                 <div className="relative"><Icon name="search" size={14} className="absolute left-3 top-2.5 text-slate-300" /><input type="text" placeholder="Pesquisar histórico..." className="w-full pl-9 pr-3 py-2 bg-white border rounded-xl font-bold outline-none text-[10px]" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} /></div>
                                                 
                                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}>
-                                                        <option value="todos">TIPO: TODOS</option><option value="entrada">ENTRADAS</option><option value="saida">SAÍDAS</option><option value="transferencia">TRANSF.</option>
-                                                    </select>
-                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
-                                                        <option value="todos">STATUS: TODOS</option><option value="pago">PAGOS</option><option value="pendente">PENDENTES</option>
-                                                    </select>
-                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={accFilter} onChange={e=>setAccFilter(e.target.value)}>
-                                                        <option value="todas">CONTA: TODAS</option>
-                                                        {accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
-                                                    </select>
-                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={catFilter} onChange={e=>setCatFilter(e.target.value)}>
-                                                        <option value="todas">CAT: TODAS</option>
-                                                        {categories.sort((a,b)=>a.name.localeCompare(b.name)).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
-                                                    </select>
+                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option value="todos">TIPO: TODOS</option><option value="entrada">ENTRADAS</option><option value="saida">SAÍDAS</option><option value="transferencia">TRANSF.</option></select>
+                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="todos">STATUS: TODOS</option><option value="pago">PAGOS</option><option value="pendente">PENDENTES</option></select>
+                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={accFilter} onChange={e=>setAccFilter(e.target.value)}><option value="todas">CONTA: TODAS</option>{accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}</select>
+                                                    <select className="p-2 border rounded-lg font-black text-[9px] outline-none" value={catFilter} onChange={e=>setCatFilter(e.target.value)}><option value="todas">CAT: TODAS</option>{categories.sort((a,b)=>a.name.localeCompare(b.name)).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select>
                                                 </div>
                                             </div>
                                             <div className="flex-1 overflow-y-auto no-scrollbar divide-y">
@@ -973,15 +948,13 @@
                                                             <p className={"font-black " + (t.type==='entrada'?'text-green-600':'text-slate-800')}>{formatMoney(t.amount)}</p>
                                                             <div className="flex gap-1">
                                                                 <button onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val: t.amount ? t.amount.toString() : '', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1, feeType: 'none', feePercent: 0}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-400 p-1.5 hover:bg-blue-50 rounded"><Icon name="edit-2" size={12}/></button>
-                                                                <button onClick={() => executeDelete('transactions', t.id)} className={"transition-all p-1.5 rounded hover:bg-red-50 " + (deleteConfirmId === t.id ? 'delete-confirm text-white' : 'text-red-400')}>{deleteConfirmId === t.id ? <span className="font-black uppercase text-[8px]">Sim</span> : <Icon name="trash-2" size={12}/>}</button>
+                                                                <button onClick={() => executeDelete('transactions', t.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === t.id ? 'delete-confirm text-white' : 'text-red-400 hover:text-red-600')}>{deleteConfirmId === t.id ? <span className="font-black uppercase text-[8px]">Sim</span> : <Icon name="trash-2" size={12}/>}</button>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 ))}
                                                 {filteredDashboard.length > visibleTxCount && (
-                                                    <button onClick={() => setVisibleTxCount(prev => prev + 15)} className="w-full p-4 bg-slate-50 text-slate-500 font-black text-[9px] uppercase hover:bg-slate-100 transition-colors">
-                                                        Carregar Mais (+{filteredDashboard.length - visibleTxCount} Ocultos)
-                                                    </button>
+                                                    <button onClick={() => setVisibleTxCount(prev => prev + 15)} className="w-full p-4 bg-slate-50 text-slate-500 font-black text-[9px] uppercase hover:bg-slate-100 transition-colors">Carregar Mais (+{filteredDashboard.length - visibleTxCount} Ocultos)</button>
                                                 )}
                                             </div>
                                         </div>
@@ -991,7 +964,6 @@
                                 {activeTab === 'saldos' && (() => {
                                     const highlightedNames = ['MERCADO PAGO', 'C6 BANK', 'IFOOD', 'CAIXA LOJA'];
                                     const fundKeywords = ['FUNDO', 'APLICAÇÃO', 'APLICACAO', 'INVESTIMENTO', 'RESERVA', 'POUPANÇA', 'POUPANCA'];
-                                    
                                     const highlighted = currentAccounts.filter(a => highlightedNames.includes((a.name||'').trim().toUpperCase()));
                                     const funds = currentAccounts.filter(a => !highlightedNames.includes((a.name||'').trim().toUpperCase()) && fundKeywords.some(k => (a.name||'').toUpperCase().includes(k)));
                                     const others = currentAccounts.filter(a => !highlightedNames.includes((a.name||'').trim().toUpperCase()) && !fundKeywords.some(k => (a.name||'').toUpperCase().includes(k)));
@@ -1129,7 +1101,7 @@
                                     );
                                 })()}
 
-                                {/* ================= ABA DE CARTÕES ================= */}
+                                {/* ================= ABA DE CARTÕES OTIMIZADA ================= */}
                                 {activeTab === 'cartoes' && (() => {
                                     return (
                                         <div className="space-y-4 fade-in">
@@ -1222,8 +1194,27 @@
                                 )}
 
                                 {activeTab === 'relatorios' && (() => {
-                                    const totalAPagar = consolidatedAPagar.reduce((sum, t) => sum + p(t.amount), 0);
-                                    const totalAReceber = consolidatedAReceber.reduce((sum, t) => sum + p(t.amount), 0);
+                                    const pendings = transactions.filter(t => {
+                                        const { clearanceDate } = getTransactionDates(t);
+                                        return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao';
+                                    });
+                                    
+                                    const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
+                                        const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
+                                        const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                                        const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                                        return totalPurchases - totalPaid;
+                                    }).filter(val => val > 0.01);
+                                    
+                                    const sumPendings = pendings.reduce((acc, t) => acc + p(t.amount), 0);
+                                    const sumInvoices = invoices.reduce((acc, val) => acc + val, 0);
+                                    const totalAPagar = sumPendings + sumInvoices;
+
+                                    const totalAReceber = transactions.filter(t => {
+                                        const { clearanceDate } = getTransactionDates(t);
+                                        return t.type === 'entrada' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth);
+                                    }).reduce((acc, t) => acc + p(t.amount), 0);
+                                    
                                     const somaDespesasCategoria = Object.values(stats.catCosts).reduce((a, b) => a + b, 0);
 
                                     return (
@@ -1641,7 +1632,7 @@
                                                  <div><h3 className="font-black uppercase text-slate-800 text-base">Contas, Cartões & Categorias</h3><p className="font-bold text-slate-400 uppercase mt-1">Gestão da Estrutura Financeira</p></div>
                                                  
                                                  <div className="space-y-2">
-                                                     <form onSubmit={addCat} className="flex gap-2"><input type="text" placeholder="Nova Categoria..." className="flex-1 p-2 bg-slate-50 border rounded-lg font-bold outline-none" value={catForm} onChange={e=>setCatForm(e.target.value)} required /><button className="bg-black text-[#F8CC82] px-3 rounded-lg font-black text-[9px]">Add Cat.</button></form>
+                                                     <form onSubmit={addCat} className="flex gap-2"><input type="text" placeholder="Nova Categoria..." className="flex-1 p-2.5 bg-slate-50 border rounded-lg font-bold outline-none" value={catForm} onChange={e=>setCatForm(e.target.value)} required /><button className="bg-black text-[#F8CC82] px-3 rounded-lg font-black text-[9px]">Add Cat.</button></form>
                                                      
                                                      <form onSubmit={handleSaveAcc} className="flex flex-col gap-2 bg-slate-50 p-3 rounded-xl border">
                                                          <div className="flex justify-between items-center mb-1">
