@@ -55,24 +55,10 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, memo } = React;
 
-        // ================= CONEXÃO FIREBASE (RESTAURADA) =================
-        const firebaseConfig = {
-            apiKey: "AIzaSyCL0o0TQYbPXoo7Yo_qJpc1oa7jib8KBcc",
-            authDomain: "tribo-burger-app.firebaseapp.com",
-            projectId: "tribo-burger-app",
-            storageBucket: "tribo-burger-app.firebasestorage.app",
-            messagingSenderId: "490245681469",
-            appId: "1:490245681469:web:189b1d2e35bd142cc31554"
-        };
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
-
-        // ================= PARSERS MATEMÁTICOS GLOBAIS =================
+        // PARSERS MATEMÁTICOS TÉCNICOS GLOBAIS ANTES DA RENDERIZAÇÃO
         const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
         const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-        // ================= COMPONENTES =================
         const Icon = memo(({ name, size = 14, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
@@ -83,39 +69,6 @@
             }, [name, size, className]);
             return <span ref={containerRef} className={`inline-flex items-center justify-center ${className}`}></span>;
         });
-
-        const DailyInput = memo(({ dateStr, field, initialValue, activeUid, className, placeholder }) => {
-            const [val, setVal] = useState(initialValue || '');
-            useEffect(() => { setVal(initialValue || ''); }, [initialValue]);
-            const handleBlur = () => {
-                if (val !== (initialValue || '')) db.collection(`artifacts/tribo-burger-financeiro/users/${activeUid}/dailyRecords`).doc(dateStr).set({[field]: val}, {merge:true});
-            };
-            return <input className={`table-input ${className || ''}`} value={val} onChange={e=>setVal(e.target.value)} onBlur={handleBlur} placeholder={placeholder || "0,00"} />;
-        });
-
-        const parseDateUTC = (dateStr) => {
-            if (!dateStr || dateStr.includes('NaN')) return new Date();
-            if (dateStr.includes('-')) {
-                const parts = dateStr.split('-');
-                if (parts[0].length === 4) return new Date(Date.UTC(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2])));
-            }
-            return new Date(dateStr);
-        };
-
-        const isInvoicePayment = (t) => {
-            if (!t) return false;
-            const desc = (t.description || "").toLowerCase();
-            const cat = (t.category || "").toLowerCase();
-            return (desc.includes("baixa fatura") || desc.includes("pagamento fatura") || desc.includes("pagamento de fatura") || desc.includes("baixa de fatura") || cat.includes("baixa fatura"));
-        };
-
-        const getTransactionDates = (t) => {
-            if (!t) return { clearanceDate: '', billingMonth: '' };
-            return {
-                clearanceDate: t.clearanceDate || t.date || '',
-                billingMonth: t.billingMonth || (t.date ? t.date.slice(0, 7) : '')
-            };
-        };
 
         function App() {
             const [user, setUser] = useState(null);
@@ -194,37 +147,31 @@
             useEffect(() => {
                 if (!user || user.isAnonymous) return;
                 const pathFin = "artifacts/tribo-burger-financeiro/users/" + user.uid;
-                const unsubTx = db.collection(pathFin + "/transactions").onSnapshot(s => setTransactions(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
-                const unsubDaily = db.collection(pathFin + "/dailyRecords").onSnapshot(s => { const r = {}; s.docs.forEach(d => { if (d.exists) r[d.id] = d.data(); }); setDailyRecords(r); });
-                const unsubAcc = db.collection(pathFin + "/accounts").onSnapshot(s => setAccounts(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
-                const unsubCat = db.collection(pathFin + "/categories").onSnapshot(s => setCategories(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
-                const unsubSup = db.collection(pathFin + "/suppliers").onSnapshot(s => setSuppliers(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
-                const unsubMeta = db.doc(pathFin + "/settings/config").onSnapshot(s => { if(s.exists) setMetaVendas(s.data().meta || 0); });
+                db.collection(pathFin + "/transactions").onSnapshot(s => setTransactions(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
+                db.collection(pathFin + "/dailyRecords").onSnapshot(s => { const r = {}; s.docs.forEach(d => { if (d.exists) r[d.id] = d.data(); }); setDailyRecords(r); });
+                db.collection(pathFin + "/accounts").onSnapshot(s => setAccounts(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
+                db.collection(pathFin + "/categories").onSnapshot(s => setCategories(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
+                db.collection(pathFin + "/suppliers").onSnapshot(s => setSuppliers(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
+                db.doc(pathFin + "/settings/config").onSnapshot(s => { if(s.exists) setMetaVendas(s.data().meta || 0); });
 
-                const unsubCmv = db.collection(pathFin + "/cmv_data").doc("state").onSnapshot(s => {
+                db.collection(pathFin + "/cmv_data").doc("state").onSnapshot(s => {
                     if(s.exists) {
                         const d = s.data();
                         setIngredients(d.ingredients || []); setRecipes(d.recipes || []); setComplements(d.complements || []); setCombos(d.combos || []); setFixedCosts(d.fixedCosts || []);
                         setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, taxaDebito: d.settings?.taxaDebito || 1.99, taxaCredito: d.settings?.taxaCredito || 4.99, ifoodTax: 12, autoFeeVendas: d.settings?.autoFeeVendas !== false });
                     }
                 });
-                return () => { unsubTx(); unsubDaily(); unsubAcc(); unsubCat(); unsubSup(); unsubMeta(); unsubCmv(); };
             }, [user]);
-
-            useEffect(() => { setVisibleTxCount(10); }, [filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
 
             const filteredDashboard = useMemo(() => transactions.filter(t => {
                 if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
                 const { clearanceDate, billingMonth } = getTransactionDates(t);
-                const isMonth = (t.date?.startsWith(filterMonth) || clearanceDate?.startsWith(filterMonth) || billingMonth === filterMonth);
-                
-                const matchSearch = (t.description || "").toLowerCase().includes(searchQuery.toLowerCase());
-                const matchType = typeFilter === 'todos' || t.type === typeFilter;
-                const matchStatus = statusFilter === 'todos' || t.status === statusFilter;
-                const matchAcc = accFilter === 'todas' || t.account === accFilter;
-                const matchCat = catFilter === 'todas' || t.category === catFilter;
-
-                return isMonth && matchSearch && matchType && matchStatus && matchAcc && matchCat;
+                return (t.date?.startsWith(filterMonth) || clearanceDate?.startsWith(filterMonth) || billingMonth === filterMonth) &&
+                       (t.description || "").toLowerCase().includes(searchQuery.toLowerCase()) &&
+                       (typeFilter === 'todos' || t.type === typeFilter) &&
+                       (statusFilter === 'todos' || t.status === statusFilter) &&
+                       (accFilter === 'todas' || t.account === accFilter) &&
+                       (catFilter === 'todas' || t.category === catFilter);
             }).sort((a,b) => (b.timestamp || "").localeCompare(a.timestamp || "")), [transactions, filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
 
             const accountBalances = useMemo(() => {
@@ -244,8 +191,7 @@
             const totalPatrimony = useMemo(() => currentAccounts.reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0), [currentAccounts, accountBalances]);
 
             const stats = useMemo(() => {
-                let rb = 0; let custos = 0; let catCosts = {}; let diasAtivos = 0; let totalPedidos = 0;
-                let entradas = 0; let contasPagas = 0; let autoCardFees = 0;
+                let rb = 0; let custos = 0; let catCosts = {}; let diasAtivos = 0; let totalPedidos = 0; let entradas = 0; let contasPagas = 0; let autoCardFees = 0;
                 const calcAutoFees = cmvSettings.autoFeeVendas !== false;
 
                 const parts = filterMonth.split('-'); const anoFiltro = parseInt(parts[0]); const mesFiltro = parseInt(parts[1]) - 1;
@@ -261,7 +207,6 @@
                     }
                     return map;
                 };
-
                 const currentMonthWeeks = buildWeekMap(anoFiltro, mesFiltro); const prevMonthWeeks = buildWeekMap(prevAno, prevMes);
                 let weeklyCurrent = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0}; let weeklyPrev = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
                 let weekdaySums = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0}; let weekdayCounts = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
@@ -270,12 +215,8 @@
                     const r = dailyRecords[d]; const totalDia = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((s,f)=>s+p(r[f]), 0);
                     if (d.startsWith(filterMonth)) {
                         if (totalDia > 0) diasAtivos++; rb += totalDia; 
-                        let txDia = 0;
-                        if (calcAutoFees) {
-                            txDia = (p(r.debito) * (p(cmvSettings.taxaDebito)/100)) + (p(r.credito) * (p(cmvSettings.taxaCredito)/100));
-                            autoCardFees += txDia;
-                        }
-                        custos += p(r.motoboy) + p(r.taxaEntrega) + txDia; totalPedidos += p(r.qtdPedidos);
+                        let txDia = cmvSettings.autoFeeVendas !== false ? ((p(r.debito) * p(cmvSettings.taxaDebito)/100) + (p(r.credito) * p(cmvSettings.taxaCredito)/100)) : 0;
+                        autoCardFees += txDia; custos += p(r.motoboy) + p(r.taxaEntrega) + txDia; totalPedidos += p(r.qtdPedidos);
                         if(currentMonthWeeks[d]) weeklyCurrent[currentMonthWeeks[d]] += totalDia;
                         const wd = new Date(parseInt(d.split('-')[0]), parseInt(d.split('-')[1])-1, parseInt(d.split('-')[2])).getDay();
                         if(weekdaySums[wd] !== undefined && totalDia > 0) { weekdaySums[wd] += totalDia; weekdayCounts[wd]++; }
@@ -297,9 +238,7 @@
                 let diasUteisTotaisMes = 0; let diasUteisPassados = 0; const ultimoDiaMes = new Date(anoFiltro, mesFiltro + 1, 0).getDate(); const hoje = new Date();
                 for (let dia = 1; dia <= ultimoDiaMes; dia++) {
                     const diaDaSemana = new Date(anoFiltro, mesFiltro, dia).getDay(); 
-                    if (diaDaSemana !== 1 && diaDaSemana !== 2) { 
-                        diasUteisTotaisMes++; if (anoFiltro === hoje.getFullYear() && mesFiltro === hoje.getMonth() && dia <= hoje.getDate()) diasUteisPassados++;
-                    }
+                    if (diaDaSemana !== 1 && diaDaSemana !== 2) { diasUteisTotaisMes++; if (anoFiltro === hoje.getFullYear() && mesFiltro === hoje.getMonth() && dia <= hoje.getDate()) diasUteisPassados++; }
                 }
 
                 let projecaoMensal = rb; let metaDiaria = 0;
@@ -315,52 +254,34 @@
                 const weekdayNames = {0:'Domingo', 1:'Segunda', 2:'Terça', 3:'Quarta', 4:'Quinta', 5:'Sexta', 6:'Sábado'};
                 const weekdayAverages = Object.keys(weekdaySums).map(wd => ({ name: weekdayNames[wd], avg: weekdayCounts[wd] > 0 ? weekdaySums[wd] / weekdayCounts[wd] : 0, total: weekdaySums[wd], count: weekdayCounts[wd] })).filter(x => x.avg > 0).sort((a, b) => b.avg - a.avg);
 
-                return { 
-                    rb, totalCosts: operCosts + custos, lucro: rb - (operCosts + custos), catCosts, diasAtivos, totalPedidos, ticketDiario: diasAtivos > 0 ? rb / diasAtivos : 0, ticketPedido: totalPedidos > 0 ? rb / totalPedidos : 0, entradas, contasPagas, lucroCaixa: entradas - contasPagas, projecaoMensal, metaDiaria, margemDRE: rb > 0 ? ((rb - (operCosts + custos)) / rb) * 100 : 0, margemCaixa: entradas > 0 ? ((entradas - contasPagas) / entradas) * 100 : 0, weeklyCurrent, weeklyPrev, weekdayAverages, diasUteisRestantes: Math.max(0, diasUteisTotaisMes - diasUteisPassados), autoCardFees
-                };
+                return { rb, totalCosts: operCosts + custos, lucro: rb - (operCosts + custos), catCosts, diasAtivos, totalPedidos, ticketDiario: diasAtivos > 0 ? rb / diasAtivos : 0, ticketPedido: totalPedidos > 0 ? rb / totalPedidos : 0, entradas, contasPagas, lucroCaixa: entradas - contasPagas, projecaoMensal, metaDiaria, margemDRE: rb > 0 ? ((rb - (operCosts + custos)) / rb) * 100 : 0, margemCaixa: entradas > 0 ? ((entradas - contasPagas) / entradas) * 100 : 0, weeklyCurrent, weeklyPrev, weekdayAverages, diasUteisRestantes: Math.max(0, diasUteisTotaisMes - diasUteisPassados), autoCardFees };
             }, [dailyRecords, transactions, filterMonth, metaVendas, cmvSettings]);
 
             const salesDays = useMemo(() => Object.keys(dailyRecords).filter(d=>d.startsWith(filterMonth)).sort((a,b)=>new Date(b)-new Date(a)), [dailyRecords, filterMonth]);
             const columnTotals = useMemo(() => {
                 const totals = { totalDia: 0, pedidos: 0, pix: 0, pixOnline: 0, fiado: 0, dinheiro: 0, ifood: 0, debito: 0, credito: 0, vr: 0, ticket: 0, alelo: 0, taxaEntrega: 0, motoboy: 0 };
                 salesDays.forEach(d => {
-                    const r = dailyRecords[d] || {};
-                    totals.totalDia += ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0);
-                    totals.pedidos += p(r.qtdPedidos);
-                    ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].forEach(f => { totals[f] += p(r[f]); });
-                    totals.taxaEntrega += p(r.taxaEntrega); totals.motoboy += p(r.motoboy);
+                    const r = dailyRecords[d] || {}; totals.totalDia += ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((acc,f)=>acc+p(r[f]), 0); totals.pedidos += p(r.qtdPedidos);
+                    ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].forEach(f => { totals[f] += p(r[f]); }); totals.taxaEntrega += p(r.taxaEntrega); totals.motoboy += p(r.motoboy);
                 });
-                totals.ticketMedio = totals.pedidos > 0 ? totals.totalDia / totals.pedidos : 0;
-                return totals;
+                totals.ticketMedio = totals.pedidos > 0 ? totals.totalDia / totals.pedidos : 0; return totals;
             }, [dailyRecords, salesDays]);
 
             const consolidatedAPagar = useMemo(() => {
-                const pendings = transactions.filter(t => {
-                    const accInfo = accounts.find(a => a.name === t.account);
-                    const { clearanceDate } = getTransactionDates(t);
-                    return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accInfo?.type !== 'cartao';
-                });
-                
+                const pendings = transactions.filter(t => { const { clearanceDate } = getTransactionDates(t); return t.type === 'saida' && t.status === 'pendente' && clearanceDate?.startsWith(filterMonth) && accounts.find(a => a.name === t.account)?.type !== 'cartao'; });
                 const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
                     const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
                     const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
                     const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                    const remaining = totalPurchases - totalPaid;
-                    return remaining > 0.01 ? { id: "card-" + card.name, description: "Fatura " + card.name, amount: remaining, account: card.name, clearanceDate: filterMonth + "-" + String(card.due || card.dueDay || 10).padStart(2, '0'), isInvoice: true, category: 'Cartão de Crédito' } : null;
+                    return (totalPurchases - totalPaid) > 0.01 ? { id: "card-" + card.name, description: "Fatura " + card.name, amount: totalPurchases - totalPaid, account: card.name, clearanceDate: filterMonth + "-" + String(card.due || card.dueDay || 10).padStart(2, '0'), isInvoice: true, category: 'Cartão de Crédito' } : null;
                 }).filter(Boolean);
-                
                 return [...pendings, ...invoices].sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
             }, [transactions, accounts, filterMonth]);
 
             const consolidatedAReceber = useMemo(() => transactions.filter(t => t.type === 'entrada' && t.status === 'pendente' && getTransactionDates(t).clearanceDate?.startsWith(filterMonth)).sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || "")), [transactions, filterMonth]);
-
             const cardStats = useMemo(() => accounts.filter(a => a.type === 'cartao').map(card => {
-                const txs = transactions.filter(t => t.account === card.name);
-                const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                const currentBalance = totalPurchases - totalPaid;
-                const limit = p(card.limit || 0); const available = limit > 0 ? limit - currentBalance : 0;
-                return { ...card, currentBalance, limit, available };
+                const txs = transactions.filter(t => t.account === card.name); const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0); const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
+                return { ...card, currentBalance: totalPurchases - totalPaid, limit: p(card.limit || 0), available: p(card.limit || 0) - (totalPurchases - totalPaid) };
             }), [transactions, accounts]);
 
             const getIngCost = (id, q) => { const i = ingredients.find(x => x.id === id); return i ? (i.cost / i.qty) * (p(q) * (i.unit==='kg'||i.unit==='L'?0.001:1)) : 0; };
@@ -371,82 +292,52 @@
                 return t + getIngCost(i.itemId, i.qty);
             }, 0);
 
-            // ================= ACTIONS =================
-            const saveCMVDoc = async (field, data) => await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/cmv_data/state`).set({ [field]: data }, { merge: true });
-            const saveMeta = async (v) => { if (!user) return; await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/settings/config`).set({ meta: p(v) }, { merge: true }); };
-
             const handleSaveTx = async (e) => {
                 e.preventDefault(); if (!user || !txForm.val) return;
                 const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/transactions";
-                const batch = db.batch();
-                const numInst = txForm.type === 'transferencia' ? 1 : parseInt(txForm.inst || 1);
+                const batch = db.batch(); const numInst = txForm.type === 'transferencia' ? 1 : parseInt(txForm.inst || 1);
                 
-                const baseDate = parseDateUTC(txForm.date);
-                const baseClearance = parseDateUTC(txForm.clearance);
-                const cardInfo = accounts.find(a => a.name === txForm.acc && a.type === 'cartao');
-                const baseAmount = p(txForm.val) / numInst;
-
                 for (let i = 0; i < numInst; i++) {
-                    const d = new Date(baseDate.getTime()); d.setUTCMonth(d.getUTCMonth() + i);
-                    const dateStr = d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, '0') + "-" + String(d.getUTCDate()).padStart(2, '0');
-                    
-                    let clearStr = ''; let billingM = dateStr.slice(0, 7);
-
-                    if (cardInfo && txForm.type === 'saida') {
-                        const closing = parseInt(cardInfo.closing || cardInfo.closingDay || 25);
-                        const due = parseInt(cardInfo.due || cardInfo.dueDay || 10);
-                        let bDate = new Date(d.getTime()); bDate.setUTCDate(1); 
-                        if (d.getUTCDate() >= closing) bDate.setUTCMonth(bDate.getUTCMonth() + 1);
-                        billingM = bDate.getUTCFullYear() + "-" + String(bDate.getUTCMonth() + 1).padStart(2, '0');
-                        let dueDate = new Date(bDate.getTime()); dueDate.setUTCDate(1);
-                        if (due < closing) dueDate.setUTCMonth(dueDate.getUTCMonth() + 1);
-                        dueDate.setUTCDate(due);
-                        clearStr = dueDate.getUTCFullYear() + "-" + String(dueDate.getUTCMonth() + 1).padStart(2, '0') + "-" + String(dueDate.getUTCDate()).padStart(2, '0');
-                    } else {
-                        const c = new Date(baseClearance.getTime()); c.setUTCMonth(c.getUTCMonth() + i);
-                        clearStr = c.getUTCFullYear() + "-" + String(c.getUTCMonth() + 1).padStart(2, '0') + "-" + String(c.getUTCDate()).padStart(2, '0');
-                    }
+                    const d = new Date(parseDateUTC(txForm.date)); d.setMonth(d.getMonth() + i); const dateStr = d.toISOString().split('T')[0];
+                    const c = new Date(parseDateUTC(txForm.clearance)); c.setMonth(c.getMonth() + i); const clearStr = c.toISOString().split('T')[0];
+                    const baseAmount = p(txForm.val) / numInst;
 
                     const payload = {
-                        description: numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc,
-                        amount: baseAmount, type: txForm.type, status: txForm.status,
-                        date: dateStr, clearanceDate: clearStr, billingMonth: billingM,
-                        account: txForm.acc, destinationAccount: txForm.destAcc, category: txForm.type === 'transferencia' ? 'Transferência' : (txForm.cat || 'Geral'),
-                        supplier: txForm.sup, timestamp: new Date().toISOString()
+                        description: numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc, amount: baseAmount, type: txForm.type, status: txForm.status,
+                        date: dateStr, clearanceDate: clearStr, billingMonth: dateStr.slice(0, 7), account: txForm.acc, destinationAccount: txForm.destAcc,
+                        category: txForm.type === 'transferencia' ? 'Transferência' : (txForm.cat || 'Geral'), supplier: txForm.sup, timestamp: new Date().toISOString()
                     };
                     
-                    if (txForm.id && i === 0) {
-                        batch.update(db.collection(path).doc(txForm.id), payload);
-                    } else {
-                        batch.set(db.collection(path).doc(), payload);
-                        
-                        // Lançamento de Taxa Automático
-                        if (txForm.type === 'entrada' && txForm.feeType && txForm.feeType !== 'none' && p(txForm.feePercent) > 0) {
-                            const feeAmt = baseAmount * (p(txForm.feePercent) / 100);
-                            const feePayload = {
-                                description: `Taxa Cartão (${txForm.feeType.toUpperCase()}) - ${numInst > 1 ? txForm.desc + ` (${i+1}/${numInst})` : txForm.desc}`,
-                                amount: feeAmt, type: 'saida', status: txForm.status,
-                                date: dateStr, clearanceDate: clearStr, billingMonth: billingM,
-                                account: txForm.acc, destinationAccount: '', category: 'Taxas Bancárias',
-                                supplier: '', timestamp: new Date().toISOString()
-                            };
-                            batch.set(db.collection(path).doc(), feePayload);
+                    if (txForm.id && i === 0) { db.collection(path).doc(txForm.id).update(payload); } 
+                    else {
+                        const newRef = db.collection(path).doc(); batch.set(newRef, payload);
+                        if (txForm.type === 'entrada' && txForm.feeType !== 'none' && p(txForm.feePercent) > 0) {
+                            batch.set(db.collection(path).doc(), {
+                                description: `Taxa Cartão (${txForm.feeType.toUpperCase()}) - ${txForm.desc}`, amount: baseAmount * (p(txForm.feePercent) / 100), type: 'saida', status: txForm.status,
+                                date: dateStr, clearanceDate: clearStr, billingMonth: dateStr.slice(0, 7), account: txForm.acc, category: 'Taxas Bancárias', supplier: '', timestamp: new Date().toISOString()
+                            });
                         }
                     }
                 }
-                await batch.commit(); 
+                await batch.commit();
                 setTxForm({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1, feeType: 'none', feePercent: 0 });
+            };
+
+            const handleExecuteInvoicePayment = async () => {
+                if (!user || !invoiceModal || !invoiceSourceAcc) return;
+                const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/transactions";
+                const totalInvoiceAmount = invoiceModal.total; const paidAmount = invoicePayType === 'integral' ? totalInvoiceAmount : p(invoicePartialVal);
+                if (paidAmount <= 0) return; const todayStr = new Date().toISOString().split('T')[0]; const batch = db.batch();
+
+                batch.set(db.collection(path).doc(), { description: "Baixa Fatura " + invoiceModal.cardName, amount: paidAmount, type: 'saida', status: 'pago', date: todayStr, clearanceDate: todayStr, billingMonth: filterMonth, account: invoiceSourceAcc, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString() });
+                batch.set(db.collection(path).doc(), { description: "Pagamento de Fatura Mês " + filterMonth, amount: paidAmount, type: 'entrada', status: 'pago', date: todayStr, clearanceDate: filterMonth + "-28", billingMonth: filterMonth, account: invoiceModal.cardName, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString() });
+                await batch.commit(); setInvoiceModal(null);
             };
 
             const executeDelete = async (collectionName, id) => {
                 if (!user) return;
-                if (deleteConfirmId === id) {
-                    await db.collection("artifacts/tribo-burger-financeiro/users/" + user.uid + "/" + collectionName).doc(id).delete();
-                    setDeleteConfirmId(null);
-                } else {
-                    setDeleteConfirmId(id);
-                    setTimeout(() => setDeleteConfirmId(null), 3000);
-                }
+                if (deleteConfirmId === id) { await db.collection("artifacts/tribo-burger-financeiro/users/" + user.uid + "/" + collectionName).doc(id).delete(); setDeleteConfirmId(null); } 
+                else { setDeleteConfirmId(id); setTimeout(() => setDeleteConfirmId(null), 3000); }
             };
 
             const openLiquidation = (t) => {
@@ -456,80 +347,21 @@
 
             const executeLiquidation = async () => {
                 if (!user || !liqModal) return;
-                try {
-                    await db.collection('artifacts/tribo-burger-financeiro/users/' + user.uid + '/transactions').doc(liqModal.id).update({ status: 'pago', clearanceDate: liqModal.date, amount: p(liqModal.amount), account: liqModal.account });
-                    setLiqModal(null);
-                } catch (e) { console.error(e); }
-            };
-
-            const handleExecuteInvoicePayment = async () => {
-                if (!user || !invoiceModal || !invoiceSourceAcc) return;
-                try {
-                    const activeUid = user.uid;
-                    const path = "artifacts/tribo-burger-financeiro/users/" + activeUid + "/transactions";
-                    const totalInvoiceAmount = invoiceModal.total;
-                    const paidAmount = invoicePayType === 'integral' ? totalInvoiceAmount : p(invoicePartialVal);
-
-                    if (paidAmount <= 0) return; 
-
-                    const todayStr = new Date().toISOString().split('T')[0];
-                    const batch = db.batch();
-
-                    const paymentPayload = {
-                        description: "Baixa Fatura " + invoiceModal.cardName + " (" + invoicePayType.toUpperCase() + ")",
-                        amount: paidAmount, type: 'saida', status: 'pago', date: todayStr, clearanceDate: todayStr,
-                        billingMonth: filterMonth, account: invoiceSourceAcc, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString()
-                    };
-                    batch.set(db.collection(path).doc(), paymentPayload);
-
-                    const cardCreditPayload = {
-                        description: "Pagamento de Fatura Mês " + filterMonth,
-                        amount: paidAmount, type: 'entrada', status: 'pago', date: todayStr, clearanceDate: filterMonth + "-28", 
-                        billingMonth: filterMonth, account: invoiceModal.cardName, category: 'Baixa Fatura', supplier: '', timestamp: new Date().toISOString()
-                    };
-                    batch.set(db.collection(path).doc(), cardCreditPayload);
-
-                    if (invoicePayType === 'parcial' && (totalInvoiceAmount - paidAmount) > 0.01) {
-                        const remainingAmount = totalInvoiceAmount - paidAmount;
-                        const parts = filterMonth.split('-');
-                        let nextM = parseInt(parts[1]) + 1; let nextY = parseInt(parts[0]);
-                        if (nextM > 12) { nextM = 1; nextY += 1; }
-                        const nextMonthStr = nextY + "-" + String(nextM).padStart(2, '0');
-
-                        const rolloverPayload = {
-                            description: "Saldo Restante Fatura Anterior " + filterMonth,
-                            amount: remainingAmount, type: 'saida', status: 'pendente', date: nextMonthStr + "-01", clearanceDate: nextMonthStr + "-10", 
-                            billingMonth: nextMonthStr, account: invoiceModal.cardName, category: 'Saldo Fatura Anterior', supplier: '', timestamp: new Date().toISOString()
-                        };
-                        batch.set(db.collection(path).doc(), rolloverPayload);
-                    }
-
-                    await batch.commit();
-                    setInvoiceModal(null); setInvoicePartialVal(''); setInvoiceSourceAcc('');
-                } catch(e) { console.error(e); }
+                await db.collection('artifacts/tribo-burger-financeiro/users/' + user.uid + '/transactions').doc(liqModal.id).update({ status: 'pago', clearanceDate: liqModal.date, amount: p(liqModal.amount), account: liqModal.account });
+                setLiqModal(null);
             };
 
             const addSupplier = async (e) => { e.preventDefault(); if(supForm) { await db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/suppliers`).add({name: supForm}); setSupForm(''); } };
             const addCat = async (e) => { e.preventDefault(); if(catForm) { await db.collection(`artifacts/tribo-burger-financeiro/users/${user.uid}/categories`).add({name: catForm}); setCatForm(''); } };
-            
-            const handleSaveAcc = async (e) => {
-                e.preventDefault();
-                if (!accForm.name || !user) return;
-                const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/accounts";
-                if (accForm.id) {
-                    await db.collection(path).doc(accForm.id).update(accForm);
-                } else {
-                    await db.collection(path).add(accForm);
-                }
-                setAccForm({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' });
-            };
+            const handleSaveAcc = async (e) => { e.preventDefault(); if (!accForm.name || !user) return; const path = "artifacts/tribo-burger-financeiro/users/" + user.uid + "/accounts"; if (accForm.id) { await db.collection(path).doc(accForm.id).update(accForm); } else { await db.collection(path).add(accForm); } setAccForm({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' }); };
+
+            const saveCMVDoc = async (field, data) => await db.collection(user.uid ? `artifacts/tribo-burger-financeiro/users/${user.uid}/cmv_data` : 'null').doc('state').set({ [field]: data }, { merge: true });
+            const saveMeta = async (v) => { if (!user) return; await db.doc(`artifacts/tribo-burger-financeiro/users/${user.uid}/settings/config`).set({ meta: p(v) }, { merge: true }); };
 
             const crudActionCMV = async (collectionStr, stateArr, formObj, setModalOpen) => {
-                if (!user) return;
-                const list = [...stateArr]; const id = formObj.id || crypto.randomUUID(); const index = list.findIndex(x => x.id === id);
+                if (!user) return; const list = [...stateArr]; const id = formObj.id || crypto.randomUUID(); const index = list.findIndex(x => x.id === id);
                 let record = { ...formObj, id };
-                if (record.sellingPrice) record.sellingPrice = p(record.sellingPrice); if (record.cost) record.cost = p(record.cost);
-                if (record.qty) record.qty = p(record.qty); if (record.value) record.value = p(record.value);
+                ['sellingPrice', 'cost', 'qty', 'value'].forEach(k => { if(record[k]) record[k] = p(record[k]); });
                 if (record.ingredients) record.ingredients = record.ingredients.filter(i => i.ingredientId && p(i.qty) > 0);
                 if (record.items) record.items = record.items.filter(i => i.itemId && p(i.qty) > 0);
                 if (index > -1) list[index] = record; else list.push(record);
@@ -538,12 +370,12 @@
 
             const delActionCMV = async (collectionStr, stateArr, id) => { if(window.confirm("Confirmar exclusão?")) await saveCMVDoc(collectionStr, stateArr.filter(x => x.id !== id)); };
 
-            if (loading) return <div className="h-screen w-full flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase tracking-widest text-[10px]">A Inicializar o Motor Unificado...</div>;
-            if (!user || user.isAnonymous) return (
+            if (loading) return <div className="h-screen w-full flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase text-[11px]">A carregar Motor de Dados...</div>;
+            if (!user) return (
                 <div className="h-screen w-full flex items-center justify-center bg-[#1A202C] p-4">
-                    <div className="bg-white p-8 rounded-2xl max-w-sm w-full text-center shadow-2xl">
-                        <h2 className="text-base font-black uppercase text-slate-800 mb-2">ERP Tribo Burger</h2>
-                        <button onClick={async () => { const provider = new firebase.auth.GoogleAuthProvider(); await auth.signInWithPopup(provider); }} className="w-full bg-black text-[#F8CC82] p-3 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2 mt-4"><Icon name="lock" size={14}/> Entrar com Google</button>
+                    <div className="bg-white p-6 rounded-xl max-w-sm w-full text-center shadow-2xl">
+                        <h2 className="text-base font-black uppercase text-slate-800 mb-4">ERP Tribo Burger</h2>
+                        <button onClick={() => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())} className="w-full bg-black text-[#F8CC82] p-3 rounded-lg font-black uppercase flex items-center justify-center gap-2 text-[10px]"><Icon name="lock" size={14}/> Entrar com Google</button>
                     </div>
                 </div>
             );
@@ -551,11 +383,11 @@
             return (
                 <div className="flex h-screen w-full overflow-hidden bg-[#FDFCF9] fade-in">
                     
-                    {/* SIDEBAR OPERACIONAL FIXA */}
-                    <aside className="w-52 flex-shrink-0 bg-[#1A202C] text-white flex flex-col h-full print:hidden">
+                    {/* BARRA LATERAL FIXA À ESQUERDA */}
+                    <aside className="hidden md:flex w-52 flex-shrink-0 bg-[#1A202C] text-white flex-col shadow-2xl z-40 print:hidden h-full">
                         <div className="p-4 border-b border-white/10 flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div>
-                            <div><h1 className="font-black text-[#F8CC82] uppercase text-[10px]">Tribo Burger</h1></div>
+                            <div><h1 className="font-black text-[#F8CC82] uppercase leading-none text-[10px]">Tribo Burger</h1><span className="text-[7px] font-black text-emerald-400 uppercase">Cantinho Fixo</span></div>
                         </div>
                         <div className="flex-1 overflow-y-auto no-scrollbar p-2 space-y-4">
                             <div>
@@ -579,12 +411,22 @@
                                 <button onClick={() => setActiveTab('relatorio_unificado')} className={"w-full text-left px-3 py-2 text-[9px] font-black uppercase rounded-lg " + (activeTab === 'relatorio_unificado' ? "bg-indigo-600 text-white shadow" : "text-slate-400 hover:bg-white/5")}>Planilha Unificada</button>
                             </div>
                         </div>
+                        <div className="p-4 border-t border-white/10 text-center"><button onClick={()=>auth.signOut()} className="w-full py-2 bg-red-500/10 text-red-400 rounded-lg font-black uppercase hover:bg-red-500/20 transition-all">Sair do Sistema</button></div>
                     </aside>
 
-                    {/* INTERFACE TÉCNICA PRINCIPAL */}
+                    {/* CONTEÚDO PRINCIPAL DAS ABAS */}
                     <main className="flex-1 flex flex-col h-screen overflow-y-auto w-full">
                         <div className="p-4 md:p-6 w-full max-w-full space-y-4 mx-auto">
                             
+                            {/* CABEÇALHO FILTRO MÊS */}
+                            <div className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border print:hidden sticky top-0 z-30">
+                                <h2 className="font-black text-slate-800 uppercase pl-2 hidden md:block">{activeTab.replace('fin_', '').replace('_', ' ')}</h2>
+                                <div className="flex items-center gap-2 bg-slate-50 px-4 py-1.5 rounded-xl border ml-auto md:ml-0">
+                                    <span className="font-black uppercase text-slate-400">Mês:</span>
+                                    <input type="month" value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} className="bg-transparent border-0 outline-none font-black text-[#D97757] cursor-pointer" />
+                                </div>
+                            </div>
+
                             {/* ABA ESTRATÉGICA: PLANILHA DE CONFRONTAMENTO DE CMV (ALVO 35%) */}
                             {activeTab === 'relatorio_unificado' && (() => {
                                 const totalFixedCosts = fixedCosts.reduce((s,c)=>s+p(c.value),0);
@@ -599,7 +441,8 @@
                                 });
 
                                 const faturamentoCaixa = mPix + mPixOn + mDinheiro + mIfood + mDebito + mCredito + mFiado + mVR + mTicket + mAlelo;
-                                const faturamentoTotal = faturamentoCaixa + transactions.filter(t => t.type === 'entrada' && t.status === 'pago' && getTransactionDates(t).clearanceDate?.startsWith(filterMonth) && !isInvoicePayment(t)).reduce((acc, t) => acc + p(t.amount), 0);
+                                const entradasManuais = transactions.filter(t => t.type === 'entrada' && t.status === 'pago' && getTransactionDates(t).clearanceDate?.startsWith(filterMonth) && !isInvoicePayment(t)).reduce((acc, t) => acc + p(t.amount), 0);
+                                const faturamentoTotal = faturamentoCaixa + entradasManuais;
                                 
                                 const custoInsumosCMV = faturamentoTotal * (p(cmvGeral) / 100);
                                 const impostosEstimados = faturamentoTotal * (p(cmvSettings.tax) / 100);
@@ -630,12 +473,17 @@
                                                         <tr><td className="p-2 pl-4 border">Vendas em Canais Digitais & Pix</td><td className="p-2 text-right border">{formatMoney(mPix + mPixOn)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? (((mPix + mPixOn)/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                         <tr><td className="p-2 pl-4 border">Vendas Físicas em Dinheiro</td><td className="p-2 text-right border">{formatMoney(mDinheiro)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((mDinheiro/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                         <tr><td className="p-2 pl-4 border">Vendas em Cartão Débito / Crédito</td><td className="p-2 text-right border">{formatMoney(mDebito + mCredito)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? (((mDebito + mCredito)/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                        <tr><td className="p-2 pl-4 border">Delivery Apps (iFood)</td><td className="p-2 text-right border">{formatMoney(mIfood)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((mIfood/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                        <tr><td className="p-2 pl-4 border">Vouchers, Tickets & Outros</td><td className="p-2 text-right border">{formatMoney(mFiado + mVR + mTicket + mAlelo)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? (((mFiado + mVR + mTicket + mAlelo)/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                        <tr><td className="p-2 pl-4 border">Entradas Manuais Diversas</td><td className="p-2 text-right border">{formatMoney(entradasManuais)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((entradasManuais/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                         <tr className="bg-blue-50/50 font-black"><td className="p-2 border">TOTAL RECEITA BRUTA (A)</td><td className="p-2 text-right border text-blue-700">{formatMoney(faturamentoTotal)}</td><td className="p-2 text-center border">100.0%</td></tr>
                                                         
                                                         <tr className="bg-slate-100 font-black"><td colSpan="3" className="p-2 border">2. Custos Variáveis Retidos</td></tr>
-                                                        <tr className={p(cmvGeral) > 35 ? "bg-red-50/30" : ""}><td className="p-2 pl-4 border text-slate-900 font-black">Custo Real de Mercadoria (CMV Cardápio)</td><td className="p-2 text-right border text-red-600 font-black">{formatMoney(custoInsumosCMV)}</td><td className="p-2 text-center border text-red-600 font-black">{p(cmvGeral).toFixed(1)}%</td></tr>
-                                                        <tr><td className="p-2 pl-4 border">Taxas de Operação Maquininha Retidas</td><td className="p-2 text-right border">{formatMoney(taxasCartaoAutomaticas)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((taxasCartaoAutomaticas/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
-                                                        <tr className="bg-red-50/20 font-black"><td className="p-2 border">TOTAL DE CUSTOS VARIÁVEIS (B)</td><td className="p-2 text-right border text-red-600">{formatMoney(totalCustosVariaveis)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((totalCustosVariaveis/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                        <tr className={p(cmvGeral) > 35 ? "bg-red-50/30" : ""}><td className="p-2 pl-4 border text-slate-900 font-black">Custo Real de Mercadoria (CMV Global)</td><td className="p-2 text-right border text-red-600 font-black">-{formatMoney(custoInsumosCMV)}</td><td className="p-2 text-center border text-red-600 font-black">{p(cmvGeral).toFixed(1)}%</td></tr>
+                                                        <tr><td className="p-2 pl-4 border">Impostos Simples ({cmvSettings.tax}%)</td><td className="p-2 text-right border">-{formatMoney(impostosEstimados)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((impostosEstimados/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                        <tr><td className="p-2 pl-4 border">Taxas de Operação Maquininhas</td><td className="p-2 text-right border">-{formatMoney(taxasCartaoAutomaticas)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((taxasCartaoAutomaticas/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                        <tr><td className="p-2 pl-4 border">Custos de Entrega / Motoboy</td><td className="p-2 text-right border">-{formatMoney(mMotoboy + mTaxaEntrega)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? (((mMotoboy + mTaxaEntrega)/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                        <tr className="bg-red-50/20 font-black"><td className="p-2 border">TOTAL DE CUSTOS VARIÁVEIS (B)</td><td className="p-2 text-right border text-red-600">-{formatMoney(totalCustosVariaveis)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((totalCustosVariaveis/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                         
                                                         <tr className="bg-amber-50/30 font-black"><td className="p-2 border">(=) MARGEM DE CONTRIBUIÇÃO LIQUIDA (A - B)</td><td className="p-2 text-right border text-amber-700">{formatMoney(marginVal)}</td><td className="p-2 text-center border text-amber-700">{faturamentoTotal > 0 ? ((marginVal/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                         
@@ -650,7 +498,7 @@
                                 );
                             })()}
 
-                            {/* DASHBOARD FINANCEIRO PRINCIPAL */}
+                            {/* ABA: LANÇAMENTOS DASHBOARD */}
                             {activeTab === 'fin_dashboard' && (
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 fade-in">
                                     <form onSubmit={handleSaveTx} className="lg:col-span-1 glass-card p-4 rounded-xl space-y-3 border-t-4 border-black h-fit">
@@ -898,7 +746,7 @@
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
                                         <div><h2 className="font-black text-slate-800 text-sm uppercase">Banco de Insumos e Ingredientes</h2><p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{ingredients.length} itens cadastrados no sistema</p></div>
-                                        <button onClick={() => {setIngForm({ id: '', name: '', category: ingCats[0], cost: '', unit: 'g', qty: '' }); setIsIngModalOpen(true);}} className="btn-accent px-4 py-2 rounded-lg font-black text-[9px] uppercase flex items-center gap-1"><Plus size={12}/> Novo Insumo</button>
+                                        <button onClick={() => {setIngForm({ id: '', name: '', category: ingCats[0], cost: '', unit: 'g', qty: '' }); setIsIngModalOpen(true);}} className="btn-accent px-4 py-2 rounded-lg font-black text-[9px] uppercase flex items-center gap-1"><Icon name="plus" size={12}/> Novo Insumo</button>
                                     </div>
                                     <div className="space-y-4">
                                         {ingCats.map(cat => {
@@ -907,15 +755,15 @@
                                             return (
                                                 <div key={cat} className="space-y-2">
                                                     <div className="flex justify-between items-center border-b pb-1 cursor-pointer select-none" onClick={() => setIngCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }))}>
-                                                        <div className="flex items-center gap-2 font-black text-slate-700 text-[11px]"><Box size={14} className="text-emerald-600"/><span>{cat}</span><span className="bg-slate-200 text-slate-600 px-1.5 rounded-full text-[8px] font-black">{catIngs.length}</span></div>
-                                                        {isCollapsed ? <ChevronDown size={14} className="text-slate-400"/> : <ChevronUp size={14} className="text-slate-400"/>}
+                                                        <div className="flex items-center gap-2 font-black text-slate-700 text-[11px]"><Icon name="box" size={14} className="text-emerald-600"/><span>{cat}</span><span className="bg-slate-200 text-slate-600 px-1.5 rounded-full text-[8px] font-black">{catIngs.length}</span></div>
+                                                        {isCollapsed ? <Icon name="chevron-down" size={14} className="text-slate-400"/> : <Icon name="chevron-up" size={14} className="text-slate-400"/>}
                                                     </div>
                                                     {!isCollapsed && (
                                                         <div className="glass-card rounded-xl overflow-hidden border shadow-sm"><table className="w-full text-left text-[11px]">
                                                             <thead className="bg-slate-100 font-black text-slate-500 uppercase tracking-widest border-b"><tr><th className="p-3">Ingrediente</th><th className="p-3">Preço Base Compras</th><th className="p-3">Custo Grama/Unidade</th><th className="p-3 text-right">Ação</th></tr></thead>
                                                             <tbody className="divide-y font-bold text-slate-700">
                                                                 {catIngs.sort((a,b)=>a.name.localeCompare(b.name)).map(ing => (
-                                                                    <tr key={ing.id} className="hover:bg-slate-50"><td className="p-3 text-slate-900">{ing.name}</td><td className="p-3">{formatMoney(ing.cost)} <span className="text-slate-400">/ {ing.qty}{ing.unit}</span></td><td className="p-3 text-emerald-600">{formatMoney(getIngCost(ing.id, ing.unit==='kg'||ing.unit==='L'?1000:1))} <span className="text-slate-400">/ {ing.unit==='kg'?'g':ing.unit==='L'?'ml':ing.unit}</span></td><td className="p-3 text-right"><button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 p-1.5"><Edit2 size={12}/></button><button onClick={() => executeDelete('cmv_data/state', ing.id)} className="text-red-400 p-1.5"><Trash2 size={12}/></button></td></tr>
+                                                                    <tr key={ing.id} className="hover:bg-slate-50"><td className="p-3 text-slate-900">{ing.name}</td><td className="p-3">{formatMoney(ing.cost)} <span className="text-slate-400">/ {ing.qty}{ing.unit}</span></td><td className="p-3 text-emerald-600">{formatMoney(getIngCost(ing.id, ing.unit==='kg'||ing.unit==='L'?1000:1))} <span className="text-slate-400">/ {ing.unit==='kg'?'g':ing.unit==='L'?'ml':ing.unit}</span></td><td className="p-3 text-right"><button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 p-1.5"><Icon name="edit-2" size={12}/></button><button onClick={() => executeDelete('cmv_data/state', ing.id)} className="text-red-400 p-1.5"><Icon name="trash-2" size={12}/></button></td></tr>
                                                                 ))}
                                                             </tbody>
                                                         </table></div>
@@ -932,7 +780,7 @@
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
                                         <div><h2 className="font-black text-slate-800 text-sm uppercase">Fichas Técnicas Operacionais</h2><p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{recipes.length} produtos mapeados com custos precisos</p></div>
-                                        <button onClick={() => {setRecipeForm({ id: '', name: '', category: recCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsRecipeModalOpen(true);}} className="btn-accent px-4 py-2 rounded-lg font-black text-[9px] uppercase flex items-center gap-1"><Plus size={12}/> Criar Ficha</button>
+                                        <button onClick={() => {setRecipeForm({ id: '', name: '', category: recCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsRecipeModalOpen(true);}} className="btn-accent px-4 py-2 rounded-lg font-black text-[9px] uppercase flex items-center gap-1"><Icon name="plus" size={12}/> Criar Ficha</button>
                                     </div>
                                     <div className="space-y-6">
                                         {recCats.map(cat => {
@@ -941,8 +789,8 @@
                                             return (
                                                 <div key={cat} className="space-y-3">
                                                     <div className="flex justify-between items-center border-b pb-1 cursor-pointer select-none" onClick={() => setRecipeCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }))}>
-                                                        <div className="flex items-center gap-2 font-black text-slate-700 text-[11px]"><Utensils size={14} className="text-[#F27A18]"/><span>{cat}</span><span className="bg-slate-200 text-slate-600 px-1.5 rounded-full text-[8px] font-black">{catRecs.length}</span></div>
-                                                        {isCollapsed ? <ChevronDown size={14} className="text-slate-400"/> : <ChevronUp size={14} className="text-slate-400"/>}
+                                                        <div className="flex items-center gap-2 font-black text-slate-700 text-[11px]"><Icon name="utensils" size={14} className="text-[#F27A18]"/><span>{cat}</span><span className="bg-slate-200 text-slate-600 px-1.5 rounded-full text-[8px] font-black">{catRecs.length}</span></div>
+                                                        {isCollapsed ? <Icon name="chevron-down" size={14} className="text-slate-400"/> : <Icon name="chevron-up" size={14} className="text-slate-400"/>}
                                                     </div>
                                                     {!isCollapsed && (
                                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -950,7 +798,7 @@
                                                                 const cost = calcItemCost(rec.ingredients); const sp = p(rec.sellingPrice); const cmv = sp > 0 ? (cost/sp)*100 : 0;
                                                                 return (
                                                                     <div key={rec.id} className="glass-card rounded-xl p-4 shadow-sm border-t-4 border-[#1A202C] flex flex-col justify-between">
-                                                                        <div className="flex justify-between mb-2"><h4 className="font-black text-base text-slate-900 leading-tight truncate max-w-[150px]">{rec.name}</h4><div className="flex gap-1"><button onClick={()=>{setRecipeForm({...rec}); setIsRecipeModalOpen(true);}} className="text-blue-500"><Edit2 size={12}/></button><button onClick={()=>delActionCMV('recipes', recipes, rec.id)} className="text-red-400"><Trash2 size={12}/></button></div></div>
+                                                                        <div className="flex justify-between mb-2"><h4 className="font-black text-base text-slate-900 leading-tight truncate max-w-[150px]">{rec.name}</h4><div className="flex gap-1"><button onClick={()=>{setRecipeForm({...rec}); setIsRecipeModalOpen(true);}} className="text-blue-500"><Icon name="edit-2" size={12}/></button><button onClick={()=>delActionCMV('recipes', recipes, rec.id)} className="text-red-400"><Icon name="trash-2" size={12}/></button></div></div>
                                                                         <div className="grid grid-cols-2 gap-2 my-2 text-center text-[10px] font-bold">
                                                                             <div className="bg-slate-50 p-1.5 rounded border"><span>Custo</span><span className="block text-slate-800 font-black">{formatMoney(cost)}</span></div>
                                                                             <div className={"p-1.5 rounded border " + (cmv > cmvSettings.targetCMV ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700")}><span>CMV Real</span><span className="block font-black">{cmv.toFixed(1)}%</span></div>
@@ -973,7 +821,7 @@
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
                                         <div><h2 className="font-black text-slate-800 text-sm uppercase">Complementos e Adicionais de Lanche</h2><p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{complements.length} adicionais ativos</p></div>
-                                        <button onClick={() => {setCompForm({ id: '', name: '', category: compCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsCompModalOpen(true);}} className="btn-accent px-4 py-2 rounded-lg font-black text-[9px] uppercase flex items-center gap-1"><Plus size={12}/> Criar Adicional</button>
+                                        <button onClick={() => {setCompForm({ id: '', name: '', category: compCats[0], sellingPrice: '', ingredients: [], ignoreCMV: false }); setIsCompModalOpen(true);}} className="btn-accent px-4 py-2 rounded-lg font-black text-[9px] uppercase flex items-center gap-1"><Icon name="plus" size={12}/> Criar Adicional</button>
                                     </div>
                                     <div className="space-y-4">
                                         {compCats.map(cat => {
@@ -982,8 +830,8 @@
                                             return (
                                                 <div key={cat} className="space-y-2">
                                                     <div className="flex justify-between items-center border-b pb-1 cursor-pointer select-none" onClick={() => setCompCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }))}>
-                                                        <div className="flex items-center gap-2 font-black text-slate-700 text-[11px]"><Layers size={14} className="text-indigo-600"/><span>{cat}</span><span className="bg-slate-200 text-slate-600 px-1.5 rounded-full text-[8px] font-black">{catComps.length}</span></div>
-                                                        {isCollapsed ? <ChevronDown size={14} className="text-slate-400"/> : <ChevronUp size={14} className="text-slate-400"/>}
+                                                        <div className="flex items-center gap-2 font-black text-slate-700 text-[11px]"><Icon name="layers" size={14} className="text-indigo-600"/><span>{cat}</span><span className="bg-slate-200 text-slate-600 px-1.5 rounded-full text-[8px] font-black">{catComps.length}</span></div>
+                                                        {isCollapsed ? <Icon name="chevron-down" size={14} className="text-slate-400"/> : <Icon name="chevron-up" size={14} className="text-slate-400"/>}
                                                     </div>
                                                     {!isCollapsed && (
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1008,7 +856,7 @@
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
                                         <div><h2 className="font-black text-slate-800 text-sm uppercase">Fichas de Combos Promocionais</h2><p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{combos.length} combos ativos</p></div>
-                                        <button onClick={() => {setComboForm({ id: '', name: '', category: comboCats[0], sellingPrice: '', items: [], ignoreCMV: false }); setIsComboModalOpen(true);}} className="btn-accent px-4 py-2 rounded-lg font-black text-[9px] uppercase flex items-center gap-1"><Plus size={12}/> Criar Combo</button>
+                                        <button onClick={() => {setComboForm({ id: '', name: '', category: comboCats[0], sellingPrice: '', items: [], ignoreCMV: false }); setIsComboModalOpen(true);}} className="btn-accent px-4 py-2 rounded-lg font-black text-[9px] uppercase flex items-center gap-1"><Icon name="plus" size={12}/> Criar Combo</button>
                                     </div>
                                     <div className="space-y-4">
                                         {comboCats.map(cat => {
@@ -1017,8 +865,8 @@
                                             return (
                                                 <div key={cat} className="space-y-2">
                                                     <div className="flex justify-between items-center border-b pb-1 cursor-pointer select-none" onClick={() => setComboCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }))}>
-                                                        <div className="flex items-center gap-2 font-black text-slate-700 text-[11px]"><Layers size={14} className="text-amber-500"/><span>{cat}</span><span className="bg-slate-200 text-slate-600 px-1.5 rounded-full text-[8px] font-black">{catCombos.length}</span></div>
-                                                        {isCollapsed ? <ChevronDown size={14} className="text-slate-400"/> : <ChevronUp size={14} className="text-slate-400"/>}
+                                                        <div className="flex items-center gap-2 font-black text-slate-700 text-[11px]"><Icon name="layers" size={14} className="text-amber-500"/><span>{cat}</span><span className="bg-slate-200 text-slate-600 px-1.5 rounded-full text-[8px] font-black">{catCombos.length}</span></div>
+                                                        {isCollapsed ? <Icon name="chevron-down" size={14} className="text-slate-400"/> : <Icon name="chevron-up" size={14} className="text-slate-400"/>}
                                                     </div>
                                                     {!isCollapsed && (
                                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1026,7 +874,7 @@
                                                                 const cost = calcComboCost(combo.items); const sp = p(combo.sellingPrice); const cmv = sp > 0 ? (cost/sp)*100 : 0;
                                                                 return (
                                                                     <div key={combo.id} className="glass-card rounded-xl p-4 border-t-4 border-amber-500 flex flex-col justify-between shadow">
-                                                                        <div className="flex justify-between items-start mb-2"><h4 className="font-black text-base uppercase leading-tight truncate max-w-[160px]">{combo.name}</h4><div className="flex gap-1"><button onClick={()=>{setComboForm({...combo}); setIsComboModalOpen(true);}} className="text-blue-500"><Edit2 size={12}/></button><button onClick={()=>delActionCMV('combos', combos, combo.id)} className="text-red-400"><Trash2 size={12}/></button></div></div>
+                                                                        <div className="flex justify-between items-start mb-2"><h4 className="font-black text-base uppercase leading-tight truncate max-w-[160px]">{combo.name}</h4><div className="flex gap-1"><button onClick={()=>{setComboForm({...combo}); setIsComboModalOpen(true);}} className="text-blue-500"><Icon name="edit-2" size={12}/></button><button onClick={()=>delActionCMV('combos', combos, combo.id)} className="text-red-400"><Icon name="trash-2" size={12}/></button></div></div>
                                                                         <div className="grid grid-cols-2 gap-2 my-2 text-center text-[10px] font-bold">
                                                                             <div className="bg-slate-50 p-1.5 rounded border"><span>Custo Combo</span><span className="block text-slate-800 font-black">{formatMoney(cost)}</span></div>
                                                                             <div className={"p-1.5 rounded border " + (cmv > cmvSettings.targetCMV ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700")}><span>CMV Real</span><span className="block font-black">{cmv.toFixed(1)}%</span></div>
@@ -1094,7 +942,7 @@
                                             <thead className="bg-slate-100 text-slate-500 uppercase tracking-widest border-b"><tr><th className="p-3">Descrição da Despesa</th><th className="p-3">Categoria Estrutural</th><th className="p-3 text-right">Valor Mensal</th><th className="p-3 text-right">Ação</th></tr></thead>
                                             <tbody className="divide-y">
                                                 {fixedCosts.map(fc => (
-                                                    <tr key={fc.id} className="hover:bg-slate-50"><td className="p-3 uppercase">{fc.description}</td><td className="p-3"><span className="bg-slate-100 px-2 py-0.5 rounded text-[8px] font-black">{fc.category}</span></td><td className="p-3 text-right text-red-500">{formatMoney(p(fc.value))}</td><td className="p-3 text-right"><button onClick={()=>delActionCMV('fixedCosts', fixedCosts, fc.id)} className="text-red-400 p-1.5"><Trash2 size={12}/></button></td></tr>
+                                                    <tr key={fc.id} className="hover:bg-slate-50"><td className="p-3 uppercase">{fc.description}</td><td className="p-3"><span className="bg-slate-100 px-2 py-0.5 rounded text-[8px] font-black">{fc.category}</span></td><td className="p-3 text-right text-red-500">{formatMoney(p(fc.value))}</td><td className="p-3 text-right"><button onClick={()=>delActionCMV('fixedCosts', fixedCosts, fc.id)} className="text-red-400 p-1.5"><Icon name="trash-2" size={12}/></button></td></tr>
                                                 ))}
                                             </tbody>
                                         </table>
@@ -1111,8 +959,15 @@
                                             <div className="space-y-0.5"><label className="font-black text-slate-400">Impostos Simples (%)</label><input type="number" step="0.1" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.tax} onChange={e=>setCmvSettings({...cmvSettings, tax: e.target.value})} /></div>
                                             <div className="space-y-0.5"><label className="font-black text-slate-400">Taxa Máquina Débito (%)</label><input type="number" step="0.01" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.taxaDebito} onChange={e=>setCmvSettings({...cmvSettings, taxaDebito: e.target.value})} /></div>
                                             <div className="space-y-0.5"><label className="font-black text-slate-400">Taxa Máquina Crédito (%)</label><input type="number" step="0.01" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.taxaCredito} onChange={e=>setCmvSettings({...cmvSettings, taxaCredito: e.target.value})} /></div>
+                                            <div className="space-y-0.5"><label className="font-black text-slate-400">Taxa Auto (Aba Vendas)</label>
+                                                <select className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none text-emerald-600" value={cmvSettings.autoFeeVendas ? 'sim' : 'nao'} onChange={e=>setCmvSettings({...cmvSettings, autoFeeVendas: e.target.value === 'sim'})}>
+                                                    <option value="sim">SIM (DEDUZIR DO DRE)</option><option value="nao">NÃO DEDUZIR</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-0.5"><label className="font-black text-red-500">Taxa iFood (%)</label><input type="number" step="0.1" className="w-full p-2.5 bg-red-50/30 border border-red-100 rounded-xl font-bold text-red-600 outline-none focus:border-red-500" value={cmvSettings.ifoodTax} onChange={e=>setCmvSettings({...cmvSettings, ifoodTax: e.target.value})} /></div>
+                                            <div className="col-span-2 space-y-0.5"><label className="font-black text-blue-500">Meta Vendas Mensal (R$)</label><input type="number" step="0.01" className="w-full p-2.5 bg-blue-50 border border-blue-100 rounded-xl font-bold outline-none focus:border-blue-500" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} /></div>
                                         </div>
-                                        <button onClick={async()=>{ if(!user)return; await saveCMVDoc('settings', cmvSettings); alert('Taxas Globais Atualizadas!'); }} className="w-full bg-[#1A202C] text-[#F8CC82] p-2.5 rounded-lg font-black text-[10px] uppercase shadow">Salvar Configurações Globais</button>
+                                        <button onClick={async()=>{ if(!user)return; await saveCMVDoc('settings', cmvSettings); await saveMeta(metaVendas); alert('Taxas Globais Atualizadas!'); }} className="w-full bg-[#1A202C] text-[#F8CC82] p-2.5 rounded-lg font-black text-[10px] uppercase shadow">Salvar Configurações Globais</button>
                                     </div>
                                     <div className="space-y-4"><div><h3 className="font-black uppercase text-slate-800 text-base">Estrutura Financeira e Contas</h3><p className="font-bold text-slate-400 uppercase mt-1">Gerencie a lista oficial de contas operacionais</p></div>
                                         <form onSubmit={handleSaveAcc} className="flex flex-col gap-2 bg-slate-50 p-3 rounded-xl border">
