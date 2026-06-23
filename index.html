@@ -75,6 +75,7 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
+        // COMPONENTE DE ÍCONES EM CACHE CONTRA ERROS
         const Icon = memo(({ name, size = 16, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
@@ -94,6 +95,22 @@
             };
             return <input className={`table-input ${className || ''}`} value={val} onChange={e=>setVal(e.target.value)} onBlur={handleBlur} placeholder={placeholder || "0,00"} />;
         });
+
+        const safeIcons = [
+            'Utensils', 'Sprout', 'Edit', 'Edit2', 'Trash', 'Trash2', 'Plus', 'Check', 'Search', 
+            'Bell', 'Calendar', 'CreditCard', 'TrendingUp', 'CheckSquare', 'PlusCircle', 
+            'CalendarDays', 'ShoppingCart', 'CheckCircle', 'Lock', 'ShieldCheck', 'Copy', 'Download', 'CloudLightning',
+            'Target', 'TrendingDown', 'AlertTriangle', 'FileText', 'PieChart', 'Printer', 'Wallet', 'Star', 'Menu', 'X',
+            'ChevronUp', 'ChevronDown', 'Box', 'Layers', 'Filter', 'Activity'
+        ];
+        
+        const IconComponents = {};
+        safeIcons.forEach(iconName => {
+            const normalized = iconName.toLowerCase().replace('2', '-2').replace('square', '-square').replace('circle', '-circle').replace('days', '-days').replace('card', '-card').replace('up', '-up').replace('down', '-down').replace('check', '-check').replace('lightning', '-lightning').replace('triangle', '-triangle').replace('text', '-text').replace('chart', '-chart');
+            IconComponents[iconName] = (props) => <Icon name={normalized} size={props.size || 16} className={props.className || ""} />;
+        });
+
+        const { Utensils, Edit2, Trash2, Plus, Search, CreditCard, TrendingUp, CalendarDays, CheckCircle, Target, TrendingDown, FileText, PieChart, Printer, Wallet, Star, ChevronUp, ChevronDown, Box, Layers, Lock, Menu, X, Activity } = IconComponents;
 
         const parseDateUTC = (dateStr) => {
             if (!dateStr || dateStr.includes('NaN')) return new Date();
@@ -186,6 +203,11 @@
             const [comboCollapsed, setComboCollapsed] = useState({});
             const [ingCollapsed, setIngCollapsed] = useState({});
 
+            const uniqueDescriptions = useMemo(() => {
+                const descs = transactions.map(t => t.description).filter(Boolean);
+                return [...new Set(descs)].sort((a, b) => a.localeCompare(b));
+            }, [transactions]);
+
             useEffect(() => {
                 const unsubscribe = auth.onAuthStateChanged(u => { setUser(u); setLoading(false); });
                 return () => unsubscribe();
@@ -220,12 +242,6 @@
 
             const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
             const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
-
-            // AUTOCOMPLETAR DESCRIÇÃO INTELIGENTE
-            const uniqueDescriptions = useMemo(() => {
-                const descs = transactions.map(t => t.description).filter(Boolean);
-                return [...new Set(descs)].sort((a, b) => a.localeCompare(b));
-            }, [transactions]);
 
             const filteredDashboard = useMemo(() => transactions.filter(t => {
                 if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
@@ -327,6 +343,16 @@
                 }
 
                 const operCosts = Object.values(catCosts).reduce((a,b)=>a+b, 0);
+                
+                // CÁLCULO RESTAURADO: Ranking de Vendas por Dia
+                const weekdayNames = {0:'Domingo', 1:'Segunda', 2:'Terça', 3:'Quarta', 4:'Quinta', 5:'Sexta', 6:'Sábado'};
+                const weekdayAverages = Object.keys(weekdaySums).map(wd => ({
+                    name: weekdayNames[wd],
+                    avg: weekdayCounts[wd] > 0 ? weekdaySums[wd] / weekdayCounts[wd] : 0,
+                    total: weekdaySums[wd],
+                    count: weekdayCounts[wd]
+                })).filter(x => x.avg > 0).sort((a, b) => b.avg - a.avg);
+
                 return { 
                     rb, totalCosts: operCosts + custos, lucro: rb - (operCosts + custos), catCosts, diasAtivos, totalPedidos, ticketDiario: diasAtivos > 0 ? rb / diasAtivos : 0, ticketPedido: totalPedidos > 0 ? rb / totalPedidos : 0, entradas, contasPagas, lucroCaixa: entradas - contasPagas, projecaoMensal, metaDiaria, margemDRE: rb > 0 ? ((rb - (operCosts + custos)) / rb) * 100 : 0, margemCaixa: entradas > 0 ? ((entradas - contasPagas) / entradas) * 100 : 0, weeklyCurrent, weeklyPrev, weekdayAverages, diasUteisRestantes: Math.max(0, diasUteisTotaisMes - diasUteisPassados), autoCardFees
                 };
@@ -593,7 +619,6 @@
                             </div>
                         </div>
                     )}
-
                     {isIngModalOpen && (
                         <div className="modal-overlay z-[110]">
                             <div className="bg-white w-full max-w-sm p-6 rounded-2xl shadow-2xl flex flex-col gap-3 scale-up-center">
@@ -609,7 +634,6 @@
                             </div>
                         </div>
                     )}
-
                     {(isRecipeModalOpen || isCompModalOpen) && (() => {
                         const isRec = isRecipeModalOpen; const formObj = isRec ? recipeForm : compForm; const setFormObj = isRec ? setRecipeForm : setCompForm;
                         const catList = isRec ? recCats : compCats; const title = formObj.id ? `Editar ${isRec?'Ficha':'Complemento'}` : `Novo ${isRec?'Ficha':'Complemento'}`;
@@ -645,7 +669,6 @@
                             </div>
                         );
                     })()}
-
                     {isComboModalOpen && (
                         <div className="modal-overlay z-[110]">
                             <div className="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 rounded-2xl shadow-2xl flex flex-col gap-4 scale-up-center">
@@ -680,7 +703,6 @@
                             </div>
                         </div>
                     )}
-
                     {isFcModalOpen && (
                         <div className="modal-overlay z-[110]">
                             <div className="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl flex flex-col gap-3 scale-up-center">
@@ -965,10 +987,10 @@
                                                         </div>
                                                         <div className="flex items-center gap-3">
                                                             <p className={"font-black " + (t.type==='entrada'?'text-green-600':'text-slate-800')}>{formatMoney(t.amount)}</p>
-                                                            <div className="flex gap-1">
-                                                                <button onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1, feeType: 'none', feePercent: 0}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-400 p-1.5 hover:bg-blue-50 rounded"><Icon name="edit-2" size={12}/></button>
-                                                                <button onClick={() => executeDelete('transactions', t.id)} className={"transition-all p-1.5 rounded hover:bg-red-50 " + (deleteConfirmId === t.id ? 'delete-confirm text-white' : 'text-red-400')}>
-                                                                    {deleteConfirmId === t.id ? <span className="font-black uppercase text-[8px]">Sim</span> : <Icon name="trash-2" size={12} />}
+                                                            <div className="flex gap-1 items-center">
+                                                                <button onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1, feeType: 'none', feePercent: 0}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-500 p-1.5 rounded hover:bg-blue-50"><Icon name="edit-2" size={12}/></button>
+                                                                <button onClick={() => executeDelete('transactions', t.id)} className={"transition-all p-1.5 rounded hover:bg-red-50 " + (deleteConfirmId === t.id ? 'delete-confirm text-white' : 'text-red-400')} title="Excluir">
+                                                                    {deleteConfirmId === t.id ? (<span className="font-black uppercase text-[8px]">Sim</span>) : (<Icon name="trash-2" size={12}/>)}
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -1132,9 +1154,9 @@
                                             <div className="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm"><div><h2 className="font-black uppercase text-slate-800">Cartões de Crédito</h2><p className="font-bold text-slate-400 uppercase mt-0.5">Limites e Faturas ({filterMonth})</p></div></div>
                                             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                                 {cardStats.length === 0 ? <div className="col-span-full p-8 text-center text-slate-400 uppercase font-black glass-card rounded-2xl border-dashed">Nenhum cartão cadastrado. Vá em "Ajustes" para adicionar.</div> : cardStats.map(card => {
-                                                    const currentMonthTxs = transactions.filter(t => { if (t.account !== card.name) return false; const { clearanceDate } = getTransactionDates(t); return clearanceDate?.startsWith(filterMonth) && !isInvoicePayment(t); });
+                                                    const currentMonthTxs = transactions.filter(t => { if (t.account !== card.name) return false; const { clearanceDate } = getTransactionDates(t, card); return clearanceDate?.startsWith(filterMonth) && !isInvoicePayment(t); });
                                                     const invoiceTotal = currentMonthTxs.reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
-                                                    const invoicePayments = transactions.filter(t => t.account === card.name && isInvoicePayment(t) && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
+                                                    const invoicePayments = transactions.filter(t => t.account === card.name && isInvoicePayment(t) && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
                                                     const paidAmount = invoicePayments.reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
                                                     const isPaid = paidAmount >= invoiceTotal && invoiceTotal > 0;
 
@@ -1224,7 +1246,7 @@
                                     });
                                     
                                     const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
-                                        const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t).clearanceDate?.startsWith(filterMonth));
+                                        const txs = transactions.filter(t => t.account === card.name && getTransactionDates(t, card).clearanceDate?.startsWith(filterMonth));
                                         const totalPurchases = txs.filter(t => !isInvoicePayment(t)).reduce((acc, t) => t.type === 'saida' ? acc + p(t.amount) : acc - p(t.amount), 0);
                                         const totalPaid = txs.filter(t => isInvoicePayment(t)).reduce((acc, t) => t.type === 'entrada' ? acc + p(t.amount) : acc - p(t.amount), 0);
                                         return totalPurchases - totalPaid;
@@ -1296,7 +1318,11 @@
                                                     {suppliers.length === 0 ? <tr><td colSpan="2" className="p-8 text-center text-slate-400">Vazio.</td></tr> : suppliers.sort((a,b)=>a.name.localeCompare(b.name)).map(s => (
                                                         <tr key={s.id} className="hover:bg-slate-50">
                                                             <td className="p-3 uppercase">{s.name}</td>
-                                                            <td className="p-3 text-right"><button onClick={() => executeDelete('suppliers', s.id)} className={"transition-all p-1.5 rounded hover:bg-red-50 " + (deleteConfirmId === s.id ? 'delete-confirm text-white' : 'text-red-400')}>{deleteConfirmId === s.id ? <span className="font-black uppercase text-[8px]">Sim</span> : <Icon name="trash-2" size={12}/>}</button></td>
+                                                            <td className="p-3 text-right">
+                                                                <button onClick={() => executeDelete('suppliers', s.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === s.id ? 'delete-confirm text-white' : 'text-red-400 hover:text-red-600')}>
+                                                                    {deleteConfirmId === s.id ? (<span className="font-black uppercase text-[8px]">Sim</span>) : (<Icon name="trash-2" size={12}/>)}
+                                                                </button>
+                                                            </td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -1404,7 +1430,12 @@
                                                                                 <td className="p-3 text-slate-900">{ing.name}</td>
                                                                                 <td className="p-3">{formatMoney(ing.cost)} <span className="text-slate-400">/ {ing.qty}{ing.unit}</span></td>
                                                                                 <td className="p-3 text-emerald-600">{formatMoney(getIngCost(ing.id, ing.unit==='kg'||ing.unit==='L'?1000:1))} <span className="text-slate-400">/ {ing.unit==='kg'?'g':ing.unit==='L'?'ml':ing.unit}</span></td>
-                                                                                <td className="p-3 text-right"><button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 p-1.5"><Icon name="edit-2" size={12}/></button><button onClick={() => executeDelete('cmv_data/state', ing.id)} className={"transition-all p-1.5 rounded hover:bg-red-50 " + (deleteConfirmId === ing.id ? 'delete-confirm text-white' : 'text-red-400')} title="Excluir">{deleteConfirmId === ing.id ? <span className="font-black uppercase">Sim</span> : <Icon name="trash-2" size={12}/>}</button></td>
+                                                                                <td className="p-3 text-right">
+                                                                                    <button onClick={()=>{setIngForm({...ing}); setIsIngModalOpen(true);}} className="text-blue-500 p-1.5"><Icon name="edit-2" size={12}/></button>
+                                                                                    <button onClick={() => executeDelete('cmv_data/state', ing.id)} className={"transition-all p-1.5 rounded " + (deleteConfirmId === ing.id ? 'delete-confirm text-white' : 'text-red-400 hover:text-red-600')}>
+                                                                                        {deleteConfirmId === ing.id ? (<span className="font-black uppercase text-[8px]">Sim</span>) : (<Icon name="trash-2" size={12}/>)}
+                                                                                    </button>
+                                                                                </td>
                                                                             </tr>
                                                                         ))}
                                                                     </tbody>
@@ -1441,7 +1472,13 @@
                                                                     const cost = calcItemCost(rec.ingredients); const sp = p(rec.sellingPrice); const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
                                                                     return (
                                                                         <div key={rec.id} className={"glass-card rounded-2xl p-5 shadow-sm border-t-4 " + (rec.ignoreCMV ? "border-slate-300 opacity-70" : "border-[#1A202C]")}>
-                                                                            <div className="flex justify-between items-start mb-3"><span className="font-black bg-slate-100 px-1.5 py-0.5 rounded uppercase tracking-widest">{rec.category}</span><div className="flex gap-1"><button onClick={()=>{setRecipeForm({...rec}); setIsRecipeModalOpen(true);}} className="text-blue-500"><Icon name="edit-2" size={12}/></button><button onClick={()=>delActionCMV('recipes', recipes, rec.id)} className="text-red-400"><Icon name="trash-2" size={12}/></button></div></div>
+                                                                            <div className="flex justify-between items-start mb-3">
+                                                                                <span className="font-black bg-slate-100 px-1.5 py-0.5 rounded uppercase tracking-widest">{rec.category}</span>
+                                                                                <div className="flex gap-1">
+                                                                                    <button onClick={()=>{setRecipeForm({...rec}); setIsRecipeModalOpen(true);}} className="text-blue-500"><Icon name="edit-2" size={12}/></button>
+                                                                                    <button onClick={()=>delActionCMV('recipes', recipes, rec.id)} className="text-red-400"><Icon name="trash-2" size={12}/></button>
+                                                                                </div>
+                                                                            </div>
                                                                             <h3 className="font-black text-base uppercase text-slate-900 leading-tight mb-3">{rec.name}</h3>
                                                                             <div className="grid grid-cols-2 gap-2 mt-3">
                                                                                 <div className="bg-slate-50 p-2 rounded-xl text-center border"><span className="font-black uppercase text-slate-500 block mb-0.5">Custo</span><span className="font-black text-slate-800">{formatMoney(cost)}</span></div>
@@ -1550,7 +1587,7 @@
                                     return (
                                     <div className="space-y-6 fade-in print-area" id="print-area">
                                         <div className="flex justify-between items-center bg-[#1A202C] text-white p-6 rounded-2xl shadow-xl print:shadow-none print:text-black print:bg-white print:border-b-2 print:border-black print:rounded-none">
-                                            <div><h2 className="text-xl font-black uppercase tracking-widest">Relatório Consolidado CMV</h2><p className="font-bold text-[#F8CC82] uppercase mt-0.5 print:text-slate-500">Rentabilidade de Cardápio</p></div>
+                                            <div><h2 className="text-xl font-black uppercase tracking-widest">Relatório Analítico</h2><p className="font-bold text-[#F8CC82] uppercase mt-0.5 print:text-slate-500">Estudo de Rentabilidade Base CMV</p></div>
                                             <button onClick={()=>window.print()} className="bg-[#F27A18] text-black px-4 py-2 rounded-xl font-black uppercase print:hidden shadow-lg hover:scale-105 transition-transform"><Icon name="printer" size={14} className="inline mr-1.5"/>Imprimir</button>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 print:hidden">
@@ -1580,7 +1617,7 @@
                                                     {[...recipes.map(r=>({...r, _t:'Ficha'})), ...complements.map(c=>({...c, _t:'Extra'})), ...combos.map(c=>({...c, _t:'Combo'}))].sort((a,b)=>a.name.localeCompare(b.name)).map(item => {
                                                         const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items); const sp = p(item.sellingPrice); const cmv = sp > 0 ? ((cost/sp)*100).toFixed(1) : 0;
                                                         const suggested = cmvSettings.targetCMV > 0 ? cost / (cmvSettings.targetCMV/100) : 0;
-                                                        const impostos = sp * ((p(cmvSettings.tax) + p(cmvSettings.apps) + p(cmvSettings.card))/100);
+                                                        const impostos = sp * ((p(cmvSettings.tax) + p(cmvSettings.apps) + p(cmvSettings.taxaCredito))/100);
                                                         const marginVal = sp - cost - impostos; const marginPct = sp > 0 ? ((marginVal/sp)*100).toFixed(1) : 0;
                                                         return (
                                                             <tr key={item.id} className={"hover:bg-slate-50 " + (item.ignoreCMV ? "opacity-40" : "")}>
@@ -1634,7 +1671,6 @@
                                      <div className="space-y-6 fade-in">
                                          <div className="glass-card p-6 rounded-3xl border-t-8 border-[#D97757] shadow-xl grid grid-cols-1 md:grid-cols-2 gap-6">
                                              
-                                             {/* PARÂMETROS CMV */}
                                              <div className="space-y-5">
                                                  <div><h3 className="font-black uppercase text-slate-800 text-base">Parâmetros & Taxas</h3><p className="font-bold text-slate-400 uppercase mt-1">Configurações Base (Financeiro e CMV)</p></div>
                                                  <div className="grid grid-cols-2 gap-3">
@@ -1653,7 +1689,6 @@
                                                  <button onClick={async()=>{if(!user)return; await saveCMVDoc('settings', {...cmvSettings, targetCMV:p(cmvSettings.targetCMV), tax:p(cmvSettings.tax), apps:p(cmvSettings.apps), taxaDebito:p(cmvSettings.taxaDebito), taxaCredito:p(cmvSettings.taxaCredito), ifoodTax:p(cmvSettings.ifoodTax), autoFeeVendas: cmvSettings.autoFeeVendas}); await saveMeta(metaVendas); alert('Parâmetros Salvos!');}} className="w-full bg-[#1A202C] text-[#F8CC82] p-3 rounded-xl font-black uppercase shadow-lg hover:bg-black transition-all">Salvar Parâmetros Globais</button>
                                              </div>
                                              
-                                             {/* CADASTROS RÁPIDOS */}
                                              <div className="space-y-5">
                                                  <div><h3 className="font-black uppercase text-slate-800 text-base">Contas, Cartões & Categorias</h3><p className="font-bold text-slate-400 uppercase mt-1">Gestão da Estrutura Financeira</p></div>
                                                  
@@ -1696,7 +1731,9 @@
                                                                  </div>
                                                                  <div className="flex gap-1 items-center">
                                                                      <button type="button" onClick={()=>setAccForm({ ...a, closing: a.closing || a.closingDay || '', due: a.due || a.dueDay || '' })} className="text-blue-500 p-1.5 rounded hover:bg-blue-50"><Icon name="edit-2" size={12}/></button>
-                                                                     <button type="button" onClick={() => executeDelete('accounts', a.id)} className={"transition-all p-1.5 rounded hover:bg-red-50 " + (deleteConfirmId === a.id ? 'delete-confirm text-white' : 'text-red-400')} title="Excluir">{deleteConfirmId === a.id ? <span className="font-black uppercase text-[8px]">Sim</span> : <Icon name="trash-2" size={12}/>}</button>
+                                                                     <button type="button" onClick={() => executeDelete('accounts', a.id)} className={"transition-all p-1.5 rounded hover:bg-red-50 " + (deleteConfirmId === a.id ? 'delete-confirm text-white' : 'text-red-400')} title="Excluir">
+                                                                         {deleteConfirmId === a.id ? (<span className="font-black uppercase text-[8px]">Sim</span>) : (<Icon name="trash-2" size={12}/>)}
+                                                                     </button>
                                                                  </div>
                                                              </div>
                                                          ))}
