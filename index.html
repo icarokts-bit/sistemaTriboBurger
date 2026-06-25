@@ -39,8 +39,6 @@
         .scale-up-center { animation: scale-up-center 0.15s cubic-bezier(0.390, 0.575, 0.565, 1.000) both; }
         @keyframes scale-up-center { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
-        .delete-confirm { background-color: #EF4444 !important; color: white !important; font-size: 8px !important; padding: 2px 6px; border-radius: 4px; }
-
         @media print {
             body { background-color: white !important; color: black !important; }
             .print\:hidden, aside, header { display: none !important; }
@@ -55,24 +53,28 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, memo } = React;
 
-        // ================= BLINDAGEM GLOBAL (FIREBASE E MATEMÁTICA) =================
+        // ================= FIREBASE INITIALIZATION =================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCL0o0TQYbPXoo7Yo_qJpc1oa7jib8KBcc",
+            authDomain: "tribo-burger-app.firebaseapp.com",
+            projectId: "tribo-burger-app",
+            storageBucket: "tribo-burger-app.firebasestorage.app",
+            messagingSenderId: "490245681469",
+            appId: "1:490245681469:web:189b1d2e35bd142cc31554"
+        };
+
         if (!window.firebase.apps.length) {
-            window.firebase.initializeApp({
-                apiKey: "AIzaSyCL0o0TQYbPXoo7Yo_qJpc1oa7jib8KBcc",
-                authDomain: "tribo-burger-app.firebaseapp.com",
-                projectId: "tribo-burger-app",
-                storageBucket: "tribo-burger-app.firebasestorage.app",
-                messagingSenderId: "490245681469",
-                appId: "1:490245681469:web:189b1d2e35bd142cc31554"
-            });
+            window.firebase.initializeApp(firebaseConfig);
         }
-        var auth = window.firebase.auth();
-        var db = window.firebase.firestore();
+        
+        const auth = window.firebase.auth();
+        const db = window.firebase.firestore();
 
-        function p(v) { return parseFloat(String(v || 0).replace(',', '.')) || 0; }
-        function formatMoney(v) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0); }
+        // ================= MATEMÁTICA E FORMATAÇÃO GLOBAL =================
+        const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
+        const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-        // ================= COMPONENTES BASE =================
+        // ================= COMPONENTES =================
         const Icon = memo(({ name, size = 14, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
@@ -87,27 +89,16 @@
         const DailyInput = memo(({ dateStr, field, initialValue, activeUid, className, placeholder }) => {
             const [val, setVal] = useState(initialValue || '');
             useEffect(() => { setVal(initialValue || ''); }, [initialValue]);
-            
             const handleBlur = () => {
                 if (val !== (initialValue || '')) {
-                    db.collection(`artifacts/tribo-burger-financeiro/users/${activeUid}/dailyRecords`)
-                      .doc(dateStr)
-                      .set({[field]: val}, {merge:true});
+                    db.collection(`artifacts/tribo-burger-financeiro/users/${activeUid}/dailyRecords`).doc(dateStr).set({[field]: val}, {merge:true});
                 }
             };
-            
             return (
-                <input 
-                    className={`table-input ${className || ''}`} 
-                    value={val} 
-                    onChange={e => setVal(e.target.value)} 
-                    onBlur={handleBlur} 
-                    placeholder={placeholder || "0,00"} 
-                />
+                <input className={`table-input ${className || ''}`} value={val} onChange={e => setVal(e.target.value)} onBlur={handleBlur} placeholder={placeholder || "0,00"} />
             );
         });
 
-        // ================= FUNÇÕES DE DATA =================
         const parseDateUTC = (dateStr) => {
             if (!dateStr || dateStr.includes('NaN')) return new Date();
             if (dateStr.includes('-')) {
@@ -139,7 +130,6 @@
             const [activeTab, setActiveTab] = useState('fin_dashboard');
             const [isMenuOpen, setIsMenuOpen] = useState(false);
             
-            // Estados Financeiros
             const [transactions, setTransactions] = useState([]);
             const [dailyRecords, setDailyRecords] = useState({});
             const [accounts, setAccounts] = useState([]);
@@ -147,7 +137,6 @@
             const [suppliers, setSuppliers] = useState([]);
             const [metaVendas, setMetaVendas] = useState(0);
 
-            // Filtros e UI
             const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
             const [searchQuery, setSearchQuery] = useState('');
             const [typeFilter, setTypeFilter] = useState('todos');
@@ -156,21 +145,13 @@
             const [catFilter, setCatFilter] = useState('todas');
             const [visibleTxCount, setVisibleTxCount] = useState(10);
             
-            // Formulários Financeiros
-            const [txForm, setTxForm] = useState({ 
-                id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', 
-                status: 'pago', date: new Date().toISOString().split('T')[0], 
-                clearance: new Date().toISOString().split('T')[0], inst: 1, feeType: 'none', feePercent: 0 
-            });
+            const [txForm, setTxForm] = useState({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1, feeType: 'none', feePercent: 0 });
             const [newDayDate, setNewDayDate] = useState(new Date().toISOString().split('T')[0]);
             
             const [supForm, setSupForm] = useState('');
             const [catForm, setCatForm] = useState('');
-            const [accForm, setAccForm] = useState({ 
-                id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' 
-            });
+            const [accForm, setAccForm] = useState({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' });
             
-            // Modais
             const [liqModal, setLiqModal] = useState(null);
             const [invoiceModal, setInvoiceModal] = useState(null);
             const [invoicePayType, setInvoicePayType] = useState('integral'); 
@@ -178,36 +159,27 @@
             const [invoiceSourceAcc, setInvoiceSourceAcc] = useState('');
             const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
-            // Estados CMV
             const [ingredients, setIngredients] = useState([]);
             const [recipes, setRecipes] = useState([]);
             const [complements, setComplements] = useState([]);
             const [combos, setCombos] = useState([]);
             const [fixedCosts, setFixedCosts] = useState([]);
-            const [cmvSettings, setCmvSettings] = useState({ 
-                targetCMV: 30, tax: 6, apps: 0, taxaDebito: 1.99, taxaCredito: 4.99, ifoodTax: 12, autoFeeVendas: true 
-            });
+            const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, taxaDebito: 1.99, taxaCredito: 4.99, ifoodTax: 12, autoFeeVendas: true });
             
-            // Categorias Hardcoded
             const [ingCats, setIngCats] = useState(['Proteínas', 'Pães', 'Queijos', 'Molhos', 'Vegetais/Hortifrúti', 'Embalagens', 'Outros']);
             const [recCats, setRecCats] = useState(['Hambúrgueres', 'Acompanhamentos', 'Bebidas', 'Sobremesas', 'Molhos Caseiros', 'Outros', 'Smash']);
             const [compCats, setCompCats] = useState(['Extras', 'Molhos', 'Outros']);
             const [comboCats, setComboCats] = useState(['Promocionais', 'Família', 'Outros']);
             const [fcCats, setFcCats] = useState(['Operacional', 'Renda/Aluguel', 'Marketing', 'RH/Folha', 'Impostos Fixos', 'Outros']);
 
-            // Modais CMV
             const [isIngModalOpen, setIsIngModalOpen] = useState(false);
             const [ingForm, setIngForm] = useState({ id: '', name: '', category: 'Outros', cost: '', unit: 'g', qty: '' });
-            
             const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
             const [recipeForm, setRecipeForm] = useState({ id: '', name: '', category: 'Hambúrgueres', sellingPrice: '', ingredients: [], ignoreCMV: false });
-            
             const [isCompModalOpen, setIsCompModalOpen] = useState(false);
             const [compForm, setCompForm] = useState({ id: '', name: '', category: 'Extras', sellingPrice: '', ingredients: [], ignoreCMV: false });
-            
             const [isComboModalOpen, setIsComboModalOpen] = useState(false);
             const [comboForm, setComboForm] = useState({ id: '', name: '', category: 'Promocionais', sellingPrice: '', items: [], ignoreCMV: false });
-            
             const [isFcModalOpen, setIsFcModalOpen] = useState(false);
             const [fcForm, setFcForm] = useState({ id: '', description: '', category: 'Operacional', value: '' });
 
@@ -236,25 +208,20 @@
                 const unsubTx = db.collection(pathFin + "/transactions").onSnapshot(s => {
                     setTransactions(s.docs.map(d => ({ id: d.id, ...d.data() })));
                 });
-                
                 const unsubDaily = db.collection(pathFin + "/dailyRecords").onSnapshot(s => { 
                     const r = {}; 
                     s.docs.forEach(d => { if (d.exists) r[d.id] = d.data(); }); 
                     setDailyRecords(r); 
                 });
-                
                 const unsubAcc = db.collection(pathFin + "/accounts").onSnapshot(s => {
                     setAccounts(s.docs.map(d => ({ id: d.id, ...d.data() })));
                 });
-                
                 const unsubCat = db.collection(pathFin + "/categories").onSnapshot(s => {
                     setCategories(s.docs.map(d => ({ id: d.id, ...d.data() })));
                 });
-                
                 const unsubSup = db.collection(pathFin + "/suppliers").onSnapshot(s => {
                     setSuppliers(s.docs.map(d => ({ id: d.id, ...d.data() })));
                 });
-                
                 const unsubMeta = db.doc(pathFin + "/settings/config").onSnapshot(s => { 
                     if(s.exists) setMetaVendas(s.data().meta || 0); 
                 });
@@ -267,12 +234,7 @@
                         setComplements(d.complements || []); 
                         setCombos(d.combos || []); 
                         setFixedCosts(d.fixedCosts || []);
-                        setCmvSettings(d.settings || { 
-                            targetCMV: 30, tax: 6, apps: 0, 
-                            taxaDebito: d.settings?.taxaDebito || 1.99, 
-                            taxaCredito: d.settings?.taxaCredito || 4.99, 
-                            ifoodTax: 12, autoFeeVendas: d.settings?.autoFeeVendas !== false 
-                        });
+                        setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, taxaDebito: d.settings?.taxaDebito || 1.99, taxaCredito: d.settings?.taxaCredito || 4.99, ifoodTax: 12, autoFeeVendas: d.settings?.autoFeeVendas !== false });
                     }
                 });
 
@@ -283,7 +245,6 @@
                 setVisibleTxCount(10); 
             }, [filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
 
-            // Cálculos Memoizados
             const filteredDashboard = useMemo(() => {
                 return transactions.filter(t => {
                     if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
@@ -533,7 +494,7 @@
                 return { ...card, currentBalance, limit, available };
             }), [transactions, accounts]);
 
-            // VARIÁVEIS GLOBAIS RESTAURADAS
+            // VARIÁVEIS GLOBAIS RESTAURADAS PARA AS ABAS DE RELATÓRIO E PAGAMENTOS
             const totalAPagar = useMemo(() => consolidatedAPagar.reduce((sum, t) => sum + p(t.amount), 0), [consolidatedAPagar]);
             const totalReceitasPendentes = useMemo(() => consolidatedAReceber.reduce((sum, t) => sum + p(t.amount), 0), [consolidatedAReceber]);
             const somaDespesasCategoria = useMemo(() => Object.values(stats.catCosts).reduce((a, b) => a + b, 0), [stats.catCosts]);
@@ -625,6 +586,7 @@
                     } else {
                         batch.set(db.collection(path).doc(), payload);
                         
+                        // Lançamento de Taxa Automático para Cartões
                         if (txForm.type === 'entrada' && txForm.feeType && txForm.feeType !== 'none' && p(txForm.feePercent) > 0) {
                             const feeAmt = baseAmount * (p(txForm.feePercent) / 100);
                             const feePayload = {
@@ -933,7 +895,7 @@
                                                 <div key={idx} className="flex gap-1.5 bg-slate-50 p-1.5 rounded-lg border">
                                                     <select className="flex-1 p-2 bg-white border rounded font-bold" value={ingItem.ingredientId} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].ingredientId=e.target.value; setFormObj({...formObj, ingredients: arr});}}><option value="">Selecione...</option>{ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select>
                                                     <input type="number" step="0.001" placeholder="Qtd" className="w-16 p-2 bg-white border rounded font-bold text-center" value={ingItem.qty} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].qty=e.target.value; setFormObj({...formObj, ingredients: arr});}} />
-                                                    <button type="button" onClick={()=>{const arr=[...formObj.ingredients]; arr.splice(idx,1); setFormObj({...formObj, ingredients: arr});}} className="bg-red-50 text-red-500 p-2 rounded"><Icon name="trash-2" size={12}/></button>
+                                                    <button type="button" onClick={()=>{const arr=[...formObj.ingredients]; arr.splice(idx,1); setFormObj({...formObj, ingredients: arr});}} className="bg-red-50 text-red-500 px-3 py-2 rounded text-[9px] font-black uppercase">Excluir</button>
                                                 </div>
                                             ))}
                                         </div>
@@ -975,7 +937,7 @@
                                                     {item.type==='ingredient' && ingredients.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
                                                 </select>
                                                 <input type="number" step="0.001" placeholder="Qtd" className="w-12 p-2 bg-white border rounded font-bold text-center" value={item.qty} onChange={e=>{const arr=[...comboForm.items]; arr[idx].qty=e.target.value; setComboForm({...comboForm, items: arr});}} />
-                                                <button type="button" onClick={()=>{const arr=[...comboForm.items]; arr.splice(idx,1); setComboForm({...comboForm, items: arr});}} className="bg-red-50 text-red-500 p-2 rounded"><Icon name="trash-2" size={12}/></button>
+                                                <button type="button" onClick={()=>{const arr=[...comboForm.items]; arr.splice(idx,1); setComboForm({...comboForm, items: arr});}} className="bg-red-50 text-red-500 px-3 py-2 rounded text-[9px] font-black uppercase">Excluir</button>
                                             </div>
                                         ))}
                                     </div>
@@ -1058,8 +1020,9 @@
                         <div className="p-4 border-t border-white/10 text-center"><button type="button" onClick={()=>auth.signOut()} className="w-full py-2 bg-red-500/10 text-red-400 rounded-lg font-black uppercase hover:bg-red-500/20 transition-all">Sair</button></div>
                     </div>
 
-                    {/* CONTEÚDO PRINCIPAL DAS ABAS */}
+                    {/* CONTEÚDO PRINCIPAL (RENDERIZAÇÃO DAS ABAS) */}
                     <main className="flex-1 flex flex-col h-screen overflow-y-auto w-full relative">
+                        
                         <div className="p-4 md:p-6 w-full max-w-full space-y-4 print:p-0 mx-auto">
                             
                             {/* CABEÇALHO FILTRO MÊS */}
@@ -1097,10 +1060,23 @@
                                 // Faturamento TOTAL APENAS das vendas do caixa diário
                                 const faturamentoTotal = mPix + mPixOn + mDinheiro + mIfood + mDebito + mCredito + mFiado + mVR + mTicket + mAlelo;
                                 
-                                const custoInsumosCMV = faturamentoTotal * (p(cmvGeral) / 100);
+                                // O usuário quer que CMV seja os Insumos/Embalagens do Financeiro
+                                let custoRealInsumosFinanceiro = 0;
+                                const keywordsCMV = ['insumo', 'embalagem', 'mercadoria', 'compra', 'hortifruti', 'açougue', 'acougue', 'padaria', 'bebida', 'cmv', 'ingrediente', 'fornecedor', 'estoque', 'alimento'];
+                                Object.entries(stats.catCosts).forEach(([cat, val]) => {
+                                    const c = cat.toLowerCase();
+                                    if (keywordsCMV.some(k => c.includes(k))) {
+                                        custoRealInsumosFinanceiro += val;
+                                    }
+                                });
+
+                                // Se não houver nada lançado com essas palavras, usa a teórica como fallback
+                                const custoInsumos = custoRealInsumosFinanceiro > 0 ? custoRealInsumosFinanceiro : (faturamentoTotal * (p(cmvGeral) / 100));
+                                const cmvRealFinanceiroPercent = faturamentoTotal > 0 ? (custoInsumos / faturamentoTotal) * 100 : 0;
+
                                 const impostosEstimados = faturamentoTotal * (p(cmvSettings.tax) / 100);
                                 const taxasCartaoAutomaticas = (mDebito * (p(cmvSettings.taxaDebito)/100)) + (mCredito * (p(cmvSettings.taxaCredito)/100));
-                                const totalCustosVariaveis = custoInsumosCMV + impostosEstimados + taxasCartaoAutomaticas + mMotoboy + mTaxaEntrega;
+                                const totalCustosVariaveis = custoInsumos + impostosEstimados + taxasCartaoAutomaticas + mMotoboy + mTaxaEntrega;
                                 const marginVal = faturamentoTotal - totalCustosVariaveis;
 
                                 return (
@@ -1124,8 +1100,8 @@
                                                 <h3 className="text-xl font-black text-emerald-600 mt-1">{faturamentoTotal > 0 ? ((marginVal/faturamentoTotal)*100).toFixed(1) : 0}%</h3>
                                             </div>
                                             <div className="glass-card p-4 rounded-xl border-l-4 border-orange-500 text-center">
-                                                <span className="text-[8px] font-black text-slate-400 block uppercase">CMV Médio Realizado</span>
-                                                <h3 className="text-xl font-black text-orange-600 mt-1">{cmvGeral}%</h3>
+                                                <span className="text-[8px] font-black text-slate-400 block uppercase">CMV Real Financeiro</span>
+                                                <h3 className="text-xl font-black text-orange-600 mt-1">{cmvRealFinanceiroPercent.toFixed(1)}%</h3>
                                                 <span className="text-[8px] text-slate-400 block font-bold mt-1">Alvo Operacional: {cmvSettings.targetCMV}%</span>
                                             </div>
                                             <div className="glass-card p-4 rounded-xl border-l-4 border-purple-500 text-center">
@@ -1141,7 +1117,11 @@
                                                 <div className="overflow-x-auto no-scrollbar">
                                                     <table className="w-full text-left text-[11px] font-bold border-collapse border border-slate-200">
                                                         <thead>
-                                                            <tr className="bg-slate-900 text-white text-[9px] uppercase"><th className="p-2 border border-slate-700">Demonstrativo Estrutural</th><th className="p-2 text-right border border-slate-700">Valor Realizado</th><th className="p-2 text-center border border-slate-700">% Ref.</th></tr>
+                                                            <tr className="bg-slate-900 text-white text-[9px] uppercase">
+                                                                <th className="p-2 border border-slate-700">Demonstrativo Estrutural</th>
+                                                                <th className="p-2 text-right border border-slate-700">Valor Realizado</th>
+                                                                <th className="p-2 text-center border border-slate-700">% Ref.</th>
+                                                            </tr>
                                                         </thead>
                                                         <tbody className="divide-y text-slate-700">
                                                             <tr className="bg-slate-100 font-black"><td colSpan="3" className="p-2 border">1. Faturamento Total Operacional</td></tr>
@@ -1153,7 +1133,7 @@
                                                             <tr className="bg-blue-50/50 font-black"><td className="p-2 border">TOTAL RECEITA BRUTA (A)</td><td className="p-2 text-right border text-blue-700">{formatMoney(faturamentoTotal)}</td><td className="p-2 text-center border">100.0%</td></tr>
                                                             
                                                             <tr className="bg-slate-100 font-black"><td colSpan="3" className="p-2 border">2. Custos Variáveis Retidos</td></tr>
-                                                            <tr className={p(cmvGeral) > 35 ? "bg-red-50/30" : ""}><td className="p-2 pl-4 border text-slate-900 font-black">Custo Real de Mercadoria (CMV Global)</td><td className="p-2 text-right border text-red-600 font-black">-{formatMoney(custoInsumosCMV)}</td><td className="p-2 text-center border text-red-600 font-black">{p(cmvGeral).toFixed(1)}%</td></tr>
+                                                            <tr className={cmvRealFinanceiroPercent > 35 ? "bg-red-50/30" : ""}><td className="p-2 pl-4 border text-slate-900 font-black">Custo Real de Mercadoria (Insumos Financeiro)</td><td className="p-2 text-right border text-red-600 font-black">-{formatMoney(custoInsumos)}</td><td className="p-2 text-center border text-red-600 font-black">{cmvRealFinanceiroPercent.toFixed(1)}%</td></tr>
                                                             <tr><td className="p-2 pl-4 border">Impostos Simples ({cmvSettings.tax}%)</td><td className="p-2 text-right border">-{formatMoney(impostosEstimados)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((impostosEstimados/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             <tr><td className="p-2 pl-4 border">Taxas de Operação Maquininhas</td><td className="p-2 text-right border">-{formatMoney(taxasCartaoAutomaticas)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((taxasCartaoAutomaticas/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             <tr><td className="p-2 pl-4 border">Custos de Entrega / Motoboy</td><td className="p-2 text-right border">-{formatMoney(mMotoboy + mTaxaEntrega)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? (((mMotoboy + mTaxaEntrega)/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
@@ -1171,11 +1151,11 @@
                                             </div>
 
                                             <div className="glass-card p-4 rounded-xl space-y-3">
-                                                <h3 className="font-black text-slate-800 border-b pb-1.5 flex items-center gap-1.5"><Icon name="pie-chart" size={14}/> Top 6 Produtos Críticos (CMV Acima da Meta)</h3>
+                                                <h3 className="font-black text-slate-800 border-b pb-1.5 flex items-center gap-1.5"><Icon name="pie-chart" size={14}/> Top 6 Produtos Críticos (CMV Teórico Acima da Meta)</h3>
                                                 <div className="overflow-x-auto no-scrollbar">
                                                     <table className="w-full text-left">
                                                         <thead>
-                                                            <tr className="bg-slate-50 text-[8px] text-slate-400 font-black"><th className="p-2">Item do Cardápio</th><th className="p-2 text-right">Custo Insumo</th><th className="p-2 text-right">Venda Real</th><th className="p-2 text-center">CMV Real</th></tr>
+                                                            <tr className="bg-slate-50 text-[8px] text-slate-400 font-black"><th className="p-2">Item do Cardápio</th><th className="p-2 text-right">Custo Insumo</th><th className="p-2 text-right">Venda Real</th><th className="p-2 text-center">CMV Teórico</th></tr>
                                                         </thead>
                                                         <tbody className="divide-y text-[9px] font-bold">
                                                             {[...recipes.map(r=>({...r, _t:'Ficha'})), ...complements.map(c=>({...c, _t:'Extra'})), ...combos.map(c=>({...c, _t:'Combo'}))]
@@ -1230,7 +1210,7 @@
                                         </div>
                                         {txForm.type === 'entrada' && (
                                             <div className="bg-emerald-50 border border-emerald-200 p-2 rounded-lg text-[9px]">
-                                                <label className="font-black text-emerald-800 flex items-center gap-1 mb-1"><Icon name="credit-card" size={12} /> Auto Taxar Lançamento?</label>
+                                                <label className="font-black text-emerald-800 flex items-center gap-1 mb-1">Auto Taxar Cartão?</label>
                                                 <div className="flex gap-1.5">
                                                     <button type="button" onClick={() => setTxForm({...txForm, feeType: 'none', feePercent: 0})} className={`flex-1 py-1 rounded text-[8px] font-black ${txForm.feeType === 'none' ? 'bg-emerald-600 text-white' : 'bg-white border'}`}>Não</button>
                                                     <button type="button" onClick={() => setTxForm({...txForm, feeType: 'debito', feePercent: cmvSettings.taxaDebito})} className={`flex-1 py-1 rounded text-[8px] font-black ${txForm.feeType === 'debito' ? 'bg-emerald-600 text-white' : 'bg-white border'}`}>Débito</button>
@@ -1271,7 +1251,9 @@
                                                         <p className="font-black text-slate-800">{formatMoney(t.amount)}</p>
                                                         <div className="flex gap-1 items-center">
                                                             <button type="button" onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1, feeType: 'none', feePercent: 0}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-500 font-black text-[8px] bg-slate-100 p-1.5 rounded hover:bg-blue-100">EDITAR</button>
-                                                            <button type="button" onClick={() => executeDelete('transactions', t.id)} className={"transition-all p-1.5 font-black text-[8px] rounded " + (deleteConfirmId === t.id ? 'delete-confirm' : 'bg-red-50 text-red-500 hover:bg-red-100')}>{deleteConfirmId === t.id ? "SIM" : "EXCLUIR"}</button>
+                                                            <button type="button" onClick={() => executeDelete('transactions', t.id)} className="text-red-500 bg-red-50 font-black text-[8px] p-1.5 rounded hover:bg-red-100">
+                                                                {deleteConfirmId === t.id ? "SIM" : "APAGAR"}
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1503,7 +1485,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: INSUMOS */}
+                            {/* ABA: INSUMOS (RESTAURADA E COMPLETA POR CATEGORIA) */}
                             {activeTab === 'insumos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1537,7 +1519,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: FICHAS TÉCNICAS */}
+                            {/* ABA: FICHAS TÉCNICAS (RESTAURADA E COMPLETA) */}
                             {activeTab === 'fichas' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1578,7 +1560,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: COMPLEMENTOS / ADICIONAIS */}
+                            {/* ABA: COMPLEMENTOS / ADICIONAIS (RESTAURADA E COMPLETA) */}
                             {activeTab === 'complementos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1613,7 +1595,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: COMBOS PROMO */}
+                            {/* ABA: COMBOS PROMO COMPLETA */}
                             {activeTab === 'combos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
