@@ -141,7 +141,7 @@
         function App() {
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
-            const [activeTab, setActiveTab] = useState('vendas'); // Iniciar na aba vendas para facilitar a validação
+            const [activeTab, setActiveTab] = useState('vendas'); 
             const [isMenuOpen, setIsMenuOpen] = useState(false);
             
             // Estados Financeiros
@@ -274,7 +274,7 @@
                         setCombos(d.combos || []); 
                         setFixedCosts(d.fixedCosts || []);
                         
-                        // Fusão Segura das Configurações (Garante que nunca ficam a zero se falhar a leitura)
+                        // Fusão Segura das Configurações
                         setCmvSettings({ ...defaultSettings, ...(d.settings || {}) });
                     }
                 });
@@ -536,7 +536,7 @@
                 return { ...card, currentBalance, limit, available };
             }), [transactions, accounts]);
 
-            // VARIÁVEIS GLOBAIS RESTAURADAS PARA AS ABAS DE RELATÓRIO E PAGAMENTOS
+            // VARIÁVEIS GLOBAIS DE RELATÓRIOS E PAGAMENTOS
             const totalAPagar = useMemo(() => consolidatedAPagar.reduce((sum, t) => sum + p(t.amount), 0), [consolidatedAPagar]);
             const totalReceitasPendentes = useMemo(() => consolidatedAReceber.reduce((sum, t) => sum + p(t.amount), 0), [consolidatedAReceber]);
             const somaDespesasCategoria = useMemo(() => Object.values(stats.catCosts).reduce((a, b) => a + b, 0), [stats.catCosts]);
@@ -785,6 +785,12 @@
                 setModalOpen(false);
             };
 
+            const delActionCMV = async (collectionStr, stateArr, id) => { 
+                if(window.confirm("Confirmar exclusão?")) {
+                    await saveCMVDoc(collectionStr, stateArr.filter(x => x.id !== id)); 
+                }
+            };
+
             if (loading) return (
                 <div className="h-screen w-full flex items-center justify-center bg-[#1A202C] text-[#F8CC82] font-black uppercase tracking-widest text-[11px]">
                     A Inicializar o Motor Unificado...
@@ -841,7 +847,9 @@
                     </aside>
 
                     {/* MENU MOBILE EXPANDIDO */}
-                    {isMenuOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] transition-opacity md:hidden print:hidden" onClick={() => setIsMenuOpen(false)}></div>}
+                    {isMenuOpen && (
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] transition-opacity md:hidden print:hidden" onClick={() => setIsMenuOpen(false)}></div>
+                    )}
                     <div className={`fixed inset-y-0 left-0 z-[95] w-64 bg-[#1A202C] shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col md:hidden print:hidden ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                         <div className="p-4 border-b border-white/10 flex justify-between items-center">
                             <div className="flex items-center gap-3">
@@ -883,9 +891,17 @@
                         </div>
                     </div>
 
-                    {/* CONTEÚDO PRINCIPAL (RENDERIZAÇÃO DAS ABAS) */}
+                    {/* CONTEÚDO PRINCIPAL DAS ABAS */}
                     <main className="flex-1 flex flex-col h-screen overflow-y-auto w-full relative">
                         
+                        <header className="bg-[#1A202C] text-white p-3 shadow-md flex items-center justify-between md:hidden print:hidden sticky top-0 z-50">
+                            <div className="flex items-center gap-3">
+                                <button type="button" onClick={() => setIsMenuOpen(true)} className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"><Icon name="menu" size={18} /></button>
+                                <div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div>
+                            </div>
+                            <span className="font-black text-[#F8CC82] uppercase tracking-widest text-[9px]">{activeTab.replace('fin_', '').replace('cmv_', '').replace('_', ' ')}</span>
+                        </header>
+
                         <div className="p-4 md:p-6 w-full max-w-full space-y-4 print:p-0 mx-auto">
                             
                             {/* CABEÇALHO FILTRO MÊS */}
@@ -1021,14 +1037,14 @@
                                                             <tr><td className="p-2 pl-4 border">Custos de Entrega / Motoboy</td><td className="p-2 text-right border">-{formatMoney(totalMotoboy)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((totalMotoboy/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             <tr className="bg-red-50/20 font-black"><td className="p-2 border">TOTAL DE CUSTOS VARIÁVEIS (B)</td><td className="p-2 text-right border text-red-600">-{formatMoney(totalCustosVariaveis)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((totalCustosVariaveis/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             
-                                                            <tr className="bg-amber-50/30 font-black"><td className="p-2 border">(=) MARGEM DE CONTRIBUIÇÃO LIQUIDA (A - B)</td><td className="p-2 text-right border text-amber-700">{formatMoney(marginVal)}</td><td className="p-2 text-center border text-amber-700">{faturamentoTotal > 0 ? ((marginVal/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                            <tr className="bg-amber-50/30 font-black"><td className="p-2 border">(=) MARGEM DE CONTRIBUIÇÃO LIQUIDA (A - B)</td><td className="p-2 text-right border text-amber-700">{formatMoney(margemContribuicaoVal)}</td><td className="p-2 text-center border text-amber-700">{faturamentoTotal > 0 ? ((margemContribuicaoVal/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             
                                                             <tr className="bg-slate-100 font-black"><td colSpan="3" className="p-2 border">3. Estrutura de Custos Fixos</td></tr>
                                                             {listaCustosFixos.sort((a,b)=>b.val-a.val).map((fc, idx) => (
                                                                 <tr key={idx}><td className="p-2 pl-4 border uppercase">{fc.desc}</td><td className="p-2 text-right border text-red-400">-{formatMoney(fc.val)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((fc.val/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             ))}
                                                             
-                                                            <tr className="bg-slate-900 text-white font-black"><td className="p-2 border">(=) RESULTADO NET REAL DA TRIBAL (A - B - C)</td><td className="p-2 text-right border text-[#F8CC82]">{formatMoney(marginVal - totalFixedCosts)}</td><td className="p-2 text-center border text-[#F8CC82]">{faturamentoTotal > 0 ? (((marginVal - totalFixedCosts)/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                            <tr className="bg-slate-900 text-white font-black"><td className="p-2 border">(=) RESULTADO NET REAL DA TRIBAL (A - B - C)</td><td className="p-2 text-right border text-[#F8CC82]">{formatMoney(lucroLiquidoFinal)}</td><td className="p-2 text-center border text-[#F8CC82]">{faturamentoTotal > 0 ? ((lucroLiquidoFinal/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                         </tbody>
                                                     </table>
                                                 </div>
@@ -1112,6 +1128,10 @@
                                         <div className="grid grid-cols-2 gap-2">
                                             <div><label className="text-slate-400 block font-bold mb-0.5">Data Lanç.</label><input type="date" className="w-full p-1.5 border rounded-lg font-bold" value={txForm.date} onChange={e=>setTxForm({...txForm, date: e.target.value})} /></div>
                                             <div><label className="text-slate-400 block font-bold mb-0.5">Vencimento</label><input type="date" className="w-full p-1.5 border rounded-lg font-bold" value={txForm.clearance} onChange={e=>setTxForm({...txForm, clearance: e.target.value})} /></div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button type="button" onClick={()=>setTxForm({...txForm, status: 'pago'})} className={`flex-1 p-2 rounded-lg border font-black ${txForm.status==='pago'?'bg-green-500 text-white':'bg-white text-slate-400'}`}>PAGO</button>
+                                            <button type="button" onClick={()=>setTxForm({...txForm, status: 'pendente'})} className={`flex-1 p-2 rounded-lg border font-black ${txForm.status==='pendente'?'bg-orange-500 text-white':'bg-white text-slate-400'}`}>PENDENTE</button>
                                         </div>
                                         <button className="w-full bg-black text-[#F8CC82] p-2.5 rounded-lg font-black uppercase text-[10px] mt-2">Gravar Movimentação</button>
                                     </form>
@@ -1561,11 +1581,10 @@
                                  </div>
                             )}
 
-                            {/* ABA: CONFIGURAÇÕES E AJUSTES (COM JANELA DE CONFIRMAÇÃO) */}
+                            {/* ABA: CONFIGURAÇÕES E AJUSTES */}
                             {activeTab === 'ajustes' && (
                                  <div className="glass-card p-6 rounded-xl border-t-8 border-[#D97757] shadow-xl grid grid-cols-1 md:grid-cols-2 gap-6 fade-in">
-                                     <div className="space-y-4">
-                                         <div><h3 className="font-black uppercase text-slate-800 text-base">Parâmetros & Taxas Gerais</h3><p className="font-bold text-slate-400 uppercase mt-1">Configurações para os cálculos automáticos</p></div>
+                                     <div className="space-y-4"><div><h3 className="font-black uppercase text-slate-800 text-base">Parâmetros & Taxas Gerais</h3><p className="font-bold text-slate-400 uppercase mt-1">Configurações para os cálculos automáticos</p></div>
                                          <div className="grid grid-cols-2 gap-3">
                                              <div className="space-y-0.5"><label className="font-black text-slate-400">Meta CMV Geral (%)</label><input type="number" step="0.1" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.targetCMV} onChange={e=>setCmvSettings({...cmvSettings, targetCMV: e.target.value})} /></div>
                                              <div className="space-y-0.5"><label className="font-black text-slate-400">Impostos Simples (%)</label><input type="number" step="0.1" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.tax} onChange={e=>setCmvSettings({...cmvSettings, tax: e.target.value})} /></div>
