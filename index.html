@@ -39,6 +39,8 @@
         .scale-up-center { animation: scale-up-center 0.15s cubic-bezier(0.390, 0.575, 0.565, 1.000) both; }
         @keyframes scale-up-center { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
+        .delete-confirm { background-color: #EF4444 !important; color: white !important; font-size: 8px !important; padding: 2px 6px; border-radius: 4px; }
+
         @media print {
             body { background-color: white !important; color: black !important; }
             .print\:hidden, aside, header { display: none !important; }
@@ -53,28 +55,24 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, memo } = React;
 
-        // ================= FIREBASE INITIALIZATION =================
-        const firebaseConfig = {
-            apiKey: "AIzaSyCL0o0TQYbPXoo7Yo_qJpc1oa7jib8KBcc",
-            authDomain: "tribo-burger-app.firebaseapp.com",
-            projectId: "tribo-burger-app",
-            storageBucket: "tribo-burger-app.firebasestorage.app",
-            messagingSenderId: "490245681469",
-            appId: "1:490245681469:web:189b1d2e35bd142cc31554"
-        };
-
+        // ================= BLINDAGEM GLOBAL (FIREBASE E MATEMÁTICA) =================
         if (!window.firebase.apps.length) {
-            window.firebase.initializeApp(firebaseConfig);
+            window.firebase.initializeApp({
+                apiKey: "AIzaSyCL0o0TQYbPXoo7Yo_qJpc1oa7jib8KBcc",
+                authDomain: "tribo-burger-app.firebaseapp.com",
+                projectId: "tribo-burger-app",
+                storageBucket: "tribo-burger-app.firebasestorage.app",
+                messagingSenderId: "490245681469",
+                appId: "1:490245681469:web:189b1d2e35bd142cc31554"
+            });
         }
-        
-        const auth = window.firebase.auth();
-        const db = window.firebase.firestore();
+        var auth = window.firebase.auth();
+        var db = window.firebase.firestore();
 
-        // ================= MATEMÁTICA E FORMATAÇÃO GLOBAL =================
-        const p = (v) => parseFloat(String(v || 0).replace(',', '.')) || 0;
-        const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+        function p(v) { return parseFloat(String(v || 0).replace(',', '.')) || 0; }
+        function formatMoney(v) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0); }
 
-        // ================= COMPONENTES =================
+        // ================= COMPONENTES BASE =================
         const Icon = memo(({ name, size = 14, className = "" }) => {
             const containerRef = useRef(null);
             useEffect(() => {
@@ -89,16 +87,27 @@
         const DailyInput = memo(({ dateStr, field, initialValue, activeUid, className, placeholder }) => {
             const [val, setVal] = useState(initialValue || '');
             useEffect(() => { setVal(initialValue || ''); }, [initialValue]);
+            
             const handleBlur = () => {
                 if (val !== (initialValue || '')) {
-                    db.collection(`artifacts/tribo-burger-financeiro/users/${activeUid}/dailyRecords`).doc(dateStr).set({[field]: val}, {merge:true});
+                    db.collection(`artifacts/tribo-burger-financeiro/users/${activeUid}/dailyRecords`)
+                      .doc(dateStr)
+                      .set({[field]: val}, {merge:true});
                 }
             };
+            
             return (
-                <input className={`table-input ${className || ''}`} value={val} onChange={e => setVal(e.target.value)} onBlur={handleBlur} placeholder={placeholder || "0,00"} />
+                <input 
+                    className={`table-input ${className || ''}`} 
+                    value={val} 
+                    onChange={e => setVal(e.target.value)} 
+                    onBlur={handleBlur} 
+                    placeholder={placeholder || "0,00"} 
+                />
             );
         });
 
+        // ================= FUNÇÕES DE DATA SEGURAS =================
         const parseDateUTC = (dateStr) => {
             if (!dateStr || dateStr.includes('NaN')) return new Date();
             if (dateStr.includes('-')) {
@@ -123,13 +132,19 @@
             };
         };
 
+        const safeDateDisplay = (dateStr) => {
+            if (!dateStr) return "--/--/----";
+            return dateStr.split('-').reverse().join('/');
+        };
+
         // ================= APP PRINCIPAL =================
         function App() {
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
-            const [activeTab, setActiveTab] = useState('fin_dashboard');
+            const [activeTab, setActiveTab] = useState('vendas'); // Iniciar na aba vendas para facilitar a validação
             const [isMenuOpen, setIsMenuOpen] = useState(false);
             
+            // Estados Financeiros
             const [transactions, setTransactions] = useState([]);
             const [dailyRecords, setDailyRecords] = useState({});
             const [accounts, setAccounts] = useState([]);
@@ -137,6 +152,7 @@
             const [suppliers, setSuppliers] = useState([]);
             const [metaVendas, setMetaVendas] = useState(0);
 
+            // Filtros e UI
             const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
             const [searchQuery, setSearchQuery] = useState('');
             const [typeFilter, setTypeFilter] = useState('todos');
@@ -145,13 +161,21 @@
             const [catFilter, setCatFilter] = useState('todas');
             const [visibleTxCount, setVisibleTxCount] = useState(10);
             
-            const [txForm, setTxForm] = useState({ id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', status: 'pago', date: new Date().toISOString().split('T')[0], clearance: new Date().toISOString().split('T')[0], inst: 1, feeType: 'none', feePercent: 0 });
+            // Formulários Financeiros
+            const [txForm, setTxForm] = useState({ 
+                id: null, desc: '', val: '', type: 'saida', acc: '', destAcc: '', cat: '', sup: '', 
+                status: 'pago', date: new Date().toISOString().split('T')[0], 
+                clearance: new Date().toISOString().split('T')[0], inst: 1, feeType: 'none', feePercent: 0 
+            });
             const [newDayDate, setNewDayDate] = useState(new Date().toISOString().split('T')[0]);
             
             const [supForm, setSupForm] = useState('');
             const [catForm, setCatForm] = useState('');
-            const [accForm, setAccForm] = useState({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' });
+            const [accForm, setAccForm] = useState({ 
+                id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' 
+            });
             
+            // Modais
             const [liqModal, setLiqModal] = useState(null);
             const [invoiceModal, setInvoiceModal] = useState(null);
             const [invoicePayType, setInvoicePayType] = useState('integral'); 
@@ -159,25 +183,39 @@
             const [invoiceSourceAcc, setInvoiceSourceAcc] = useState('');
             const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
+            // Estados CMV
             const [ingredients, setIngredients] = useState([]);
             const [recipes, setRecipes] = useState([]);
             const [complements, setComplements] = useState([]);
             const [combos, setCombos] = useState([]);
-            const [cmvSettings, setCmvSettings] = useState({ targetCMV: 30, tax: 6, apps: 0, taxaDebito: 1.99, taxaCredito: 4.99, ifoodTax: 12, autoFeeVendas: true });
+            const [fixedCosts, setFixedCosts] = useState([]);
             
+            // Valores padrão das configurações
+            const defaultSettings = { targetCMV: 35, tax: 6, apps: 0, taxaDebito: 1.61, taxaCredito: 3.61, ifoodTax: 12, autoFeeVendas: true };
+            const [cmvSettings, setCmvSettings] = useState(defaultSettings);
+            
+            // Categorias Hardcoded
             const [ingCats, setIngCats] = useState(['Proteínas', 'Pães', 'Queijos', 'Molhos', 'Vegetais/Hortifrúti', 'Embalagens', 'Outros']);
             const [recCats, setRecCats] = useState(['Hambúrgueres', 'Acompanhamentos', 'Bebidas', 'Sobremesas', 'Molhos Caseiros', 'Outros', 'Smash']);
             const [compCats, setCompCats] = useState(['Extras', 'Molhos', 'Outros']);
             const [comboCats, setComboCats] = useState(['Promocionais', 'Família', 'Outros']);
+            const [fcCats, setFcCats] = useState(['Operacional', 'Renda/Aluguel', 'Marketing', 'RH/Folha', 'Impostos Fixos', 'Outros']);
 
+            // Modais CMV
             const [isIngModalOpen, setIsIngModalOpen] = useState(false);
             const [ingForm, setIngForm] = useState({ id: '', name: '', category: 'Outros', cost: '', unit: 'g', qty: '' });
+            
             const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
             const [recipeForm, setRecipeForm] = useState({ id: '', name: '', category: 'Hambúrgueres', sellingPrice: '', ingredients: [], ignoreCMV: false });
+            
             const [isCompModalOpen, setIsCompModalOpen] = useState(false);
             const [compForm, setCompForm] = useState({ id: '', name: '', category: 'Extras', sellingPrice: '', ingredients: [], ignoreCMV: false });
+            
             const [isComboModalOpen, setIsComboModalOpen] = useState(false);
             const [comboForm, setComboForm] = useState({ id: '', name: '', category: 'Promocionais', sellingPrice: '', items: [], ignoreCMV: false });
+            
+            const [isFcModalOpen, setIsFcModalOpen] = useState(false);
+            const [fcForm, setFcForm] = useState({ id: '', description: '', category: 'Operacional', value: '' });
 
             const [recipeCollapsed, setRecipeCollapsed] = useState({});
             const [compCollapsed, setCompCollapsed] = useState({});
@@ -190,31 +228,65 @@
             }, [transactions]);
 
             useEffect(() => {
-                const unsubscribe = auth.onAuthStateChanged(u => { setUser(u); setLoading(false); });
+                const unsubscribe = auth.onAuthStateChanged(u => { 
+                    setUser(u); 
+                    setLoading(false); 
+                });
                 return () => unsubscribe();
             }, []);
 
             useEffect(() => {
                 if (!user || user.isAnonymous) return;
                 const pathFin = `artifacts/tribo-burger-financeiro/users/${user.uid}`;
-                db.collection(pathFin + "/transactions").onSnapshot(s => setTransactions(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
-                db.collection(pathFin + "/dailyRecords").onSnapshot(s => { const r = {}; s.docs.forEach(d => { if (d.exists) r[d.id] = d.data(); }); setDailyRecords(r); });
-                db.collection(pathFin + "/accounts").onSnapshot(s => setAccounts(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
-                db.collection(pathFin + "/categories").onSnapshot(s => setCategories(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
-                db.collection(pathFin + "/suppliers").onSnapshot(s => setSuppliers(s.docs.map(d => Object.assign({ id: d.id }, d.data()))));
-                db.doc(pathFin + "/settings/config").onSnapshot(s => { if(s.exists) setMetaVendas(s.data().meta || 0); });
+                
+                const unsubTx = db.collection(pathFin + "/transactions").onSnapshot(s => {
+                    setTransactions(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+                
+                const unsubDaily = db.collection(pathFin + "/dailyRecords").onSnapshot(s => { 
+                    const r = {}; 
+                    s.docs.forEach(d => { if (d.exists) r[d.id] = d.data(); }); 
+                    setDailyRecords(r); 
+                });
+                
+                const unsubAcc = db.collection(pathFin + "/accounts").onSnapshot(s => {
+                    setAccounts(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+                
+                const unsubCat = db.collection(pathFin + "/categories").onSnapshot(s => {
+                    setCategories(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+                
+                const unsubSup = db.collection(pathFin + "/suppliers").onSnapshot(s => {
+                    setSuppliers(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+                
+                const unsubMeta = db.doc(pathFin + "/settings/config").onSnapshot(s => { 
+                    if(s.exists) setMetaVendas(s.data().meta || 0); 
+                });
 
-                db.collection(pathFin + "/cmv_data").doc("state").onSnapshot(s => {
+                const unsubCmv = db.collection(pathFin + "/cmv_data").doc("state").onSnapshot(s => {
                     if(s.exists) {
                         const d = s.data();
-                        setIngredients(d.ingredients || []); setRecipes(d.recipes || []); setComplements(d.complements || []); setCombos(d.combos || []);
-                        setCmvSettings(d.settings || { targetCMV: 30, tax: 6, apps: 0, taxaDebito: 1.99, taxaCredito: 4.99, ifoodTax: 12, autoFeeVendas: true });
+                        setIngredients(d.ingredients || []); 
+                        setRecipes(d.recipes || []); 
+                        setComplements(d.complements || []); 
+                        setCombos(d.combos || []); 
+                        setFixedCosts(d.fixedCosts || []);
+                        
+                        // Fusão Segura das Configurações (Garante que nunca ficam a zero se falhar a leitura)
+                        setCmvSettings({ ...defaultSettings, ...(d.settings || {}) });
                     }
                 });
+
+                return () => { unsubTx(); unsubDaily(); unsubAcc(); unsubCat(); unsubSup(); unsubMeta(); unsubCmv(); };
             }, [user]);
 
-            useEffect(() => { setVisibleTxCount(10); }, [filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
+            useEffect(() => { 
+                setVisibleTxCount(10); 
+            }, [filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
 
+            // Cálculos Memoizados
             const filteredDashboard = useMemo(() => {
                 return transactions.filter(t => {
                     if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
@@ -232,13 +304,17 @@
             }, [transactions, filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
 
             const accountBalances = useMemo(() => {
-                const bal = {}; accounts.forEach(a => bal[a.name] = 0);
+                const bal = {}; 
+                accounts.forEach(a => bal[a.name] = 0);
                 transactions.forEach(t => {
                     if (t.status === 'pago') {
                         const amt = p(t.amount);
                         if (t.type === 'entrada') bal[t.account] = (bal[t.account] || 0) + amt;
                         else if (t.type === 'saida') bal[t.account] = (bal[t.account] || 0) - amt;
-                        else if (t.type === 'transferencia') { bal[t.account] = (bal[t.account] || 0) - amt; bal[t.destinationAccount] = (bal[t.destinationAccount] || 0) + amt; }
+                        else if (t.type === 'transferencia') { 
+                            bal[t.account] = (bal[t.account] || 0) - amt; 
+                            bal[t.destinationAccount] = (bal[t.destinationAccount] || 0) + amt; 
+                        }
                     }
                 });
                 return bal;
@@ -252,75 +328,149 @@
                 let entradas = 0; let contasPagas = 0; let autoCardFees = 0;
                 const calcAutoFees = cmvSettings.autoFeeVendas !== false;
 
-                const parts = filterMonth.split('-'); const anoFiltro = parseInt(parts[0]); const mesFiltro = parseInt(parts[1]) - 1;
-                let prevMes = mesFiltro - 1; let prevAno = anoFiltro; if (prevMes < 0) { prevMes = 11; prevAno--; }
+                const parts = filterMonth.split('-'); 
+                const anoFiltro = parseInt(parts[0]); 
+                const mesFiltro = parseInt(parts[1]) - 1;
+                let prevMes = mesFiltro - 1; 
+                let prevAno = anoFiltro; 
+                if (prevMes < 0) { prevMes = 11; prevAno--; }
                 const prevMonthStr = prevAno + "-" + String(prevMes + 1).padStart(2, '0');
 
                 const buildWeekMap = (ano, mes) => {
-                    const map = {}; const lastDay = new Date(ano, mes + 1, 0).getDate(); let currentWeek = 1; let seenWorkingDay = false;
+                    const map = {}; 
+                    const lastDay = new Date(ano, mes + 1, 0).getDate(); 
+                    let currentWeek = 1; let seenWorkingDay = false;
                     for(let d = 1; d <= lastDay; d++) {
                         const wd = new Date(ano, mes, d).getDay(); 
-                        if (wd === 3) { if (seenWorkingDay) { currentWeek++; seenWorkingDay = false; } seenWorkingDay = true; } else if (wd === 0 || wd > 3) { seenWorkingDay = true; }
+                        if (wd === 3) { 
+                            if (seenWorkingDay) { currentWeek++; seenWorkingDay = false; } 
+                            seenWorkingDay = true; 
+                        } else if (wd === 0 || wd > 3) { 
+                            seenWorkingDay = true; 
+                        }
                         map[ano + "-" + String(mes+1).padStart(2, '0') + "-" + String(d).padStart(2,'0')] = currentWeek;
                     }
                     return map;
                 };
 
-                const currentMonthWeeks = buildWeekMap(anoFiltro, mesFiltro); const prevMonthWeeks = buildWeekMap(prevAno, prevMes);
-                let weeklyCurrent = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0}; let weeklyPrev = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
-                let weekdaySums = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0}; let weekdayCounts = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
+                const currentMonthWeeks = buildWeekMap(anoFiltro, mesFiltro); 
+                const prevMonthWeeks = buildWeekMap(prevAno, prevMes);
+                
+                let weeklyCurrent = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0}; 
+                let weeklyPrev = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
+                let weekdaySums = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0}; 
+                let weekdayCounts = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
 
                 Object.keys(dailyRecords).forEach(d => {
-                    const r = dailyRecords[d]; const totalDia = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((s,f)=>s+p(r[f]), 0);
+                    const r = dailyRecords[d]; 
+                    const totalDia = ['pix','pixOnline','fiado','dinheiro','ifood','debito','credito','vr','ticket','alelo'].reduce((s,f)=>s+p(r[f]), 0);
+                    
                     if (d.startsWith(filterMonth)) {
-                        if (totalDia > 0) diasAtivos++; rb += totalDia; 
+                        if (totalDia > 0) diasAtivos++; 
+                        rb += totalDia; 
+                        
                         let txDia = 0;
                         if (calcAutoFees) {
                             txDia = (p(r.debito) * (p(cmvSettings.taxaDebito)/100)) + (p(r.credito) * (p(cmvSettings.taxaCredito)/100));
                             autoCardFees += txDia;
                         }
-                        custos += p(r.motoboy) + p(r.taxaEntrega) + txDia; totalPedidos += p(r.qtdPedidos);
-                        if(currentMonthWeeks[d]) weeklyCurrent[currentMonthWeeks[d]] += totalDia;
+                        
+                        custos += p(r.motoboy) + p(r.taxaEntrega) + txDia; 
+                        totalPedidos += p(r.qtdPedidos);
+                        
+                        if(currentMonthWeeks[d]) {
+                            weeklyCurrent[currentMonthWeeks[d]] += totalDia;
+                        }
+                        
                         const wd = new Date(parseInt(d.split('-')[0]), parseInt(d.split('-')[1])-1, parseInt(d.split('-')[2])).getDay();
-                        if(weekdaySums[wd] !== undefined && totalDia > 0) { weekdaySums[wd] += totalDia; weekdayCounts[wd]++; }
+                        if(weekdaySums[wd] !== undefined && totalDia > 0) { 
+                            weekdaySums[wd] += totalDia; 
+                            weekdayCounts[wd]++; 
+                        }
                     } else if (d.startsWith(prevMonthStr)) {
-                        if(prevMonthWeeks[d]) weeklyPrev[prevMonthWeeks[d]] += totalDia;
+                        if(prevMonthWeeks[d]) {
+                            weeklyPrev[prevMonthWeeks[d]] += totalDia;
+                        }
                     }
                 });
 
-                if (autoCardFees > 0) catCosts['Taxas de Cartão (Auto Vendas)'] = (catCosts['Taxas de Cartão (Auto Vendas)'] || 0) + autoCardFees;
+                if (autoCardFees > 0) {
+                    catCosts['Taxas de Cartão (Auto Vendas)'] = (catCosts['Taxas de Cartão (Auto Vendas)'] || 0) + autoCardFees;
+                }
 
                 transactions.forEach(t => {
                     const { clearanceDate } = getTransactionDates(t);
                     if (t.status === 'pago' && (t.date?.startsWith(filterMonth) || clearanceDate?.startsWith(filterMonth))) {
-                        if (t.type === 'saida') { catCosts[t.category] = (catCosts[t.category] || 0) + p(t.amount); if (!isInvoicePayment(t)) contasPagas += p(t.amount); }
-                        else if (t.type === 'entrada') { if (!isInvoicePayment(t)) entradas += p(t.amount); }
+                        if (t.type === 'saida') { 
+                            catCosts[t.category] = (catCosts[t.category] || 0) + p(t.amount); 
+                            if (!isInvoicePayment(t)) contasPagas += p(t.amount); 
+                        }
+                        else if (t.type === 'entrada') { 
+                            if (!isInvoicePayment(t)) entradas += p(t.amount); 
+                        }
                     }
                 });
 
-                let diasUteisTotaisMes = 0; let diasUteisPassados = 0; const ultimoDiaMes = new Date(anoFiltro, mesFiltro + 1, 0).getDate(); const hoje = new Date();
+                let diasUteisTotaisMes = 0; let diasUteisPassados = 0; 
+                const ultimoDiaMes = new Date(anoFiltro, mesFiltro + 1, 0).getDate(); 
+                const hoje = new Date();
+                
                 for (let dia = 1; dia <= ultimoDiaMes; dia++) {
                     const diaDaSemana = new Date(anoFiltro, mesFiltro, dia).getDay(); 
                     if (diaDaSemana !== 1 && diaDaSemana !== 2) { 
-                        diasUteisTotaisMes++; if (anoFiltro === hoje.getFullYear() && mesFiltro === hoje.getMonth() && dia <= hoje.getDate()) diasUteisPassados++;
+                        diasUteisTotaisMes++; 
+                        if (anoFiltro === hoje.getFullYear() && mesFiltro === hoje.getMonth() && dia <= hoje.getDate()) {
+                            diasUteisPassados++;
+                        }
                     }
                 }
 
                 let projecaoMensal = rb; let metaDiaria = 0;
                 if (anoFiltro === hoje.getFullYear() && mesFiltro === hoje.getMonth()) {
-                    const diasUteisRestantes = diasUteisTotaisMes - diasUteisPassados; const ticketDiarioAtual = diasAtivos > 0 ? rb / diasAtivos : 0;
-                    if (diasUteisRestantes > 0) projecaoMensal = rb + (ticketDiarioAtual * diasUteisRestantes);
-                    const restanteMeta = p(metaVendas) - rb; if (restanteMeta > 0 && diasUteisRestantes > 0) metaDiaria = restanteMeta / diasUteisRestantes;
+                    const diasUteisRestantes = diasUteisTotaisMes - diasUteisPassados; 
+                    const ticketDiarioAtual = diasAtivos > 0 ? rb / diasAtivos : 0;
+                    if (diasUteisRestantes > 0) {
+                        projecaoMensal = rb + (ticketDiarioAtual * diasUteisRestantes);
+                    }
+                    const restanteMeta = p(metaVendas) - rb; 
+                    if (restanteMeta > 0 && diasUteisRestantes > 0) {
+                        metaDiaria = restanteMeta / diasUteisRestantes;
+                    }
                 } else if (new Date(anoFiltro, mesFiltro, 1) > hoje) {
                     if (diasUteisTotaisMes > 0) metaDiaria = p(metaVendas) / diasUteisTotaisMes;
                 }
 
                 const operCosts = Object.values(catCosts).reduce((a,b)=>a+b, 0);
+                
                 const weekdayNames = {0:'Domingo', 1:'Segunda', 2:'Terça', 3:'Quarta', 4:'Quinta', 5:'Sexta', 6:'Sábado'};
-                const weekdayAverages = Object.keys(weekdaySums).map(wd => ({ name: weekdayNames[wd], avg: weekdayCounts[wd] > 0 ? weekdaySums[wd] / weekdayCounts[wd] : 0, total: weekdaySums[wd], count: weekdayCounts[wd] })).filter(x => x.avg > 0).sort((a, b) => b.avg - a.avg);
+                const weekdayAverages = Object.keys(weekdaySums).map(wd => ({ 
+                    name: weekdayNames[wd], 
+                    avg: weekdayCounts[wd] > 0 ? weekdaySums[wd] / weekdayCounts[wd] : 0, 
+                    total: weekdaySums[wd], 
+                    count: weekdayCounts[wd] 
+                })).filter(x => x.avg > 0).sort((a, b) => b.avg - a.avg);
 
                 return { 
-                    rb, totalCosts: operCosts + custos, lucro: rb - (operCosts + custos), catCosts, diasAtivos, totalPedidos, ticketDiario: diasAtivos > 0 ? rb / diasAtivos : 0, ticketPedido: totalPedidos > 0 ? rb / totalPedidos : 0, entradas, contasPagas, lucroCaixa: entradas - contasPagas, projecaoMensal, metaDiaria, margemDRE: rb > 0 ? ((rb - (operCosts + custos)) / rb) * 100 : 0, margemCaixa: entradas > 0 ? ((entradas - contasPagas) / entradas) * 100 : 0, weeklyCurrent, weeklyPrev, weekdayAverages, diasUteisRestantes: Math.max(0, diasUteisTotaisMes - diasUteisPassados), autoCardFees
+                    rb, 
+                    totalCosts: operCosts + custos, 
+                    lucro: rb - (operCosts + custos), 
+                    catCosts, 
+                    diasAtivos, 
+                    totalPedidos, 
+                    ticketDiario: diasAtivos > 0 ? rb / diasAtivos : 0, 
+                    ticketPedido: totalPedidos > 0 ? rb / totalPedidos : 0, 
+                    entradas, 
+                    contasPagas, 
+                    lucroCaixa: entradas - contasPagas, 
+                    projecaoMensal, 
+                    metaDiaria, 
+                    margemDRE: rb > 0 ? ((rb - (operCosts + custos)) / rb) * 100 : 0, 
+                    margemCaixa: entradas > 0 ? ((entradas - contasPagas) / entradas) * 100 : 0, 
+                    weeklyCurrent, 
+                    weeklyPrev, 
+                    weekdayAverages, 
+                    diasUteisRestantes: Math.max(0, diasUteisTotaisMes - diasUteisPassados), 
+                    autoCardFees 
                 };
             }, [dailyRecords, transactions, filterMonth, metaVendas, cmvSettings]);
 
@@ -386,16 +536,27 @@
                 return { ...card, currentBalance, limit, available };
             }), [transactions, accounts]);
 
+            // VARIÁVEIS GLOBAIS RESTAURADAS PARA AS ABAS DE RELATÓRIO E PAGAMENTOS
             const totalAPagar = useMemo(() => consolidatedAPagar.reduce((sum, t) => sum + p(t.amount), 0), [consolidatedAPagar]);
             const totalReceitasPendentes = useMemo(() => consolidatedAReceber.reduce((sum, t) => sum + p(t.amount), 0), [consolidatedAReceber]);
+            const somaDespesasCategoria = useMemo(() => Object.values(stats.catCosts).reduce((a, b) => a + b, 0), [stats.catCosts]);
 
-            const getIngCost = (id, q) => { const i = ingredients.find(x => x.id === id); return i ? (i.cost / i.qty) * (p(q) * (i.unit==='kg'||i.unit==='L'?0.001:1)) : 0; };
-            const calcItemCost = (ings) => (ings||[]).reduce((t, r) => t + getIngCost(r.ingredientId, r.qty), 0);
-            const calcComboCost = (items) => (items||[]).reduce((t, i) => {
-                if (i.type === 'recipe') return t + calcItemCost(recipes.find(r=>r.id===i.itemId)?.ingredients) * p(i.qty);
-                if (i.type === 'complement') return t + calcItemCost(complements.find(c=>c.id===i.itemId)?.ingredients) * p(i.qty);
-                return t + getIngCost(i.itemId, i.qty);
-            }, 0);
+            const getIngCost = (id, q) => { 
+                const i = ingredients.find(x => x.id === id); 
+                return i ? (i.cost / i.qty) * (p(q) * (i.unit==='kg'||i.unit==='L'?0.001:1)) : 0; 
+            };
+            
+            const calcItemCost = (ings) => {
+                return (ings||[]).reduce((t, r) => t + getIngCost(r.ingredientId, r.qty), 0);
+            };
+            
+            const calcComboCost = (items) => {
+                return (items||[]).reduce((t, i) => {
+                    if (i.type === 'recipe') return t + calcItemCost(recipes.find(r=>r.id===i.itemId)?.ingredients) * p(i.qty);
+                    if (i.type === 'complement') return t + calcItemCost(complements.find(c=>c.id===i.itemId)?.ingredients) * p(i.qty);
+                    return t + getIngCost(i.itemId, i.qty);
+                }, 0);
+            };
 
             // ================= ACTIONS DB =================
             const saveCMVDoc = async (field, data) => {
@@ -467,7 +628,7 @@
                     } else {
                         batch.set(db.collection(path).doc(), payload);
                         
-                        // Lançamento de Taxa Automático
+                        // Lançamento de Taxa Automático para Cartões
                         if (txForm.type === 'entrada' && txForm.feeType && txForm.feeType !== 'none' && p(txForm.feePercent) > 0) {
                             const feeAmt = baseAmount * (p(txForm.feePercent) / 100);
                             const feePayload = {
@@ -680,9 +841,7 @@
                     </aside>
 
                     {/* MENU MOBILE EXPANDIDO */}
-                    {isMenuOpen && (
-                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] transition-opacity md:hidden print:hidden" onClick={() => setIsMenuOpen(false)}></div>
-                    )}
+                    {isMenuOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] transition-opacity md:hidden print:hidden" onClick={() => setIsMenuOpen(false)}></div>}
                     <div className={`fixed inset-y-0 left-0 z-[95] w-64 bg-[#1A202C] shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col md:hidden print:hidden ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                         <div className="p-4 border-b border-white/10 flex justify-between items-center">
                             <div className="flex items-center gap-3">
@@ -724,17 +883,9 @@
                         </div>
                     </div>
 
-                    {/* CONTEÚDO PRINCIPAL DAS ABAS */}
+                    {/* CONTEÚDO PRINCIPAL (RENDERIZAÇÃO DAS ABAS) */}
                     <main className="flex-1 flex flex-col h-screen overflow-y-auto w-full relative">
                         
-                        <header className="bg-[#1A202C] text-white p-3 shadow-md flex items-center justify-between md:hidden print:hidden sticky top-0 z-50">
-                            <div className="flex items-center gap-3">
-                                <button type="button" onClick={() => setIsMenuOpen(true)} className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"><Icon name="menu" size={18} /></button>
-                                <div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div>
-                            </div>
-                            <span className="font-black text-[#F8CC82] uppercase tracking-widest text-[9px]">{activeTab.replace('fin_', '').replace('cmv_', '').replace('_', ' ')}</span>
-                        </header>
-
                         <div className="p-4 md:p-6 w-full max-w-full space-y-4 print:p-0 mx-auto">
                             
                             {/* CABEÇALHO FILTRO MÊS */}
@@ -748,7 +899,19 @@
 
                             {/* ABA ESTRATÉGICA: PLANILHA DE CONFRONTAMENTO DE CMV (ALVO 35%) */}
                             {activeTab === 'relatorio_unificado' && (() => {
-                                // 1. FATURAMENTO (Apenas Vendas do Caixa)
+                                const totalFixedCosts = fixedCosts.reduce((s,c)=>s+p(c.value),0);
+                                const cmvGeral = (() => { 
+                                    let sumCmv = 0, count = 0; 
+                                    [...recipes, ...complements, ...combos].forEach(item => { 
+                                        if (!item.ignoreCMV) { 
+                                            const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items); 
+                                            const sp = p(item.sellingPrice); 
+                                            if(sp>0){ sumCmv += (cost/sp)*100; count++; } 
+                                        } 
+                                    }); 
+                                    return count > 0 ? (sumCmv/count).toFixed(1) : 0; 
+                                })();
+                                
                                 let mPix = 0, mPixOn = 0, mDinheiro = 0, mIfood = 0, mDebito = 0, mCredito = 0, mFiado = 0, mVR = 0, mTicket = 0, mAlelo = 0, mMotoboy = 0, mTaxaEntrega = 0;
                                 salesDays.forEach(d => {
                                     const r = dailyRecords[d] || {};
@@ -756,10 +919,12 @@
                                     mDebito += p(r.debito); mCredito += p(r.credito); mFiado += p(r.fiado); mVR += p(r.vr);
                                     mTicket += p(r.ticket); mAlelo += p(r.alelo); mMotoboy += p(r.motoboy); mTaxaEntrega += p(r.taxaEntrega);
                                 });
-                                const faturamentoTotal = mPix + mPixOn + mDinheiro + mIfood + mDebito + mCredito + mFiado + mVR + mTicket + mAlelo;
 
-                                // 2. CUSTOS VARIÁVEIS REAIS (Puxando lançamentos do Financeiro)
-                                let cmvFinanceiroReal = 0;
+                                // Faturamento TOTAL APENAS das vendas do caixa diário
+                                const faturamentoTotal = mPix + mPixOn + mDinheiro + mIfood + mDebito + mCredito + mFiado + mVR + mTicket + mAlelo;
+                                
+                                // O usuário quer que CMV seja os Insumos/Embalagens do Financeiro
+                                let custoRealInsumosFinanceiro = 0;
                                 let taxasFinanceiroManuais = 0;
                                 let motoboyFinanceiroExtra = 0;
                                 let totalCustosFixosDRE = 0;
@@ -775,7 +940,7 @@
                                     if (c === 'taxas de cartão (auto vendas)') return;
 
                                     if (cmvKeywords.some(k => c.includes(k))) {
-                                        cmvFinanceiroReal += val;
+                                        custoRealInsumosFinanceiro += val;
                                     } else if (taxaKeywords.some(k => c.includes(k))) {
                                         taxasFinanceiroManuais += val;
                                     } else if (entregaKeywords.some(k => c.includes(k))) {
@@ -787,14 +952,14 @@
                                     }
                                 });
 
-                                const cmvRealPercent = faturamentoTotal > 0 ? (cmvFinanceiroReal / faturamentoTotal) * 100 : 0;
+                                // Se não houver nada lançado com essas palavras no financeiro, usa a teórica como fallback de segurança
+                                const custoInsumos = custoRealInsumosFinanceiro > 0 ? custoRealInsumosFinanceiro : (faturamentoTotal * (p(cmvGeral) / 100));
+                                const cmvRealFinanceiroPercent = faturamentoTotal > 0 ? (custoInsumos / faturamentoTotal) * 100 : 0;
+
                                 const impostosEstimados = faturamentoTotal * (p(cmvSettings.tax) / 100);
-                                const taxasCartaoTotais = (mDebito * (p(cmvSettings.taxaDebito)/100)) + (mCredito * (p(cmvSettings.taxaCredito)/100)) + taxasFinanceiroManuais;
-                                const totalMotoboy = mMotoboy + mTaxaEntrega + motoboyFinanceiroExtra;
-                                
-                                const totalCustosVariaveis = cmvFinanceiroReal + impostosEstimados + taxasCartaoTotais + totalMotoboy;
-                                const margemContribuicaoVal = faturamentoTotal - totalCustosVariaveis;
-                                const lucroLiquidoFinal = margemContribuicaoVal - totalCustosFixosDRE;
+                                const taxasCartaoAutomaticas = (mDebito * (p(cmvSettings.taxaDebito)/100)) + (mCredito * (p(cmvSettings.taxaCredito)/100));
+                                const totalCustosVariaveis = custoInsumos + impostosEstimados + taxasCartaoAutomaticas + mMotoboy + mTaxaEntrega;
+                                const marginVal = faturamentoTotal - totalCustosVariaveis;
 
                                 return (
                                     <div className="space-y-4 fade-in print-area" id="print-area">
@@ -814,16 +979,16 @@
                                             </div>
                                             <div className="glass-card p-4 rounded-xl border-l-4 border-emerald-500 text-center">
                                                 <span className="text-[8px] font-black text-slate-400 block uppercase">Margem de Contribuição Bruta</span>
-                                                <h3 className="text-xl font-black text-emerald-600 mt-1">{faturamentoTotal > 0 ? ((margemContribuicaoVal/faturamentoTotal)*100).toFixed(1) : 0}%</h3>
+                                                <h3 className="text-xl font-black text-emerald-600 mt-1">{faturamentoTotal > 0 ? ((marginVal/faturamentoTotal)*100).toFixed(1) : 0}%</h3>
                                             </div>
                                             <div className="glass-card p-4 rounded-xl border-l-4 border-orange-500 text-center">
                                                 <span className="text-[8px] font-black text-slate-400 block uppercase">CMV Real Financeiro</span>
-                                                <h3 className="text-xl font-black text-orange-600 mt-1">{cmvRealPercent.toFixed(1)}%</h3>
+                                                <h3 className="text-xl font-black text-orange-600 mt-1">{cmvRealFinanceiroPercent.toFixed(1)}%</h3>
                                                 <span className="text-[8px] text-slate-400 block font-bold mt-1">Alvo Operacional: {cmvSettings.targetCMV}%</span>
                                             </div>
                                             <div className="glass-card p-4 rounded-xl border-l-4 border-purple-500 text-center">
                                                 <span className="text-[8px] font-black text-slate-400 block uppercase">Resultado Estratégico (NET)</span>
-                                                <h3 className={`text-xl font-black mt-1 ${lucroLiquidoFinal >= 0 ? 'text-purple-600' : 'text-red-500'}`}>{formatMoney(lucroLiquidoFinal)}</h3>
+                                                <h3 className={`text-xl font-black mt-1 ${(marginVal - totalFixedCosts) >= 0 ? 'text-purple-600' : 'text-red-500'}`}>{formatMoney(marginVal - totalFixedCosts)}</h3>
                                             </div>
                                         </div>
 
@@ -850,20 +1015,20 @@
                                                             <tr className="bg-blue-50/50 font-black"><td className="p-2 border">TOTAL RECEITA BRUTA (A)</td><td className="p-2 text-right border text-blue-700">{formatMoney(faturamentoTotal)}</td><td className="p-2 text-center border">100.0%</td></tr>
                                                             
                                                             <tr className="bg-slate-100 font-black"><td colSpan="3" className="p-2 border">2. Custos Variáveis Retidos</td></tr>
-                                                            <tr className={cmvRealPercent > 35 ? "bg-red-50/30" : ""}><td className="p-2 pl-4 border text-slate-900 font-black">Custo Real de Mercadoria (Insumos Financeiro)</td><td className="p-2 text-right border text-red-600 font-black">-{formatMoney(cmvFinanceiroReal)}</td><td className="p-2 text-center border text-red-600 font-black">{cmvRealPercent.toFixed(1)}%</td></tr>
+                                                            <tr className={cmvRealFinanceiroPercent > 35 ? "bg-red-50/30" : ""}><td className="p-2 pl-4 border text-slate-900 font-black">Custo Real de Mercadoria (Insumos Financeiro)</td><td className="p-2 text-right border text-red-600 font-black">-{formatMoney(custoInsumos)}</td><td className="p-2 text-center border text-red-600 font-black">{cmvRealFinanceiroPercent.toFixed(1)}%</td></tr>
                                                             <tr><td className="p-2 pl-4 border">Impostos Simples ({cmvSettings.tax}%)</td><td className="p-2 text-right border">-{formatMoney(impostosEstimados)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((impostosEstimados/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             <tr><td className="p-2 pl-4 border">Taxas de Operação Maquininhas</td><td className="p-2 text-right border">-{formatMoney(taxasCartaoTotais)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((taxasCartaoTotais/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             <tr><td className="p-2 pl-4 border">Custos de Entrega / Motoboy</td><td className="p-2 text-right border">-{formatMoney(totalMotoboy)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((totalMotoboy/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             <tr className="bg-red-50/20 font-black"><td className="p-2 border">TOTAL DE CUSTOS VARIÁVEIS (B)</td><td className="p-2 text-right border text-red-600">-{formatMoney(totalCustosVariaveis)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((totalCustosVariaveis/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             
-                                                            <tr className="bg-amber-50/30 font-black"><td className="p-2 border">(=) MARGEM DE CONTRIBUIÇÃO LIQUIDA (A - B)</td><td className="p-2 text-right border text-amber-700">{formatMoney(margemContribuicaoVal)}</td><td className="p-2 text-center border text-amber-700">{faturamentoTotal > 0 ? ((margemContribuicaoVal/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                            <tr className="bg-amber-50/30 font-black"><td className="p-2 border">(=) MARGEM DE CONTRIBUIÇÃO LIQUIDA (A - B)</td><td className="p-2 text-right border text-amber-700">{formatMoney(marginVal)}</td><td className="p-2 text-center border text-amber-700">{faturamentoTotal > 0 ? ((marginVal/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             
                                                             <tr className="bg-slate-100 font-black"><td colSpan="3" className="p-2 border">3. Estrutura de Custos Fixos</td></tr>
                                                             {listaCustosFixos.sort((a,b)=>b.val-a.val).map((fc, idx) => (
                                                                 <tr key={idx}><td className="p-2 pl-4 border uppercase">{fc.desc}</td><td className="p-2 text-right border text-red-400">-{formatMoney(fc.val)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((fc.val/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             ))}
                                                             
-                                                            <tr className="bg-slate-900 text-white font-black"><td className="p-2 border">(=) RESULTADO NET REAL DA TRIBAL (A - B - C)</td><td className="p-2 text-right border text-[#F8CC82]">{formatMoney(lucroLiquidoFinal)}</td><td className="p-2 text-center border text-[#F8CC82]">{faturamentoTotal > 0 ? ((lucroLiquidoFinal/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                            <tr className="bg-slate-900 text-white font-black"><td className="p-2 border">(=) RESULTADO NET REAL DA TRIBAL (A - B - C)</td><td className="p-2 text-right border text-[#F8CC82]">{formatMoney(marginVal - totalFixedCosts)}</td><td className="p-2 text-center border text-[#F8CC82]">{faturamentoTotal > 0 ? (((marginVal - totalFixedCosts)/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                         </tbody>
                                                     </table>
                                                 </div>
@@ -929,7 +1094,7 @@
                                         </div>
                                         {txForm.type === 'entrada' && (
                                             <div className="bg-emerald-50 border border-emerald-200 p-2 rounded-lg text-[9px]">
-                                                <label className="font-black text-emerald-800 flex items-center gap-1 mb-1">Descontar Taxa Cartão Automático?</label>
+                                                <label className="font-black text-emerald-800 flex items-center gap-1 mb-1">Auto Taxar Lançamento?</label>
                                                 <div className="flex gap-1.5">
                                                     <button type="button" onClick={() => setTxForm({...txForm, feeType: 'none', feePercent: 0})} className={`flex-1 py-1 rounded text-[8px] font-black ${txForm.feeType === 'none' ? 'bg-emerald-600 text-white' : 'bg-white border'}`}>Não</button>
                                                     <button type="button" onClick={() => setTxForm({...txForm, feeType: 'debito', feePercent: cmvSettings.taxaDebito})} className={`flex-1 py-1 rounded text-[8px] font-black ${txForm.feeType === 'debito' ? 'bg-emerald-600 text-white' : 'bg-white border'}`}>Débito</button>
@@ -947,10 +1112,6 @@
                                         <div className="grid grid-cols-2 gap-2">
                                             <div><label className="text-slate-400 block font-bold mb-0.5">Data Lanç.</label><input type="date" className="w-full p-1.5 border rounded-lg font-bold" value={txForm.date} onChange={e=>setTxForm({...txForm, date: e.target.value})} /></div>
                                             <div><label className="text-slate-400 block font-bold mb-0.5">Vencimento</label><input type="date" className="w-full p-1.5 border rounded-lg font-bold" value={txForm.clearance} onChange={e=>setTxForm({...txForm, clearance: e.target.value})} /></div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button type="button" onClick={()=>setTxForm({...txForm, status: 'pago'})} className={`flex-1 p-2 rounded-lg border font-black ${txForm.status==='pago'?'bg-green-500 text-white':'bg-white text-slate-400'}`}>PAGO</button>
-                                            <button type="button" onClick={()=>setTxForm({...txForm, status: 'pendente'})} className={`flex-1 p-2 rounded-lg border font-black ${txForm.status==='pendente'?'bg-orange-500 text-white':'bg-white text-slate-400'}`}>PENDENTE</button>
                                         </div>
                                         <button className="w-full bg-black text-[#F8CC82] p-2.5 rounded-lg font-black uppercase text-[10px] mt-2">Gravar Movimentação</button>
                                     </form>
@@ -974,14 +1135,14 @@
                                                         </div>
                                                         <div>
                                                             <div className="flex items-center gap-2"><p className="font-black text-[11px] uppercase leading-none">{t.description}</p><span className={`status-badge ${t.status==='pago'?'bg-green-100 text-green-700':'bg-orange-100 text-orange-700'}`}>{t.status}</span></div>
-                                                            <p className="font-bold text-slate-400 uppercase mt-1 text-[8px]">Lanç: {t.date?.split('-').reverse().join('/')} • Venc: {t.clearanceDate?.split('-').reverse().join('/')} • {t.account} • {t.category}</p>
+                                                            <p className="font-bold text-slate-400 uppercase mt-1 text-[8px]">Lanç: {safeDateDisplay(t.date)} • Venc: {safeDateDisplay(t.clearanceDate)} • {t.account} • {t.category}</p>
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         <p className="font-black text-slate-800">{formatMoney(t.amount)}</p>
                                                         <div className="flex gap-1 items-center">
-                                                            <button type="button" onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1, feeType: 'none', feePercent: 0}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-500 font-black text-[8px] bg-slate-100 p-1.5 rounded hover:bg-blue-100">EDITAR</button>
-                                                            <button type="button" onClick={() => executeDelete('transactions', t.id)} className={`transition-all p-1.5 font-black text-[8px] rounded ${deleteConfirmId === t.id ? 'delete-confirm' : 'bg-red-50 text-red-500 hover:bg-red-100'}`}>
+                                                            <button type="button" onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1, feeType: 'none', feePercent: 0}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-500 font-black text-[8px] bg-slate-100 px-2 py-1.5 rounded hover:bg-blue-100">EDITAR</button>
+                                                            <button type="button" onClick={() => executeDelete('transactions', t.id)} className={`transition-all px-2 py-1.5 font-black text-[8px] rounded ${deleteConfirmId === t.id ? 'delete-confirm' : 'bg-red-50 text-red-500 hover:bg-red-100'}`}>
                                                                 {deleteConfirmId === t.id ? "SIM" : "EXCLUIR"}
                                                             </button>
                                                         </div>
@@ -1099,11 +1260,11 @@
                                             <tbody className="divide-y font-bold text-slate-700">
                                                 {consolidatedAPagar.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400 uppercase">Nenhuma conta pendente para o período selecionado.</td></tr> : consolidatedAPagar.map((t, idx) => (
                                                     <tr key={idx} className="hover:bg-slate-50">
-                                                        <td className="p-3 text-slate-800">{t.clearanceDate.split('-').reverse().join('/')}</td>
+                                                        <td className="p-3 text-slate-800">{safeDateDisplay(t.clearanceDate)}</td>
                                                         <td className="p-3 uppercase">{t.description}</td>
                                                         <td className="p-3 uppercase"><span className="bg-slate-200 px-2 py-0.5 rounded text-[9px] font-black">{t.account}</span></td>
                                                         <td className="p-3 text-right text-red-500 font-black">{formatMoney(t.amount)}</td>
-                                                        <td className="p-3 text-center"><button type="button" onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-black text-[9px] uppercase">Dar Baixa</button></td>
+                                                        <td className="p-3 text-center"><button type="button" onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-black text-[9px] uppercase hover:bg-green-200">Dar Baixa</button></td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -1122,11 +1283,11 @@
                                             <tbody className="divide-y font-bold text-slate-700">
                                                 {consolidatedAReceber.length === 0 ? <tr><td colSpan="5" className="p-8 text-center text-slate-400 uppercase">Nenhum recebimento provisionado em agenda.</td></tr> : consolidatedAReceber.map((t) => (
                                                     <tr key={t.id} className="hover:bg-slate-50">
-                                                        <td className="p-3 text-slate-800">{t.clearanceDate?.split('-').reverse().join('/')}</td>
+                                                        <td className="p-3 text-slate-800">{safeDateDisplay(t.clearanceDate)}</td>
                                                         <td className="p-3 uppercase">{t.description}</td>
                                                         <td className="p-3 uppercase"><span className="bg-slate-200 px-2 py-0.5 rounded text-[9px] font-black">{t.account}</span></td>
                                                         <td className="p-3 text-right text-green-600 font-black">{formatMoney(t.amount)}</td>
-                                                        <td className="p-3 text-center"><button type="button" onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-black text-[9px] uppercase">Liquidar Caixa</button></td>
+                                                        <td className="p-3 text-center"><button type="button" onClick={()=>openLiquidation(t)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-black text-[9px] uppercase hover:bg-green-200">Liquidar Caixa</button></td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -1371,40 +1532,6 @@
                                 </div>
                             )}
 
-                            {/* ABA: ANÁLISE OPERACIONAL DE CARDÁPIO */}
-                            {activeTab === 'analise' && (() => {
-                                const totalFixedCosts = fixedCosts.reduce((s,c)=>s+p(c.value),0);
-                                const cmvGeral = (() => { let sumCmv = 0, count = 0; [...recipes, ...complements, ...combos].forEach(item => { if (!item.ignoreCMV) { const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items); const sp = p(item.sellingPrice); if(sp>0){ sumCmv += (cost/sp)*100; count++; } } }); return count>0 ? (sumCmv/count).toFixed(1) : 0; })();
-                                const margemContribuicao = 1 - (p(cmvGeral)/100) - ((p(cmvSettings.tax) + p(cmvSettings.apps) + p(cmvSettings.taxaCredito))/100);
-                                const pontoEquilibrio = margemContribuicao > 0 ? totalFixedCosts / margemContribuicao : 0;
-                                const faturamentoReal = stats.rb;
-                                const faltaParaPe = pontoEquilibrio - faturamentoReal;
-
-                                return (
-                                    <div className="space-y-4 fade-in">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <div className="glass-card p-4 rounded-xl border-l-4 border-blue-500 text-center"><span className="text-slate-400 block font-black text-[8px]">Faturamento Comercial Real</span><h3 className="text-xl font-black text-slate-800 mt-1">{formatMoney(stats.rb)}</h3></div>
-                                            <div className="glass-card p-4 rounded-xl border-l-4 border-red-500 text-center"><span className="text-slate-400 block font-black text-[8px]">Custos Fixos Totais Cadastrados</span><h3 className="text-xl font-black text-red-500 mt-1">{formatMoney(totalFixedCosts)}</h3></div>
-                                            <div className="glass-card p-4 rounded-xl border-l-4 border-emerald-500 text-center"><span className="text-slate-400 block font-black text-[8px]">Ponto de Equilíbrio Operacional</span><h3 className="text-xl font-black text-emerald-600 mt-1">{formatMoney(pontoEquilibrio)}</h3></div>
-                                        </div>
-                                        <div className="glass-card rounded-xl overflow-hidden border shadow-sm"><table className="w-full text-left text-[11px] font-bold">
-                                            <thead className="bg-[#1A202C] text-white uppercase tracking-widest"><tr><th className="p-3">Produto</th><th className="p-3 text-right">Custo Insumo</th><th className="p-3 text-right">Preço Venda Cantinho</th><th className="p-3 text-right">Sugestão de Alvo</th><th className="p-3 text-center">CMV (%)</th><th className="p-3 text-center">Margem %</th></tr></thead>
-                                            <tbody className="divide-y text-slate-700">
-                                                {[...recipes.map(r=>({...r, _t:'Ficha'})), ...complements.map(c=>({...c, _t:'Extra'})), ...combos.map(c=>({...c, _t:'Combo'}))].sort((a,b)=>a.name.localeCompare(b.name)).map(item => {
-                                                    const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items); const sp = p(item.sellingPrice); const cmv = sp > 0 ? (cost/sp)*100 : 0;
-                                                    const suggested = cmvSettings.targetCMV > 0 ? cost / (cmvSettings.targetCMV/100) : 0;
-                                                    return (
-                                                        <tr key={item.id} className="hover:bg-slate-50">
-                                                            <td className="p-3">{item.name}</td><td className="p-3 text-right text-slate-500">{formatMoney(cost)}</td><td className="p-3 text-right text-slate-900">{formatMoney(sp)}</td><td className="p-3 text-right text-emerald-600">{formatMoney(suggested)}</td><td className={"p-3 text-center " + (cmv > cmvSettings.targetCMV ? "text-red-500" : "text-green-600")}>{cmv.toFixed(1)}%</td><td className="p-3 text-center">{(100 - cmv).toFixed(1)}%</td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table></div>
-                                    </div>
-                                );
-                            })()}
-
                             {/* ABA: CUSTOS FIXOS */}
                             {activeTab === 'custos_fixos' && (
                                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 fade-in">
@@ -1434,10 +1561,11 @@
                                  </div>
                             )}
 
-                            {/* ABA: CONFIGURAÇÕES E AJUSTES */}
+                            {/* ABA: CONFIGURAÇÕES E AJUSTES (COM JANELA DE CONFIRMAÇÃO) */}
                             {activeTab === 'ajustes' && (
                                  <div className="glass-card p-6 rounded-xl border-t-8 border-[#D97757] shadow-xl grid grid-cols-1 md:grid-cols-2 gap-6 fade-in">
-                                     <div className="space-y-4"><div><h3 className="font-black uppercase text-slate-800 text-base">Parâmetros & Taxas Gerais</h3><p className="font-bold text-slate-400 uppercase mt-1">Configurações para os cálculos automáticos</p></div>
+                                     <div className="space-y-4">
+                                         <div><h3 className="font-black uppercase text-slate-800 text-base">Parâmetros & Taxas Gerais</h3><p className="font-bold text-slate-400 uppercase mt-1">Configurações para os cálculos automáticos</p></div>
                                          <div className="grid grid-cols-2 gap-3">
                                              <div className="space-y-0.5"><label className="font-black text-slate-400">Meta CMV Geral (%)</label><input type="number" step="0.1" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.targetCMV} onChange={e=>setCmvSettings({...cmvSettings, targetCMV: e.target.value})} /></div>
                                              <div className="space-y-0.5"><label className="font-black text-slate-400">Impostos Simples (%)</label><input type="number" step="0.1" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.tax} onChange={e=>setCmvSettings({...cmvSettings, tax: e.target.value})} /></div>
@@ -1451,7 +1579,23 @@
                                              <div className="space-y-0.5"><label className="font-black text-red-500">Taxa iFood (%)</label><input type="number" step="0.1" className="w-full p-2.5 bg-red-50/30 border border-red-100 rounded-xl font-bold text-red-600 outline-none focus:border-red-500" value={cmvSettings.ifoodTax} onChange={e=>setCmvSettings({...cmvSettings, ifoodTax: e.target.value})} /></div>
                                              <div className="col-span-2 space-y-0.5"><label className="font-black text-blue-500">Meta Vendas Mensal (R$)</label><input type="number" step="0.01" className="w-full p-2.5 bg-blue-50 border border-blue-100 rounded-xl font-bold outline-none focus:border-blue-500" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} /></div>
                                          </div>
-                                         <button type="button" onClick={async()=>{ if(!user)return; await saveCMVDoc('settings', {...cmvSettings, targetCMV:p(cmvSettings.targetCMV), tax:p(cmvSettings.tax), apps:p(cmvSettings.apps), taxaDebito:p(cmvSettings.taxaDebito), taxaCredito:p(cmvSettings.taxaCredito), ifoodTax:p(cmvSettings.ifoodTax), autoFeeVendas: cmvSettings.autoFeeVendas}); await saveMeta(metaVendas); alert('Parâmetros Salvos!'); }} className="w-full bg-[#1A202C] text-[#F8CC82] p-2.5 rounded-lg font-black text-[10px] uppercase shadow">Salvar Configurações Globais</button>
+                                         <button type="button" onClick={async()=>{ 
+                                             if(window.confirm('Confirmar a alteração das Taxas e Parâmetros?')) {
+                                                if(!user) return; 
+                                                const settingsToSave = {
+                                                    targetCMV: p(cmvSettings.targetCMV), 
+                                                    tax: p(cmvSettings.tax), 
+                                                    apps: p(cmvSettings.apps), 
+                                                    taxaDebito: p(cmvSettings.taxaDebito), 
+                                                    taxaCredito: p(cmvSettings.taxaCredito), 
+                                                    ifoodTax: p(cmvSettings.ifoodTax), 
+                                                    autoFeeVendas: cmvSettings.autoFeeVendas
+                                                };
+                                                await saveCMVDoc('settings', settingsToSave); 
+                                                await saveMeta(metaVendas); 
+                                                alert('Parâmetros Salvos com Sucesso!');
+                                             }
+                                         }} className="w-full bg-[#1A202C] text-[#F8CC82] p-2.5 rounded-lg font-black text-[10px] uppercase shadow">Salvar Configurações Globais</button>
                                      </div>
                                      <div className="space-y-4"><div><h3 className="font-black uppercase text-slate-800 text-base">Estrutura Financeira e Contas</h3><p className="font-bold text-slate-400 uppercase mt-1">Gerencie a lista oficial de contas operacionais</p></div>
                                          <div className="space-y-2">
