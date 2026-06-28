@@ -1133,7 +1133,6 @@
                                 // Faturamento TOTAL APENAS das vendas do caixa diário
                                 const faturamentoTotal = mPix + mPixOn + mDinheiro + mIfood + mDebito + mCredito + mFiado + mVR + mTicket + mAlelo;
                                 
-                                // O usuário quer que CMV seja os Insumos/Embalagens do Financeiro
                                 let custoRealInsumosFinanceiro = 0;
                                 let taxasFinanceiroManuais = 0;
                                 let motoboyFinanceiroExtra = 0;
@@ -1141,22 +1140,26 @@
                                 let listaCustosFixos = [];
 
                                 const cmvKeywords = ['insumo', 'embalagem', 'mercadoria', 'compra', 'hortifruti', 'açougue', 'acougue', 'padaria', 'bebida', 'cmv', 'ingrediente', 'fornecedor', 'estoque', 'alimento', 'carne', 'pão', 'pao', 'queijo', 'gás', 'gas', 'refrigerante', 'suco'];
-                                const taxaKeywords = ['taxa', 'bancária', 'bancaria', 'tarifa', 'maquininha', 'juros'];
                                 const entregaKeywords = ['motoboy', 'entrega', 'frete', 'logistica', 'logística', 'entregador', 'combustível', 'gasolina'];
 
                                 Object.entries(stats.catCosts).forEach(([cat, val]) => {
-                                    const c = cat.toLowerCase();
-                                    // Ignora as taxas automáticas que eu já separo abaixo
+                                    const c = cat.toLowerCase().trim();
+                                    
+                                    // Ignora as taxas automáticas lançadas pela aba vendas (se as quiser usar, são calculadas à parte)
                                     if (c === 'taxas de cartão (auto vendas)') return;
 
-                                    if (cmvKeywords.some(k => c.includes(k))) {
-                                        custoRealInsumosFinanceiro += val;
-                                    } else if (taxaKeywords.some(k => c.includes(k))) {
+                                    // REGRA ESTRITA: Exatamente estas categorias e mais nenhuma!
+                                    if (c === 'taxa maquina cartão' || c === 'taxa maquina cartao' || c === 'taxas bancárias' || c === 'taxas bancarias') {
                                         taxasFinanceiroManuais += val;
-                                    } else if (entregaKeywords.some(k => c.includes(k))) {
+                                    } 
+                                    else if (cmvKeywords.some(k => c.includes(k))) {
+                                        custoRealInsumosFinanceiro += val;
+                                    } 
+                                    else if (entregaKeywords.some(k => c.includes(k))) {
                                         motoboyFinanceiroExtra += val;
-                                    } else {
-                                        // É um custo fixo / operacional
+                                    } 
+                                    else {
+                                        // Se não for nada disso, vai para os Custos Fixos
                                         totalCustosFixosDRE += val;
                                         listaCustosFixos.push({ desc: cat, val: val });
                                     }
@@ -1172,8 +1175,8 @@
                                 const totalMotoboy = mMotoboy + mTaxaEntrega + motoboyFinanceiroExtra;
                                 
                                 const totalCustosVariaveis = custoInsumos + impostosEstimados + taxasCartaoTotais + totalMotoboy;
-                                const marginVal = faturamentoTotal - totalCustosVariaveis;
-                                const lucroLiquidoFinal = marginVal - totalCustosFixosDRE;
+                                const margemContribuicaoVal = faturamentoTotal - totalCustosVariaveis;
+                                const lucroLiquidoFinal = margemContribuicaoVal - totalCustosFixosDRE;
 
                                 return (
                                     <div className="space-y-4 fade-in print-area" id="print-area">
@@ -1193,7 +1196,7 @@
                                             </div>
                                             <div className="glass-card p-4 rounded-xl border-l-4 border-emerald-500 text-center">
                                                 <span className="text-[8px] font-black text-slate-400 block uppercase">Margem de Contribuição Bruta</span>
-                                                <h3 className="text-xl font-black text-emerald-600 mt-1">{faturamentoTotal > 0 ? ((marginVal/faturamentoTotal)*100).toFixed(1) : 0}%</h3>
+                                                <h3 className="text-xl font-black text-emerald-600 mt-1">{faturamentoTotal > 0 ? ((margemContribuicaoVal/faturamentoTotal)*100).toFixed(1) : 0}%</h3>
                                             </div>
                                             <div className="glass-card p-4 rounded-xl border-l-4 border-orange-500 text-center">
                                                 <span className="text-[8px] font-black text-slate-400 block uppercase">CMV Real Financeiro</span>
@@ -1235,7 +1238,7 @@
                                                             <tr><td className="p-2 pl-4 border">Custos de Entrega / Motoboy</td><td className="p-2 text-right border">-{formatMoney(totalMotoboy)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((totalMotoboy/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             <tr className="bg-red-50/20 font-black"><td className="p-2 border">TOTAL DE CUSTOS VARIÁVEIS (B)</td><td className="p-2 text-right border text-red-600">-{formatMoney(totalCustosVariaveis)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((totalCustosVariaveis/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             
-                                                            <tr className="bg-amber-50/30 font-black"><td className="p-2 border">(=) MARGEM DE CONTRIBUIÇÃO LIQUIDA (A - B)</td><td className="p-2 text-right border text-amber-700">{formatMoney(marginVal)}</td><td className="p-2 text-center border text-amber-700">{faturamentoTotal > 0 ? ((marginVal/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                            <tr className="bg-amber-50/30 font-black"><td className="p-2 border">(=) MARGEM DE CONTRIBUIÇÃO LIQUIDA (A - B)</td><td className="p-2 text-right border text-amber-700">{formatMoney(margemContribuicaoVal)}</td><td className="p-2 text-center border text-amber-700">{faturamentoTotal > 0 ? ((margemContribuicaoVal/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             
                                                             <tr className="bg-slate-100 font-black"><td colSpan="3" className="p-2 border">3. Estrutura de Custos Fixos</td></tr>
                                                             {listaCustosFixos.sort((a,b)=>b.val-a.val).map((fc, idx) => (
@@ -1618,7 +1621,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: INSUMOS (RESTAURADA E COMPLETA POR CATEGORIA) */}
+                            {/* ABA: INSUMOS */}
                             {activeTab === 'insumos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1657,7 +1660,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: FICHAS TÉCNICAS (RESTAURADA E COMPLETA) */}
+                            {/* ABA: FICHAS TÉCNICAS */}
                             {activeTab === 'fichas' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1698,7 +1701,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: COMPLEMENTOS / ADICIONAIS (RESTAURADA E COMPLETA) */}
+                            {/* ABA: COMPLEMENTOS / ADICIONAIS */}
                             {activeTab === 'complementos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1733,7 +1736,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: COMBOS PROMO COMPLETA */}
+                            {/* ABA: COMBOS PROMO */}
                             {activeTab === 'combos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1774,7 +1777,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: ANÁLISE OPERACIONAL DE CARDÁPIO COMPLETA */}
+                            {/* ABA: ANÁLISE OPERACIONAL DE CARDÁPIO */}
                             {activeTab === 'analise' && (() => {
                                 const totalFixedCosts = fixedCosts.reduce((s,c)=>s+p(c.value),0);
                                 const cmvGeral = (() => { let sumCmv = 0, count = 0; [...recipes, ...complements, ...combos].forEach(item => { if (!item.ignoreCMV) { const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items); const sp = p(item.sellingPrice); if(sp>0){ sumCmv += (cost/sp)*100; count++; } } }); return count>0 ? (sumCmv/count).toFixed(1) : 0; })();
@@ -1808,7 +1811,7 @@
                                 );
                             })()}
 
-                            {/* ABA: CUSTOS FIXOS COMPLETA */}
+                            {/* ABA: CUSTOS FIXOS */}
                             {activeTab === 'custos_fixos' && (
                                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 fade-in">
                                      <div className="glass-card p-4 rounded-xl h-fit space-y-3"><h3 className="font-black text-sm uppercase">Cadastrar Nova Despesa Fixa</h3>
@@ -1837,7 +1840,7 @@
                                  </div>
                             )}
 
-                            {/* ABA: CONFIGURAÇÕES E AJUSTES COMPLETA */}
+                            {/* ABA: CONFIGURAÇÕES E AJUSTES */}
                             {activeTab === 'ajustes' && (
                                  <div className="glass-card p-6 rounded-xl border-t-8 border-[#D97757] shadow-xl grid grid-cols-1 md:grid-cols-2 gap-6 fade-in">
                                      <div className="space-y-4"><div><h3 className="font-black uppercase text-slate-800 text-base">Parâmetros & Taxas Gerais</h3><p className="font-bold text-slate-400 uppercase mt-1">Configurações para os cálculos automáticos</p></div>
