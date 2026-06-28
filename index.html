@@ -628,7 +628,7 @@
                     } else {
                         batch.set(db.collection(path).doc(), payload);
                         
-                        // Lançamento de Taxa Automático
+                        // Lançamento de Taxa Automático para Cartões
                         if (txForm.type === 'entrada' && txForm.feeType && txForm.feeType !== 'none' && p(txForm.feePercent) > 0) {
                             const feeAmt = baseAmount * (p(txForm.feePercent) / 100);
                             const feePayload = {
@@ -937,7 +937,7 @@
                                                 <div key={idx} className="flex gap-1.5 bg-slate-50 p-1.5 rounded-lg border">
                                                     <select className="flex-1 p-2 bg-white border rounded font-bold" value={ingItem.ingredientId} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].ingredientId=e.target.value; setFormObj({...formObj, ingredients: arr});}}><option value="">Selecione...</option>{ingredients.sort((a,b)=>a.name.localeCompare(b.name)).map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select>
                                                     <input type="number" step="0.001" placeholder="Qtd" className="w-16 p-2 bg-white border rounded font-bold text-center" value={ingItem.qty} onChange={e=>{const arr=[...formObj.ingredients]; arr[idx].qty=e.target.value; setFormObj({...formObj, ingredients: arr});}} />
-                                                    <button type="button" onClick={()=>{const arr=[...formObj.ingredients]; arr.splice(idx,1); setFormObj({...formObj, ingredients: arr});}} className="bg-red-50 text-red-500 p-2 rounded"><Icon name="trash-2" size={12}/></button>
+                                                    <button type="button" onClick={()=>{const arr=[...formObj.ingredients]; arr.splice(idx,1); setFormObj({...formObj, ingredients: arr});}} className="bg-red-50 text-red-500 px-3 py-2 rounded text-[9px] font-black uppercase">Excluir</button>
                                                 </div>
                                             ))}
                                         </div>
@@ -979,7 +979,7 @@
                                                     {item.type==='ingredient' && ingredients.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
                                                 </select>
                                                 <input type="number" step="0.001" placeholder="Qtd" className="w-12 p-2 bg-white border rounded font-bold text-center" value={item.qty} onChange={e=>{const arr=[...comboForm.items]; arr[idx].qty=e.target.value; setComboForm({...comboForm, items: arr});}} />
-                                                <button type="button" onClick={()=>{const arr=[...comboForm.items]; arr.splice(idx,1); setComboForm({...comboForm, items: arr});}} className="bg-red-50 text-red-500 p-2 rounded"><Icon name="trash-2" size={12}/></button>
+                                                <button type="button" onClick={()=>{const arr=[...comboForm.items]; arr.splice(idx,1); setComboForm({...comboForm, items: arr});}} className="bg-red-50 text-red-500 px-3 py-2 rounded text-[9px] font-black uppercase">Excluir</button>
                                             </div>
                                         ))}
                                     </div>
@@ -1096,14 +1096,6 @@
                     {/* CONTEÚDO PRINCIPAL DAS ABAS */}
                     <main className="flex-1 flex flex-col h-screen overflow-y-auto w-full relative">
                         
-                        <header className="bg-[#1A202C] text-white p-3 shadow-md flex items-center justify-between md:hidden print:hidden sticky top-0 z-50">
-                            <div className="flex items-center gap-3">
-                                <button type="button" onClick={() => setIsMenuOpen(true)} className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"><Icon name="menu" size={18} /></button>
-                                <div className="w-8 h-8 rounded-lg bg-[#F27A18] flex items-center justify-center font-black text-black shadow">TB</div>
-                            </div>
-                            <span className="font-black text-[#F8CC82] uppercase tracking-widest text-[9px]">{activeTab.replace('fin_', '').replace('cmv_', '').replace('_', ' ')}</span>
-                        </header>
-
                         <div className="p-4 md:p-6 w-full max-w-full space-y-4 print:p-0 mx-auto">
                             
                             {/* CABEÇALHO FILTRO MÊS */}
@@ -1176,8 +1168,12 @@
 
                                 const impostosEstimados = faturamentoTotal * (p(cmvSettings.tax) / 100);
                                 const taxasCartaoAutomaticas = (mDebito * (p(cmvSettings.taxaDebito)/100)) + (mCredito * (p(cmvSettings.taxaCredito)/100));
-                                const totalCustosVariaveis = custoInsumos + impostosEstimados + taxasCartaoAutomaticas + mMotoboy + mTaxaEntrega;
-                                const marginVal = faturamentoTotal - totalCustosVariaveis;
+                                const taxasCartaoTotais = taxasCartaoAutomaticas + taxasFinanceiroManuais;
+                                const totalMotoboy = mMotoboy + mTaxaEntrega + motoboyFinanceiroExtra;
+                                
+                                const totalCustosVariaveis = custoInsumos + impostosEstimados + taxasCartaoTotais + totalMotoboy;
+                                const margemContribuicaoVal = faturamentoTotal - totalCustosVariaveis;
+                                const lucroLiquidoFinal = margemContribuicaoVal - totalCustosFixosDRE;
 
                                 return (
                                     <div className="space-y-4 fade-in print-area" id="print-area">
@@ -1197,7 +1193,7 @@
                                             </div>
                                             <div className="glass-card p-4 rounded-xl border-l-4 border-emerald-500 text-center">
                                                 <span className="text-[8px] font-black text-slate-400 block uppercase">Margem de Contribuição Bruta</span>
-                                                <h3 className="text-xl font-black text-emerald-600 mt-1">{faturamentoTotal > 0 ? ((marginVal/faturamentoTotal)*100).toFixed(1) : 0}%</h3>
+                                                <h3 className="text-xl font-black text-emerald-600 mt-1">{faturamentoTotal > 0 ? ((margemContribuicaoVal/faturamentoTotal)*100).toFixed(1) : 0}%</h3>
                                             </div>
                                             <div className="glass-card p-4 rounded-xl border-l-4 border-orange-500 text-center">
                                                 <span className="text-[8px] font-black text-slate-400 block uppercase">CMV Real Financeiro</span>
@@ -1206,7 +1202,7 @@
                                             </div>
                                             <div className="glass-card p-4 rounded-xl border-l-4 border-purple-500 text-center">
                                                 <span className="text-[8px] font-black text-slate-400 block uppercase">Resultado Estratégico (NET)</span>
-                                                <h3 className={`text-xl font-black mt-1 ${(marginVal - totalFixedCosts) >= 0 ? 'text-purple-600' : 'text-red-500'}`}>{formatMoney(marginVal - totalFixedCosts)}</h3>
+                                                <h3 className={`text-xl font-black mt-1 ${lucroLiquidoFinal >= 0 ? 'text-purple-600' : 'text-red-500'}`}>{formatMoney(lucroLiquidoFinal)}</h3>
                                             </div>
                                         </div>
 
@@ -1239,14 +1235,14 @@
                                                             <tr><td className="p-2 pl-4 border">Custos de Entrega / Motoboy</td><td className="p-2 text-right border">-{formatMoney(totalMotoboy)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((totalMotoboy/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             <tr className="bg-red-50/20 font-black"><td className="p-2 border">TOTAL DE CUSTOS VARIÁVEIS (B)</td><td className="p-2 text-right border text-red-600">-{formatMoney(totalCustosVariaveis)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((totalCustosVariaveis/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             
-                                                            <tr className="bg-amber-50/30 font-black"><td className="p-2 border">(=) MARGEM DE CONTRIBUIÇÃO LIQUIDA (A - B)</td><td className="p-2 text-right border text-amber-700">{formatMoney(marginVal)}</td><td className="p-2 text-center border text-amber-700">{faturamentoTotal > 0 ? ((marginVal/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                            <tr className="bg-amber-50/30 font-black"><td className="p-2 border">(=) MARGEM DE CONTRIBUIÇÃO LIQUIDA (A - B)</td><td className="p-2 text-right border text-amber-700">{formatMoney(margemContribuicaoVal)}</td><td className="p-2 text-center border text-amber-700">{faturamentoTotal > 0 ? ((margemContribuicaoVal/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             
                                                             <tr className="bg-slate-100 font-black"><td colSpan="3" className="p-2 border">3. Estrutura de Custos Fixos</td></tr>
                                                             {listaCustosFixos.sort((a,b)=>b.val-a.val).map((fc, idx) => (
                                                                 <tr key={idx}><td className="p-2 pl-4 border uppercase">{fc.desc}</td><td className="p-2 text-right border text-red-400">-{formatMoney(fc.val)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((fc.val/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             ))}
                                                             
-                                                            <tr className="bg-slate-900 text-white font-black"><td className="p-2 border">(=) RESULTADO NET REAL DA TRIBAL (A - B - C)</td><td className="p-2 text-right border text-[#F8CC82]">{formatMoney(marginVal - totalFixedCosts)}</td><td className="p-2 text-center border text-[#F8CC82]">{faturamentoTotal > 0 ? (((marginVal - totalFixedCosts)/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                            <tr className="bg-slate-900 text-white font-black"><td className="p-2 border">(=) RESULTADO NET REAL DA TRIBAL (A - B - C)</td><td className="p-2 text-right border text-[#F8CC82]">{formatMoney(lucroLiquidoFinal)}</td><td className="p-2 text-center border text-[#F8CC82]">{faturamentoTotal > 0 ? ((lucroLiquidoFinal/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                         </tbody>
                                                     </table>
                                                 </div>
@@ -1440,6 +1436,7 @@
                                                     <th className="p-3 sticky left-0 z-20 bg-[#1A202C]">Data Caixa</th>
                                                     <th className="p-3 bg-amber-500 text-black">Total Dia</th>
                                                     <th className="p-3 bg-blue-600 text-white">Pedidos</th>
+                                                    <th className="p-3 bg-blue-800 text-white">Ticket Médio</th>
                                                     <th className="p-3">Pix</th>
                                                     <th className="p-3">Pix On</th>
                                                     <th className="p-3">Dinheiro</th>
@@ -1462,6 +1459,7 @@
                                                             <td className="p-2 border-r bg-white sticky left-0 text-center font-black">{d.split('-').reverse().join('/')}</td>
                                                             <td className="p-2 bg-yellow-50 font-black text-slate-900">{formatMoney(total)}</td>
                                                             <td className="p-0 border-r bg-blue-50/30"><DailyInput dateStr={d} field="qtdPedidos" initialValue={r.qtdPedidos} activeUid={user.uid} className="!text-blue-700" placeholder="0" /></td>
+                                                            <td className="p-2 bg-blue-50/50 font-black text-blue-900">{formatMoney(p(r.qtdPedidos) > 0 ? total / p(r.qtdPedidos) : 0)}</td>
                                                             <td className="p-0 border-r"><DailyInput dateStr={d} field="pix" initialValue={r.pix} activeUid={user.uid} /></td>
                                                             <td className="p-0 border-r"><DailyInput dateStr={d} field="pixOnline" initialValue={r.pixOnline} activeUid={user.uid} /></td>
                                                             <td className="p-0 border-r"><DailyInput dateStr={d} field="dinheiro" initialValue={r.dinheiro} activeUid={user.uid} /></td>
@@ -1620,7 +1618,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: INSUMOS */}
+                            {/* ABA: INSUMOS (RESTAURADA E COMPLETA POR CATEGORIA) */}
                             {activeTab === 'insumos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
