@@ -278,7 +278,7 @@
                         setCombos(d.combos || []); 
                         setFixedCosts(d.fixedCosts || []);
                         
-                        // Fusão Segura das Configurações
+                        // Fusão Segura das Configurações (Garante que nunca ficam a zero se falhar a leitura)
                         setCmvSettings({ ...defaultSettings, ...(d.settings || {}) });
                     }
                 });
@@ -302,7 +302,7 @@
                     const matchStatus = statusFilter === 'todos' || t.status === statusFilter;
                     const matchAcc = accFilter === 'todas' || t.account === accFilter;
                     
-                    // LÓGICA DE FILTRO MULTI-CATEGORIAS ATUALIZADA
+                    // LÓGICA DE FILTRO MULTI-CATEGORIAS
                     const matchCat = catFilter.length === 0 || catFilter.includes(t.category);
 
                     return isMonth && matchSearch && matchType && matchStatus && matchAcc && matchCat;
@@ -480,7 +480,7 @@
                 };
             }, [dailyRecords, transactions, filterMonth, metaVendas, cmvSettings]);
 
-            // NOVO: Cálculo dos totais de tudo o que foi filtrado no histórico
+            // Cálculo dos totais do filtro do histórico
             const totaisFiltrados = useMemo(() => {
                 let entradas = 0; let saidas = 0;
                 filteredDashboard.forEach(t => {
@@ -552,6 +552,7 @@
                 return { ...card, currentBalance, limit, available };
             }), [transactions, accounts]);
 
+            // VARIÁVEIS GLOBAIS DE RELATÓRIOS E PAGAMENTOS
             const totalAPagar = useMemo(() => consolidatedAPagar.reduce((sum, t) => sum + p(t.amount), 0), [consolidatedAPagar]);
             const totalReceitasPendentes = useMemo(() => consolidatedAReceber.reduce((sum, t) => sum + p(t.amount), 0), [consolidatedAReceber]);
             const somaDespesasCategoria = useMemo(() => Object.values(stats.catCosts).reduce((a, b) => a + b, 0), [stats.catCosts]);
@@ -643,7 +644,7 @@
                     } else {
                         batch.set(db.collection(path).doc(), payload);
                         
-                        // Lançamento de Taxa Automático para Cartões
+                        // Lançamento de Taxa Automático
                         if (txForm.type === 'entrada' && txForm.feeType && txForm.feeType !== 'none' && p(txForm.feePercent) > 0) {
                             const feeAmt = baseAmount * (p(txForm.feePercent) / 100);
                             const feePayload = {
@@ -1103,7 +1104,9 @@
                                 </button>
                             </div>
                         </div>
-                        <div className="p-4 border-t border-white/10 text-center"><button type="button" onClick={()=>auth.signOut()} className="w-full py-2 bg-red-500/10 text-red-400 rounded-lg font-black uppercase hover:bg-red-500/20 transition-all">Sair</button></div>
+                        <div className="p-4 border-t border-white/10 text-center">
+                            <button type="button" onClick={()=>auth.signOut()} className="w-full py-2 bg-red-500/10 text-red-400 rounded-lg font-black uppercase hover:bg-red-500/20 transition-all">Sair</button>
+                        </div>
                     </div>
 
                     {/* CONTEÚDO PRINCIPAL DAS ABAS */}
@@ -1154,7 +1157,7 @@
                                 let listaCustosFixos = [];
 
                                 const cmvKeywords = ['insumo', 'embalagem', 'mercadoria', 'compra', 'hortifruti', 'açougue', 'acougue', 'padaria', 'bebida', 'cmv', 'ingrediente', 'fornecedor', 'estoque', 'alimento', 'carne', 'pão', 'pao', 'queijo', 'gás', 'gas', 'refrigerante', 'suco'];
-                                const entregaKeywords = ['motoboy', 'entrega', 'frete', 'logistica', 'logística', 'entregador', 'combustível', 'gasolina'];
+                                const entregaKeywords = ['motoboy', 'motoqueiro', 'entrega', 'frete', 'logistica', 'logística', 'entregador', 'combustível', 'gasolina'];
 
                                 Object.entries(stats.catCosts).forEach(([cat, val]) => {
                                     const c = cat.toLowerCase().trim();
@@ -1163,7 +1166,7 @@
                                     if (c === 'taxas de cartão (auto vendas)') return;
 
                                     // REGRA ESTRITA: Exatamente estas categorias e mais nenhuma!
-                                    if (c === 'taxa maquina cartão' || c === 'taxa maquina cartao' || c === 'taxas bancárias' || c === 'taxas bancarias') {
+                                    if (['taxa maquina cartão', 'taxa maquina cartao', 'taxas bancárias', 'taxas bancarias'].includes(c)) {
                                         taxasFinanceiroManuais += val;
                                     } 
                                     else if (cmvKeywords.some(k => c.includes(k))) {
@@ -1186,11 +1189,13 @@
                                 const impostosEstimados = faturamentoTotal * (p(cmvSettings.tax) / 100);
                                 const taxasCartaoAutomaticas = (mDebito * (p(cmvSettings.taxaDebito)/100)) + (mCredito * (p(cmvSettings.taxaCredito)/100));
                                 const taxasCartaoTotais = taxasCartaoAutomaticas + taxasFinanceiroManuais;
-                                const totalMotoboy = mMotoboy + mTaxaEntrega + motoboyFinanceiroExtra;
+                                
+                                // Não soma mais da aba vendas e do financeiro juntos. Se tem no financeiro, usa o do financeiro.
+                                const totalMotoboy = motoboyFinanceiroExtra > 0 ? motoboyFinanceiroExtra : (mMotoboy + mTaxaEntrega);
                                 
                                 const totalCustosVariaveis = custoInsumos + impostosEstimados + taxasCartaoTotais + totalMotoboy;
-                                const margemContribuicaoVal = faturamentoTotal - totalCustosVariaveis;
-                                const lucroLiquidoFinal = margemContribuicaoVal - totalCustosFixosDRE;
+                                const marginVal = faturamentoTotal - totalCustosVariaveis;
+                                const lucroLiquidoFinal = marginVal - totalCustosFixosDRE;
 
                                 return (
                                     <div className="space-y-4 fade-in print-area" id="print-area">
@@ -1210,7 +1215,7 @@
                                             </div>
                                             <div className="glass-card p-4 rounded-xl border-l-4 border-emerald-500 text-center">
                                                 <span className="text-[8px] font-black text-slate-400 block uppercase">Margem de Contribuição Bruta</span>
-                                                <h3 className="text-xl font-black text-emerald-600 mt-1">{faturamentoTotal > 0 ? ((margemContribuicaoVal/faturamentoTotal)*100).toFixed(1) : 0}%</h3>
+                                                <h3 className="text-xl font-black text-emerald-600 mt-1">{faturamentoTotal > 0 ? ((marginVal/faturamentoTotal)*100).toFixed(1) : 0}%</h3>
                                             </div>
                                             <div className="glass-card p-4 rounded-xl border-l-4 border-orange-500 text-center">
                                                 <span className="text-[8px] font-black text-slate-400 block uppercase">CMV Real Financeiro</span>
@@ -1252,7 +1257,7 @@
                                                             <tr><td className="p-2 pl-4 border">Custos de Entrega / Motoboy</td><td className="p-2 text-right border">-{formatMoney(totalMotoboy)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((totalMotoboy/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             <tr className="bg-red-50/20 font-black"><td className="p-2 border">TOTAL DE CUSTOS VARIÁVEIS (B)</td><td className="p-2 text-right border text-red-600">-{formatMoney(totalCustosVariaveis)}</td><td className="p-2 text-center border">{faturamentoTotal > 0 ? ((totalCustosVariaveis/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             
-                                                            <tr className="bg-amber-50/30 font-black"><td className="p-2 border">(=) MARGEM DE CONTRIBUIÇÃO LIQUIDA (A - B)</td><td className="p-2 text-right border text-amber-700">{formatMoney(margemContribuicaoVal)}</td><td className="p-2 text-center border text-amber-700">{faturamentoTotal > 0 ? ((margemContribuicaoVal/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
+                                                            <tr className="bg-amber-50/30 font-black"><td className="p-2 border">(=) MARGEM DE CONTRIBUIÇÃO LIQUIDA (A - B)</td><td className="p-2 text-right border text-amber-700">{formatMoney(marginVal)}</td><td className="p-2 text-center border text-amber-700">{faturamentoTotal > 0 ? ((marginVal/faturamentoTotal)*100).toFixed(1) : 0}%</td></tr>
                                                             
                                                             <tr className="bg-slate-100 font-black"><td colSpan="3" className="p-2 border">3. Estrutura de Custos Fixos</td></tr>
                                                             {listaCustosFixos.sort((a,b)=>b.val-a.val).map((fc, idx) => (
@@ -1356,8 +1361,8 @@
                                             <div className="relative"><Icon name="search" size={14} className="absolute left-3 top-2.5 text-slate-300" /><input type="text" placeholder="Pesquisar histórico..." className="w-full pl-9 pr-3 py-2 bg-white border rounded-xl font-bold outline-none text-[10px]" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} /></div>
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 relative">
                                                 <select className="p-1.5 border rounded-lg font-black text-[9px] outline-none" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option value="todos">TIPO: TODOS</option><option value="entrada">ENTRADAS</option><option value="saida">SAÍDAS</option><option value="transferencia">TRANSF.</option></select>
-                                                <select className="p-1.5 border rounded-lg font-black text-[9px] outline-none" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="todos">STATUS: TODOS</option><option value="pago">PAGOS</option><option value="pendente">PENDENTES</option></select>
-                                                <select className="p-1.5 border rounded-lg font-black text-[9px] outline-none" value={accFilter} onChange={e=>setAccFilter(e.target.value)}><option value="todas">CONTA: TODAS</option>{accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}</select>
+                                                <select className="p-1.5 border rounded-lg font-black text-[9px]" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="todos">STATUS: TODOS</option><option value="pago">PAGOS</option><option value="pendente">PENDENTES</option></select>
+                                                <select className="p-1.5 border rounded-lg font-black text-[9px]" value={accFilter} onChange={e=>setAccFilter(e.target.value)}><option value="todas">CONTA: TODAS</option>{accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}</select>
                                                 
                                                 {/* NOVO MENU MULTI-SELEÇÃO DE CATEGORIAS */}
                                                 <div className="relative">
@@ -1668,7 +1673,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: INSUMOS (RESTAURADA E COMPLETA POR CATEGORIA) */}
+                            {/* ABA: INSUMOS */}
                             {activeTab === 'insumos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1707,7 +1712,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: FICHAS TÉCNICAS (RESTAURADA E COMPLETA) */}
+                            {/* ABA: FICHAS TÉCNICAS */}
                             {activeTab === 'fichas' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1748,7 +1753,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: COMPLEMENTOS / ADICIONAIS (RESTAURADA E COMPLETA) */}
+                            {/* ABA: COMPLEMENTOS / ADICIONAIS */}
                             {activeTab === 'complementos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1783,7 +1788,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: COMBOS PROMO COMPLETA */}
+                            {/* ABA: COMBOS PROMO */}
                             {activeTab === 'combos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1824,7 +1829,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: ANÁLISE OPERACIONAL DE CARDÁPIO COMPLETA */}
+                            {/* ABA: ANÁLISE OPERACIONAL DE CARDÁPIO */}
                             {activeTab === 'analise' && (() => {
                                 const totalFixedCosts = fixedCosts.reduce((s,c)=>s+p(c.value),0);
                                 const cmvGeral = (() => { let sumCmv = 0, count = 0; [...recipes, ...complements, ...combos].forEach(item => { if (!item.ignoreCMV) { const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items); const sp = p(item.sellingPrice); if(sp>0){ sumCmv += (cost/sp)*100; count++; } } }); return count>0 ? (sumCmv/count).toFixed(1) : 0; })();
@@ -1858,7 +1863,7 @@
                                 );
                             })()}
 
-                            {/* ABA: CUSTOS FIXOS COMPLETA */}
+                            {/* ABA: CUSTOS FIXOS */}
                             {activeTab === 'custos_fixos' && (
                                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 fade-in">
                                      <div className="glass-card p-4 rounded-xl h-fit space-y-3"><h3 className="font-black text-sm uppercase">Cadastrar Nova Despesa Fixa</h3>
@@ -1883,6 +1888,90 @@
                                                  ))}
                                              </tbody>
                                          </table>
+                                     </div>
+                                 </div>
+                            )}
+
+                            {/* ABA: CONFIGURAÇÕES E AJUSTES */}
+                            {activeTab === 'ajustes' && (
+                                 <div className="glass-card p-6 rounded-xl border-t-8 border-[#D97757] shadow-xl grid grid-cols-1 md:grid-cols-2 gap-6 fade-in">
+                                     <div className="space-y-4"><div><h3 className="font-black uppercase text-slate-800 text-base">Parâmetros & Taxas Gerais</h3><p className="font-bold text-slate-400 uppercase mt-1">Configurações para os cálculos automáticos</p></div>
+                                         <div className="grid grid-cols-2 gap-3">
+                                             <div className="space-y-0.5"><label className="font-black text-slate-400">Meta CMV Geral (%)</label><input type="number" step="0.1" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.targetCMV} onChange={e=>setCmvSettings({...cmvSettings, targetCMV: e.target.value})} /></div>
+                                             <div className="space-y-0.5"><label className="font-black text-slate-400">Impostos Simples (%)</label><input type="number" step="0.1" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.tax} onChange={e=>setCmvSettings({...cmvSettings, tax: e.target.value})} /></div>
+                                             <div className="space-y-0.5"><label className="font-black text-slate-400">Taxa Máquina Débito (%)</label><input type="number" step="0.01" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.taxaDebito} onChange={e=>setCmvSettings({...cmvSettings, taxaDebito: e.target.value})} /></div>
+                                             <div className="space-y-0.5"><label className="font-black text-slate-400">Taxa Máquina Crédito (%)</label><input type="number" step="0.01" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.taxaCredito} onChange={e=>setCmvSettings({...cmvSettings, taxaCredito: e.target.value})} /></div>
+                                             <div className="space-y-0.5"><label className="font-black text-slate-400">Taxa Auto (Aba Vendas)</label>
+                                                 <select className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none text-emerald-600" value={cmvSettings.autoFeeVendas ? 'sim' : 'nao'} onChange={e=>setCmvSettings({...cmvSettings, autoFeeVendas: e.target.value === 'sim'})}>
+                                                     <option value="sim">SIM (DEDUZIR DO DRE)</option><option value="nao">NÃO DEDUZIR</option>
+                                                 </select>
+                                             </div>
+                                             <div className="space-y-0.5"><label className="font-black text-red-500">Taxa iFood (%)</label><input type="number" step="0.1" className="w-full p-2.5 bg-red-50/30 border border-red-100 rounded-xl font-bold text-red-600 outline-none focus:border-red-500" value={cmvSettings.ifoodTax} onChange={e=>setCmvSettings({...cmvSettings, ifoodTax: e.target.value})} /></div>
+                                             <div className="col-span-2 space-y-0.5"><label className="font-black text-blue-500">Meta Vendas Mensal (R$)</label><input type="number" step="0.01" className="w-full p-2.5 bg-blue-50 border border-blue-100 rounded-xl font-bold outline-none focus:border-blue-500" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} /></div>
+                                         </div>
+                                         <button type="button" onClick={async()=>{ 
+                                             if(window.confirm('Confirmar a alteração das Taxas e Parâmetros?')) {
+                                                if(!user) return; 
+                                                const settingsToSave = {
+                                                    targetCMV: p(cmvSettings.targetCMV), 
+                                                    tax: p(cmvSettings.tax), 
+                                                    apps: p(cmvSettings.apps), 
+                                                    taxaDebito: p(cmvSettings.taxaDebito), 
+                                                    taxaCredito: p(cmvSettings.taxaCredito), 
+                                                    ifoodTax: p(cmvSettings.ifoodTax), 
+                                                    autoFeeVendas: cmvSettings.autoFeeVendas
+                                                };
+                                                await saveCMVDoc('settings', settingsToSave); 
+                                                await saveMeta(metaVendas); 
+                                                alert('Parâmetros Salvos com Sucesso!');
+                                             }
+                                         }} className="w-full bg-[#1A202C] text-[#F8CC82] p-2.5 rounded-lg font-black text-[10px] uppercase shadow">Salvar Configurações Globais</button>
+                                     </div>
+                                     <div className="space-y-4"><div><h3 className="font-black uppercase text-slate-800 text-base">Estrutura Financeira e Contas</h3><p className="font-bold text-slate-400 uppercase mt-1">Gerencie a lista oficial de contas operacionais</p></div>
+                                         <div className="space-y-2">
+                                             <form onSubmit={addCat} className="flex gap-2"><input type="text" placeholder="Nova Categoria..." className="flex-1 p-2 bg-slate-50 border rounded-lg font-bold outline-none" value={catForm} onChange={e=>setCatForm(e.target.value)} required /><button className="bg-black text-[#F8CC82] px-3 rounded-lg font-black text-[9px]">Add Cat.</button></form>
+                                             
+                                             <form onSubmit={handleSaveAcc} className="flex flex-col gap-2 bg-slate-50 p-3 rounded-xl border">
+                                                 <div className="flex justify-between items-center mb-1">
+                                                     <span className="font-black text-[9px] text-slate-600 uppercase">{accForm.id ? 'A Editar Conta/Cartão' : 'Nova Conta ou Cartão'}</span>
+                                                     {accForm.id && <button type="button" onClick={()=>setAccForm({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' })} className="text-[8px] text-red-500 font-black uppercase hover:underline">Cancelar Edição</button>}
+                                                 </div>
+                                                 <div className="flex gap-2">
+                                                     <input type="text" placeholder="Nome Conta/Cartão" className="flex-1 p-2 bg-white border rounded-lg font-bold outline-none text-[10px]" value={accForm.name} onChange={e=>setAccForm({...accForm, name: e.target.value})} required />
+                                                     <select className="p-2 bg-white border rounded-lg font-bold outline-none text-[10px]" value={accForm.type} onChange={e=>setAccForm({...accForm, type: e.target.value})}><option value="corrente">Corrente</option><option value="cartao">Cartão de Crédito</option></select>
+                                                 </div>
+                                                 {accForm.type === 'cartao' && (
+                                                     <div className="grid grid-cols-3 gap-2">
+                                                         <input type="number" placeholder="Limite R$" className="p-2 bg-white border rounded-lg font-bold text-[10px]" value={accForm.limit} onChange={e=>setAccForm({...accForm, limit: e.target.value})} />
+                                                         <input type="number" placeholder="Dia Fecho" className="p-2 bg-white border rounded-lg font-bold text-[10px]" value={accForm.closing} onChange={e=>setAccForm({...accForm, closing: e.target.value})} />
+                                                         <input type="number" placeholder="Dia Venc" className="p-2 bg-white border rounded-lg font-bold text-[10px]" value={accForm.due} onChange={e=>setAccForm({...accForm, due: e.target.value})} />
+                                                     </div>
+                                                 )}
+                                                 <button className="w-full bg-[#1A202C] text-white py-2 rounded-lg font-black text-[10px] uppercase mt-1">{accForm.id ? 'Atualizar' : 'Salvar'} Conta/Cartão</button>
+                                             </form>
+                                         </div>
+                                         <div className="mt-4 border-t pt-4">
+                                             <h4 className="font-black text-slate-800 mb-3 flex items-center gap-1.5"><Icon name="wallet" size={12}/> Contas & Cartões Ativos</h4>
+                                             <div className="space-y-1.5 overflow-y-auto max-h-[300px] no-scrollbar">
+                                                 {accounts.length === 0 ? <p className="text-center font-bold text-slate-400 p-2">Vazio</p> : accounts.sort((a,b)=>a.name.localeCompare(b.name)).map(a => (
+                                                     <div key={a.id} className="p-2.5 flex justify-between items-center bg-white border rounded-lg shadow-sm hover:border-slate-300 transition-all">
+                                                         <div>
+                                                             <div className="flex items-center gap-1.5">
+                                                                 {a.type === 'cartao' ? <Icon name="credit-card" size={12} className="text-orange-500" /> : <Icon name="wallet" size={12} className="text-blue-500" />}
+                                                                 <span className="font-black uppercase text-slate-800">{a.name}</span>
+                                                             </div>
+                                                             <p className="font-bold text-slate-400 uppercase mt-0.5 ml-4 text-[8px]">
+                                                                 {a.type} {a.type === 'cartao' && ` • Limite: ${formatMoney(a.limit)} • Fecho: ${a.closing || a.closingDay || '25'} • Venc: ${a.due || a.dueDay || '10'}`}
+                                                             </p>
+                                                         </div>
+                                                         <div className="flex gap-1 items-center">
+                                                             <button type="button" onClick={()=>setAccForm({ ...a, closing: a.closing || a.closingDay || '', due: a.due || a.dueDay || '' })} className="text-blue-500 bg-slate-100 px-2 py-1 rounded text-[8px] font-black uppercase">Editar</button>
+                                                             <button type="button" onClick={() => executeDelete('accounts', a.id)} className="text-red-500 bg-red-50 px-2 py-1 rounded text-[8px] font-black uppercase">Excluir</button>
+                                                         </div>
+                                                     </div>
+                                                 ))}
+                                             </div>
+                                         </div>
                                      </div>
                                  </div>
                             )}
