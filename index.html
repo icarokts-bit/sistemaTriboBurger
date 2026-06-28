@@ -158,7 +158,11 @@
             const [typeFilter, setTypeFilter] = useState('todos');
             const [statusFilter, setStatusFilter] = useState('todos');
             const [accFilter, setAccFilter] = useState('todas');
-            const [catFilter, setCatFilter] = useState('todas');
+            
+            // NOVO: Filtro de Categorias Multi-seleção
+            const [catFilter, setCatFilter] = useState([]);
+            const [isCatMenuOpen, setIsCatMenuOpen] = useState(false);
+
             const [visibleTxCount, setVisibleTxCount] = useState(10);
             
             // Formulários Financeiros
@@ -297,7 +301,9 @@
                     const matchType = typeFilter === 'todos' || t.type === typeFilter;
                     const matchStatus = statusFilter === 'todos' || t.status === statusFilter;
                     const matchAcc = accFilter === 'todas' || t.account === accFilter;
-                    const matchCat = catFilter === 'todas' || t.category === catFilter;
+                    
+                    // LÓGICA DE FILTRO MULTI-CATEGORIAS ATUALIZADA
+                    const matchCat = catFilter.length === 0 || catFilter.includes(t.category);
 
                     return isMonth && matchSearch && matchType && matchStatus && matchAcc && matchCat;
                 }).sort((a,b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
@@ -474,6 +480,16 @@
                 };
             }, [dailyRecords, transactions, filterMonth, metaVendas, cmvSettings]);
 
+            // NOVO: Cálculo dos totais de tudo o que foi filtrado no histórico
+            const totaisFiltrados = useMemo(() => {
+                let entradas = 0; let saidas = 0;
+                filteredDashboard.forEach(t => {
+                    if (t.type === 'entrada') entradas += p(t.amount);
+                    if (t.type === 'saida') saidas += p(t.amount);
+                });
+                return { entradas, saidas, saldo: entradas - saidas };
+            }, [filteredDashboard]);
+
             const salesDays = useMemo(() => {
                 return Object.keys(dailyRecords)
                     .filter(d=>d.startsWith(filterMonth))
@@ -536,7 +552,6 @@
                 return { ...card, currentBalance, limit, available };
             }), [transactions, accounts]);
 
-            // VARIÁVEIS GLOBAIS DE RELATÓRIOS E PAGAMENTOS
             const totalAPagar = useMemo(() => consolidatedAPagar.reduce((sum, t) => sum + p(t.amount), 0), [consolidatedAPagar]);
             const totalReceitasPendentes = useMemo(() => consolidatedAReceber.reduce((sum, t) => sum + p(t.amount), 0), [consolidatedAReceber]);
             const somaDespesasCategoria = useMemo(() => Object.values(stats.catCosts).reduce((a, b) => a + b, 0), [stats.catCosts]);
@@ -1088,9 +1103,7 @@
                                 </button>
                             </div>
                         </div>
-                        <div className="p-4 border-t border-white/10 text-center">
-                            <button type="button" onClick={()=>auth.signOut()} className="w-full py-2 bg-red-500/10 text-red-400 rounded-lg font-black uppercase hover:bg-red-500/20 transition-all">Sair</button>
-                        </div>
+                        <div className="p-4 border-t border-white/10 text-center"><button type="button" onClick={()=>auth.signOut()} className="w-full py-2 bg-red-500/10 text-red-400 rounded-lg font-black uppercase hover:bg-red-500/20 transition-all">Sair</button></div>
                     </div>
 
                     {/* CONTEÚDO PRINCIPAL DAS ABAS */}
@@ -1133,6 +1146,7 @@
                                 // Faturamento TOTAL APENAS das vendas do caixa diário
                                 const faturamentoTotal = mPix + mPixOn + mDinheiro + mIfood + mDebito + mCredito + mFiado + mVR + mTicket + mAlelo;
                                 
+                                // O usuário quer que CMV seja os Insumos/Embalagens do Financeiro
                                 let custoRealInsumosFinanceiro = 0;
                                 let taxasFinanceiroManuais = 0;
                                 let motoboyFinanceiroExtra = 0;
@@ -1338,16 +1352,49 @@
                                     </form>
 
                                     <div className="lg:col-span-2 glass-card rounded-xl shadow-sm h-[550px] flex flex-col border overflow-hidden">
-                                        <div className="p-3 bg-slate-50 border-b space-y-2">
+                                        <div className="p-3 bg-slate-50 border-b space-y-2 relative">
                                             <div className="relative"><Icon name="search" size={14} className="absolute left-3 top-2.5 text-slate-300" /><input type="text" placeholder="Pesquisar histórico..." className="w-full pl-9 pr-3 py-2 bg-white border rounded-xl font-bold outline-none text-[10px]" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} /></div>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                                <select className="p-1.5 border rounded-lg font-black text-[9px]" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option value="todos">TIPO: TODOS</option><option value="entrada">ENTRADAS</option><option value="saida">SAÍDAS</option><option value="transferencia">TRANSF.</option></select>
-                                                <select className="p-1.5 border rounded-lg font-black text-[9px]" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="todos">STATUS: TODOS</option><option value="pago">PAGOS</option><option value="pendente">PENDENTES</option></select>
-                                                <select className="p-1.5 border rounded-lg font-black text-[9px]" value={accFilter} onChange={e=>setAccFilter(e.target.value)}><option value="todas">CONTA: TODAS</option>{accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}</select>
-                                                <select className="p-1.5 border rounded-lg font-black text-[9px]" value={catFilter} onChange={e=>setCatFilter(e.target.value)}><option value="todas">CAT: TODAS</option>{categories.sort((a,b)=>a.name.localeCompare(b.name)).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 relative">
+                                                <select className="p-1.5 border rounded-lg font-black text-[9px] outline-none" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option value="todos">TIPO: TODOS</option><option value="entrada">ENTRADAS</option><option value="saida">SAÍDAS</option><option value="transferencia">TRANSF.</option></select>
+                                                <select className="p-1.5 border rounded-lg font-black text-[9px] outline-none" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="todos">STATUS: TODOS</option><option value="pago">PAGOS</option><option value="pendente">PENDENTES</option></select>
+                                                <select className="p-1.5 border rounded-lg font-black text-[9px] outline-none" value={accFilter} onChange={e=>setAccFilter(e.target.value)}><option value="todas">CONTA: TODAS</option>{accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}</select>
+                                                
+                                                {/* NOVO MENU MULTI-SELEÇÃO DE CATEGORIAS */}
+                                                <div className="relative">
+                                                    <button type="button" onClick={() => setIsCatMenuOpen(!isCatMenuOpen)} className="w-full p-1.5 border rounded-lg font-black text-[9px] bg-white text-left flex justify-between items-center h-full">
+                                                        <span className="truncate">{catFilter.length === 0 ? 'CAT: TODAS' : `${catFilter.length} SELECIONADAS`}</span>
+                                                        <Icon name="chevron-down" size={10} />
+                                                    </button>
+                                                    {isCatMenuOpen && (
+                                                        <div className="absolute top-full right-0 mt-1 w-48 bg-white border rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto p-2 flex flex-col gap-1">
+                                                            <label className="flex items-center gap-2 text-[10px] font-black cursor-pointer p-1.5 hover:bg-slate-50 rounded">
+                                                                <input type="checkbox" checked={catFilter.length === 0} onChange={() => setCatFilter([])} className="accent-[#F27A18]" /> TODAS AS CATS
+                                                            </label>
+                                                            <hr className="my-1 border-slate-200"/>
+                                                            {categories.sort((a,b)=>a.name.localeCompare(b.name)).map(c => (
+                                                                <label key={c.id} className="flex items-center gap-2 text-[9px] font-black cursor-pointer p-1.5 hover:bg-slate-50 rounded">
+                                                                    <input type="checkbox" checked={catFilter.includes(c.name)} onChange={(e) => {
+                                                                        if(e.target.checked) setCatFilter([...catFilter, c.name]);
+                                                                        else setCatFilter(catFilter.filter(x => x !== c.name));
+                                                                    }} className="accent-[#F27A18]" /> {c.name}
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            
+                                            {/* NOVA BARRA DE TOTAIS */}
+                                            <div className="flex justify-between items-center bg-[#1A202C] text-white p-2 rounded-lg shadow-inner mt-2">
+                                                <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Totais Filtrados:</span>
+                                                <div className="flex gap-4">
+                                                    <span className="text-[10px] font-black text-green-400">In: {formatMoney(totaisFiltrados.entradas)}</span>
+                                                    <span className="text-[10px] font-black text-red-400">Out: -{formatMoney(totaisFiltrados.saidas)}</span>
+                                                    <span className="text-[10px] font-black text-white ml-2">Total: {formatMoney(totaisFiltrados.saldo)}</span>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="flex-1 overflow-y-auto no-scrollbar divide-y">
+                                        <div className="flex-1 overflow-y-auto no-scrollbar divide-y" onClick={() => isCatMenuOpen && setIsCatMenuOpen(false)}>
                                             {filteredDashboard.slice(0, visibleTxCount).map(t => (
                                                 <div key={t.id} className="p-3 flex justify-between items-center hover:bg-slate-50 transition-all">
                                                     <div className="flex items-center gap-3">
@@ -1621,7 +1668,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: INSUMOS */}
+                            {/* ABA: INSUMOS (RESTAURADA E COMPLETA POR CATEGORIA) */}
                             {activeTab === 'insumos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1660,7 +1707,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: FICHAS TÉCNICAS */}
+                            {/* ABA: FICHAS TÉCNICAS (RESTAURADA E COMPLETA) */}
                             {activeTab === 'fichas' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1701,7 +1748,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: COMPLEMENTOS / ADICIONAIS */}
+                            {/* ABA: COMPLEMENTOS / ADICIONAIS (RESTAURADA E COMPLETA) */}
                             {activeTab === 'complementos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1736,7 +1783,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: COMBOS PROMO */}
+                            {/* ABA: COMBOS PROMO COMPLETA */}
                             {activeTab === 'combos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
@@ -1777,7 +1824,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: ANÁLISE OPERACIONAL DE CARDÁPIO */}
+                            {/* ABA: ANÁLISE OPERACIONAL DE CARDÁPIO COMPLETA */}
                             {activeTab === 'analise' && (() => {
                                 const totalFixedCosts = fixedCosts.reduce((s,c)=>s+p(c.value),0);
                                 const cmvGeral = (() => { let sumCmv = 0, count = 0; [...recipes, ...complements, ...combos].forEach(item => { if (!item.ignoreCMV) { const cost = item.ingredients ? calcItemCost(item.ingredients) : calcComboCost(item.items); const sp = p(item.sellingPrice); if(sp>0){ sumCmv += (cost/sp)*100; count++; } } }); return count>0 ? (sumCmv/count).toFixed(1) : 0; })();
@@ -1811,7 +1858,7 @@
                                 );
                             })()}
 
-                            {/* ABA: CUSTOS FIXOS */}
+                            {/* ABA: CUSTOS FIXOS COMPLETA */}
                             {activeTab === 'custos_fixos' && (
                                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 fade-in">
                                      <div className="glass-card p-4 rounded-xl h-fit space-y-3"><h3 className="font-black text-sm uppercase">Cadastrar Nova Despesa Fixa</h3>
@@ -1836,90 +1883,6 @@
                                                  ))}
                                              </tbody>
                                          </table>
-                                     </div>
-                                 </div>
-                            )}
-
-                            {/* ABA: CONFIGURAÇÕES E AJUSTES */}
-                            {activeTab === 'ajustes' && (
-                                 <div className="glass-card p-6 rounded-xl border-t-8 border-[#D97757] shadow-xl grid grid-cols-1 md:grid-cols-2 gap-6 fade-in">
-                                     <div className="space-y-4"><div><h3 className="font-black uppercase text-slate-800 text-base">Parâmetros & Taxas Gerais</h3><p className="font-bold text-slate-400 uppercase mt-1">Configurações para os cálculos automáticos</p></div>
-                                         <div className="grid grid-cols-2 gap-3">
-                                             <div className="space-y-0.5"><label className="font-black text-slate-400">Meta CMV Geral (%)</label><input type="number" step="0.1" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.targetCMV} onChange={e=>setCmvSettings({...cmvSettings, targetCMV: e.target.value})} /></div>
-                                             <div className="space-y-0.5"><label className="font-black text-slate-400">Impostos Simples (%)</label><input type="number" step="0.1" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.tax} onChange={e=>setCmvSettings({...cmvSettings, tax: e.target.value})} /></div>
-                                             <div className="space-y-0.5"><label className="font-black text-slate-400">Taxa Máquina Débito (%)</label><input type="number" step="0.01" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.taxaDebito} onChange={e=>setCmvSettings({...cmvSettings, taxaDebito: e.target.value})} /></div>
-                                             <div className="space-y-0.5"><label className="font-black text-slate-400">Taxa Máquina Crédito (%)</label><input type="number" step="0.01" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none" value={cmvSettings.taxaCredito} onChange={e=>setCmvSettings({...cmvSettings, taxaCredito: e.target.value})} /></div>
-                                             <div className="space-y-0.5"><label className="font-black text-slate-400">Taxa Auto (Aba Vendas)</label>
-                                                 <select className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold outline-none text-emerald-600" value={cmvSettings.autoFeeVendas ? 'sim' : 'nao'} onChange={e=>setCmvSettings({...cmvSettings, autoFeeVendas: e.target.value === 'sim'})}>
-                                                     <option value="sim">SIM (DEDUZIR DO DRE)</option><option value="nao">NÃO DEDUZIR</option>
-                                                 </select>
-                                             </div>
-                                             <div className="space-y-0.5"><label className="font-black text-red-500">Taxa iFood (%)</label><input type="number" step="0.1" className="w-full p-2.5 bg-red-50/30 border border-red-100 rounded-xl font-bold text-red-600 outline-none focus:border-red-500" value={cmvSettings.ifoodTax} onChange={e=>setCmvSettings({...cmvSettings, ifoodTax: e.target.value})} /></div>
-                                             <div className="col-span-2 space-y-0.5"><label className="font-black text-blue-500">Meta Vendas Mensal (R$)</label><input type="number" step="0.01" className="w-full p-2.5 bg-blue-50 border border-blue-100 rounded-xl font-bold outline-none focus:border-blue-500" value={metaVendas} onChange={e=>setMetaVendas(e.target.value)} /></div>
-                                         </div>
-                                         <button type="button" onClick={async()=>{ 
-                                             if(window.confirm('Confirmar a alteração das Taxas e Parâmetros?')) {
-                                                if(!user) return; 
-                                                const settingsToSave = {
-                                                    targetCMV: p(cmvSettings.targetCMV), 
-                                                    tax: p(cmvSettings.tax), 
-                                                    apps: p(cmvSettings.apps), 
-                                                    taxaDebito: p(cmvSettings.taxaDebito), 
-                                                    taxaCredito: p(cmvSettings.taxaCredito), 
-                                                    ifoodTax: p(cmvSettings.ifoodTax), 
-                                                    autoFeeVendas: cmvSettings.autoFeeVendas
-                                                };
-                                                await saveCMVDoc('settings', settingsToSave); 
-                                                await saveMeta(metaVendas); 
-                                                alert('Parâmetros Salvos com Sucesso!');
-                                             }
-                                         }} className="w-full bg-[#1A202C] text-[#F8CC82] p-2.5 rounded-lg font-black text-[10px] uppercase shadow">Salvar Configurações Globais</button>
-                                     </div>
-                                     <div className="space-y-4"><div><h3 className="font-black uppercase text-slate-800 text-base">Estrutura Financeira e Contas</h3><p className="font-bold text-slate-400 uppercase mt-1">Gerencie a lista oficial de contas operacionais</p></div>
-                                         <div className="space-y-2">
-                                             <form onSubmit={addCat} className="flex gap-2"><input type="text" placeholder="Nova Categoria..." className="flex-1 p-2 bg-slate-50 border rounded-lg font-bold outline-none" value={catForm} onChange={e=>setCatForm(e.target.value)} required /><button className="bg-black text-[#F8CC82] px-3 rounded-lg font-black text-[9px]">Add Cat.</button></form>
-                                             
-                                             <form onSubmit={handleSaveAcc} className="flex flex-col gap-2 bg-slate-50 p-3 rounded-xl border">
-                                                 <div className="flex justify-between items-center mb-1">
-                                                     <span className="font-black text-[9px] text-slate-600 uppercase">{accForm.id ? 'A Editar Conta/Cartão' : 'Nova Conta ou Cartão'}</span>
-                                                     {accForm.id && <button type="button" onClick={()=>setAccForm({ id: null, name: '', type: 'corrente', group: 'operacional', limit: '', closing: '', due: '' })} className="text-[8px] text-red-500 font-black uppercase hover:underline">Cancelar Edição</button>}
-                                                 </div>
-                                                 <div className="flex gap-2">
-                                                     <input type="text" placeholder="Nome Conta/Cartão" className="flex-1 p-2 bg-white border rounded-lg font-bold outline-none text-[10px]" value={accForm.name} onChange={e=>setAccForm({...accForm, name: e.target.value})} required />
-                                                     <select className="p-2 bg-white border rounded-lg font-bold outline-none text-[10px]" value={accForm.type} onChange={e=>setAccForm({...accForm, type: e.target.value})}><option value="corrente">Corrente</option><option value="cartao">Cartão de Crédito</option></select>
-                                                 </div>
-                                                 {accForm.type === 'cartao' && (
-                                                     <div className="grid grid-cols-3 gap-2">
-                                                         <input type="number" placeholder="Limite R$" className="p-2 bg-white border rounded-lg font-bold text-[10px]" value={accForm.limit} onChange={e=>setAccForm({...accForm, limit: e.target.value})} />
-                                                         <input type="number" placeholder="Dia Fecho" className="p-2 bg-white border rounded-lg font-bold text-[10px]" value={accForm.closing} onChange={e=>setAccForm({...accForm, closing: e.target.value})} />
-                                                         <input type="number" placeholder="Dia Venc" className="p-2 bg-white border rounded-lg font-bold text-[10px]" value={accForm.due} onChange={e=>setAccForm({...accForm, due: e.target.value})} />
-                                                     </div>
-                                                 )}
-                                                 <button className="w-full bg-[#1A202C] text-white py-2 rounded-lg font-black text-[10px] uppercase mt-1">{accForm.id ? 'Atualizar' : 'Salvar'} Conta/Cartão</button>
-                                             </form>
-                                         </div>
-                                         <div className="mt-4 border-t pt-4">
-                                             <h4 className="font-black text-slate-800 mb-3 flex items-center gap-1.5"><Icon name="wallet" size={12}/> Contas & Cartões Ativos</h4>
-                                             <div className="space-y-1.5 overflow-y-auto max-h-[300px] no-scrollbar">
-                                                 {accounts.length === 0 ? <p className="text-center font-bold text-slate-400 p-2">Vazio</p> : accounts.sort((a,b)=>a.name.localeCompare(b.name)).map(a => (
-                                                     <div key={a.id} className="p-2.5 flex justify-between items-center bg-white border rounded-lg shadow-sm hover:border-slate-300 transition-all">
-                                                         <div>
-                                                             <div className="flex items-center gap-1.5">
-                                                                 {a.type === 'cartao' ? <Icon name="credit-card" size={12} className="text-orange-500" /> : <Icon name="wallet" size={12} className="text-blue-500" />}
-                                                                 <span className="font-black uppercase text-slate-800">{a.name}</span>
-                                                             </div>
-                                                             <p className="font-bold text-slate-400 uppercase mt-0.5 ml-4 text-[8px]">
-                                                                 {a.type} {a.type === 'cartao' && ` • Limite: ${formatMoney(a.limit)} • Fecho: ${a.closing || a.closingDay || '25'} • Venc: ${a.due || a.dueDay || '10'}`}
-                                                             </p>
-                                                         </div>
-                                                         <div className="flex gap-1 items-center">
-                                                             <button type="button" onClick={()=>setAccForm({ ...a, closing: a.closing || a.closingDay || '', due: a.due || a.dueDay || '' })} className="text-blue-500 bg-slate-100 px-2 py-1 rounded text-[8px] font-black uppercase">Editar</button>
-                                                             <button type="button" onClick={() => executeDelete('accounts', a.id)} className="text-red-500 bg-red-50 px-2 py-1 rounded text-[8px] font-black uppercase">Excluir</button>
-                                                         </div>
-                                                     </div>
-                                                 ))}
-                                             </div>
-                                         </div>
                                      </div>
                                  </div>
                             )}
