@@ -122,13 +122,13 @@
             if (!t) return false;
             const desc = (t.description || "").toLowerCase();
             const cat = (t.category || "").toLowerCase();
-            // Qualquer coisa que tenha a palavra fatura não soma nos totais para não duplicar com as compras individuais
             return desc.includes("fatura") || cat.includes("fatura");
         };
 
-        // BLINDAGEM DE MESES: Pertence estritamente ao mês do Vencimento (Regime de Caixa Operacional)
+        // BLINDAGEM DE MESES E VENCIMENTOS (O MÊS DA TRANSAÇÃO É ESTRITAMENTE O MÊS DO VENCIMENTO)
         const getTxMonth = (t) => {
             if (!t) return '';
+            // Substituído: Agora usa primeiramente a data de vencimento (clearanceDate) para agrupar as faturas no mês correto
             return (t.clearanceDate || t.date || '').slice(0, 7);
         };
 
@@ -298,31 +298,58 @@
                 setVisibleTxCount(15); 
             }, [filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
 
+            // NOVO: MAPA DE FATURAS PAGAS PARA ATUALIZAR STATUS VISUAL DOS CARTÕES
+            const paidInvoicesMap = useMemo(() => {
+                const map = {};
+                transactions.forEach(t => {
+                    if (isInvoicePayment(t) && t.type === 'entrada') {
+                        const m = getTxMonth(t);
+                        if (!map[m]) map[m] = [];
+                        map[m].push(t.account); // Regista que este cartão foi pago neste mês
+                    }
+                });
+                return map;
+            }, [transactions]);
+
+            const getEffectiveStatus = (t) => {
+                if (t.status === 'pago') return 'pago';
+                const accInfo = accounts.find(a => a.name === t.account);
+                if (accInfo && accInfo.type === 'cartao') {
+                    const m = getTxMonth(t);
+                    if (paidInvoicesMap[m] && paidInvoicesMap[m].includes(t.account)) {
+                        return 'pago'; // Força visualmente e matematicamente para PAGO se a fatura mãe foi paga
+                    }
+                }
+                return t.status;
+            };
+
             // Cálculos Memoizados
             const filteredDashboard = useMemo(() => {
                 return transactions.filter(t => {
                     if (!t) return false;
                     
-                    // O filtro principal de MÊS é regido unicamente pelo Vencimento (ClearanceDate)
+                    // O filtro principal de MÊS é regido unicamente pelo Vencimento
                     const isMonth = getTxMonth(t) === filterMonth;
                     
                     const matchSearch = (t.description || "").toLowerCase().includes(searchQuery.toLowerCase());
                     const matchType = typeFilter === 'todos' || t.type === typeFilter;
-                    const matchStatus = statusFilter === 'todos' || t.status === statusFilter;
-                    const matchAcc = accFilter === 'todas' || t.account === accFilter;
                     
-                    // Filtro Multi-categorias
+                    // Compara usando o Status Efetivo (inteligente)
+                    const effectiveStatus = getEffectiveStatus(t);
+                    const matchStatus = statusFilter === 'todos' || effectiveStatus === statusFilter;
+                    
+                    const matchAcc = accFilter === 'todas' || t.account === accFilter;
                     const matchCat = catFilter.length === 0 || catFilter.includes(t.category);
 
                     return isMonth && matchSearch && matchType && matchStatus && matchAcc && matchCat;
                 }).sort((a,b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
-            }, [transactions, filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
+            }, [transactions, filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter, paidInvoicesMap, accounts]);
 
             // Cálculo dos totais do filtro do histórico
             const totaisFiltrados = useMemo(() => {
                 let entradas = 0; let saidas = 0;
                 filteredDashboard.forEach(t => {
-                    // BLINDAGEM: Faturas pagas de cartão são ignoradas na soma (para não contar 2x os mesmos produtos)
+                    // BLINDAGEM: Faturas de cartão são ignoradas na soma para não contar 2x
                     if (isInvoicePayment(t)) return; 
                     
                     if (t.type === 'entrada') entradas += p(t.amount);
@@ -335,7 +362,7 @@
                 const bal = {}; 
                 accounts.forEach(a => bal[a.name] = 0);
                 transactions.forEach(t => {
-                    if (t.status === 'pago') {
+                    if (getEffectiveStatus(t) === 'pago') {
                         const amt = p(t.amount);
                         if (t.type === 'entrada') bal[t.account] = (bal[t.account] || 0) + amt;
                         else if (t.type === 'saida') bal[t.account] = (bal[t.account] || 0) - amt;
@@ -346,7 +373,7 @@
                     }
                 });
                 return bal;
-            }, [transactions, accounts]);
+            }, [transactions, accounts, paidInvoicesMap]);
 
             const currentAccounts = useMemo(() => accounts.filter(a => a.type === 'corrente'), [accounts]);
             const totalPatrimony = useMemo(() => currentAccounts.reduce((acc, a) => acc + (accountBalances[a.name] || 0), 0), [currentAccounts, accountBalances]);
@@ -430,19 +457,19 @@
                     const isMonth = getTxMonth(t) === filterMonth;
                     
                     if (isMonth) {
-                        if (isInvoicePayment(t)) return; // IGNORA BAIXAS DE FATURA
+                        if (isInvoicePayment(t)) return; // IGNORA BAIXAS DE FATURA NO DRE
                         
                         if (t.type === 'saida') { 
-                            // Soma para o DRE Operacional (Pendente e Pago)
+                            // Soma para o DRE Operacional
                             catCosts[t.category] = (catCosts[t.category] || 0) + p(t.amount); 
                             
-                            // Fluxo de Caixa Limpo (Apenas Pagos)
-                            if (t.status === 'pago') {
+                            // Fluxo de Caixa Limpo
+                            if (getEffectiveStatus(t) === 'pago') {
                                 contasPagas += p(t.amount); 
                             }
                         }
                         else if (t.type === 'entrada') { 
-                            if (t.status === 'pago') {
+                            if (getEffectiveStatus(t) === 'pago') {
                                 entradas += p(t.amount); 
                             }
                         }
@@ -510,7 +537,7 @@
                     diasUteisRestantes: Math.max(0, diasUteisTotaisMes - diasUteisPassados), 
                     autoCardFees 
                 };
-            }, [dailyRecords, transactions, filterMonth, metaVendas, cmvSettings]);
+            }, [dailyRecords, transactions, filterMonth, metaVendas, cmvSettings, accounts, paidInvoicesMap]);
 
             const salesDays = useMemo(() => {
                 return Object.keys(dailyRecords)
@@ -535,7 +562,8 @@
             const consolidatedAPagar = useMemo(() => {
                 const pendings = transactions.filter(t => {
                     const accInfo = accounts.find(a => a.name === t.account);
-                    return t.type === 'saida' && t.status === 'pendente' && getTxMonth(t) === filterMonth && accInfo?.type !== 'cartao' && !isInvoicePayment(t);
+                    // Usa o status efetivo para esconder as contas de cartão se a fatura já foi paga
+                    return t.type === 'saida' && getEffectiveStatus(t) === 'pendente' && getTxMonth(t) === filterMonth && accInfo?.type !== 'cartao' && !isInvoicePayment(t);
                 });
                 
                 const invoices = accounts.filter(a => a.type === 'cartao').map(card => {
@@ -555,13 +583,13 @@
                 }).filter(Boolean);
                 
                 return [...pendings, ...invoices].sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
-            }, [transactions, accounts, filterMonth]);
+            }, [transactions, accounts, filterMonth, paidInvoicesMap]);
 
             const consolidatedAReceber = useMemo(() => {
                 return transactions
-                    .filter(t => t.type === 'entrada' && t.status === 'pendente' && getTxMonth(t) === filterMonth)
+                    .filter(t => t.type === 'entrada' && getEffectiveStatus(t) === 'pendente' && getTxMonth(t) === filterMonth && !isInvoicePayment(t))
                     .sort((a,b) => (a.clearanceDate || "").localeCompare(b.clearanceDate || ""));
-            }, [transactions, filterMonth]);
+            }, [transactions, filterMonth, paidInvoicesMap]);
 
             const cardStats = useMemo(() => accounts.filter(a => a.type === 'cartao').map(card => {
                 const txs = transactions.filter(t => t.account === card.name);
@@ -573,8 +601,10 @@
                 return { ...card, currentBalance, limit, available };
             }), [transactions, accounts]);
 
+            // VARIÁVEIS GLOBAIS DE RELATÓRIOS E PAGAMENTOS
             const totalAPagar = useMemo(() => consolidatedAPagar.reduce((sum, t) => sum + p(t.amount), 0), [consolidatedAPagar]);
             const totalReceitasPendentes = useMemo(() => consolidatedAReceber.reduce((sum, t) => sum + p(t.amount), 0), [consolidatedAReceber]);
+            const somaDespesasCategoria = useMemo(() => Object.values(stats.catCosts).reduce((a, b) => a + b, 0), [stats.catCosts]);
 
             const getIngCost = (id, q) => { 
                 const i = ingredients.find(x => x.id === id); 
@@ -1418,28 +1448,31 @@
                                             </div>
                                         </div>
                                         <div className="flex-1 overflow-y-auto no-scrollbar divide-y" onClick={() => isCatMenuOpen && setIsCatMenuOpen(false)}>
-                                            {filteredDashboard.slice(0, visibleTxCount).map(t => (
-                                                <div key={t.id} className="p-3 flex justify-between items-center hover:bg-slate-50 transition-all">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-6 h-6 rounded flex items-center justify-center font-black text-[9px] ${t.type === 'entrada' ? 'bg-green-100 text-green-700' : (t.type === 'transferencia' ? 'bg-blue-100 text-blue-700' : 'bg-red-50 text-red-600')}`}>
-                                                            {t.type === 'entrada' ? 'IN' : (t.type === 'transferencia' ? 'TR' : 'OUT')}
+                                            {filteredDashboard.slice(0, visibleTxCount).map(t => {
+                                                const effectiveStatus = getEffectiveStatus(t);
+                                                return (
+                                                    <div key={t.id} className="p-3 flex justify-between items-center hover:bg-slate-50 transition-all">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-6 h-6 rounded flex items-center justify-center font-black text-[9px] ${t.type === 'entrada' ? 'bg-green-100 text-green-700' : (t.type === 'transferencia' ? 'bg-blue-100 text-blue-700' : 'bg-red-50 text-red-600')}`}>
+                                                                {t.type === 'entrada' ? 'IN' : (t.type === 'transferencia' ? 'TR' : 'OUT')}
+                                                            </div>
+                                                            <div>
+                                                                <div className="flex items-center gap-2"><p className="font-black text-[11px] uppercase leading-none">{t.description}</p><span className={`status-badge ${effectiveStatus==='pago'?'bg-green-100 text-green-700':'bg-orange-100 text-orange-700'}`}>{effectiveStatus}</span></div>
+                                                                <p className="font-bold text-slate-400 uppercase mt-1 text-[8px]">Lanç: {safeDateDisplay(t.date)} • Venc: {safeDateDisplay(t.clearanceDate)} • {t.account} • {t.category}</p>
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <div className="flex items-center gap-2"><p className="font-black text-[11px] uppercase leading-none">{t.description}</p><span className={`status-badge ${t.status==='pago'?'bg-green-100 text-green-700':'bg-orange-100 text-orange-700'}`}>{t.status}</span></div>
-                                                            <p className="font-bold text-slate-400 uppercase mt-1 text-[8px]">Lanç: {safeDateDisplay(t.date)} • Venc: {safeDateDisplay(t.clearanceDate)} • {t.account} • {t.category}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="font-black text-slate-800">{formatMoney(t.amount)}</p>
+                                                            <div className="flex gap-1 items-center">
+                                                                <button type="button" onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1, feeType: 'none', feePercent: 0}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-500 font-black text-[8px] bg-slate-100 px-2 py-1.5 rounded hover:bg-blue-100">EDITAR</button>
+                                                                <button type="button" onClick={() => executeDelete('transactions', t.id)} className={`transition-all px-2 py-1.5 font-black text-[8px] rounded ${deleteConfirmId === t.id ? 'delete-confirm' : 'bg-red-50 text-red-500 hover:bg-red-100'}`}>
+                                                                    {deleteConfirmId === t.id ? "SIM" : "EXCLUIR"}
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <p className="font-black text-slate-800">{formatMoney(t.amount)}</p>
-                                                        <div className="flex gap-1 items-center">
-                                                            <button type="button" onClick={()=>{setTxForm({id:t.id, desc:t.description||'', val:t.amount?.toString()||'', type:t.type, acc:t.account||'', destAcc:t.destinationAccount||'', cat:t.category||'', sup:t.supplier||'', date:t.date||'', clearance:t.clearanceDate||'', status:t.status, inst:1, feeType: 'none', feePercent: 0}); window.scrollTo({top:0, behavior:'smooth'});}} className="text-blue-500 font-black text-[8px] bg-slate-100 px-2 py-1.5 rounded hover:bg-blue-100">EDITAR</button>
-                                                            <button type="button" onClick={() => executeDelete('transactions', t.id)} className={`transition-all px-2 py-1.5 font-black text-[8px] rounded ${deleteConfirmId === t.id ? 'delete-confirm' : 'bg-red-50 text-red-500 hover:bg-red-100'}`}>
-                                                                {deleteConfirmId === t.id ? "SIM" : "EXCLUIR"}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                             {filteredDashboard.length > visibleTxCount && (
                                                 <button type="button" onClick={() => setVisibleTxCount(prev => prev + 15)} className="w-full p-3 bg-slate-50 text-slate-500 font-black text-[9px] uppercase hover:bg-slate-100">Carregar Mais Histórico (+{filteredDashboard.length - visibleTxCount})</button>
                                             )}
