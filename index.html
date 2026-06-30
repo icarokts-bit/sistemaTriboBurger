@@ -107,7 +107,7 @@
             );
         });
 
-        // ================= FUNÇÕES DE DATA E FILTRAGEM SEGURAS =================
+        // ================= FUNÇÕES DE DATA SEGURAS =================
         const parseDateUTC = (dateStr) => {
             if (!dateStr || dateStr.includes('NaN')) return new Date();
             if (dateStr.includes('-')) {
@@ -124,10 +124,17 @@
             return (desc.includes("baixa fatura") || desc.includes("pagamento fatura") || desc.includes("pagamento de fatura") || desc.includes("baixa de fatura") || cat.includes("baixa fatura"));
         };
 
-        // NOVO: Garante que uma transação pertence estritamente a um único mês para não haver duplicados!
         const getTxMonth = (t) => {
             if (!t) return '';
             return t.billingMonth || (t.clearanceDate || t.date || '').slice(0, 7);
+        };
+
+        const getTransactionDates = (t) => {
+            if (!t) return { clearanceDate: '', billingMonth: '' };
+            return {
+                clearanceDate: t.clearanceDate || t.date || '',
+                billingMonth: t.billingMonth || (t.date ? t.date.slice(0, 7) : '')
+            };
         };
 
         const safeDateDisplay = (dateStr) => {
@@ -288,37 +295,24 @@
                 setVisibleTxCount(10); 
             }, [filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
 
-            // CÁLCULOS MEMOIZADOS E BLINDADOS CONTRA DUPLICAÇÕES
+            // Cálculos Memoizados
             const filteredDashboard = useMemo(() => {
                 return transactions.filter(t => {
                     if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
-                    
-                    // Substituição: a transação pertence EXATAMENTE a 1 único mês de filtro
-                    const isMonth = getTxMonth(t) === filterMonth;
+                    const { clearanceDate, billingMonth } = getTransactionDates(t);
+                    const isMonth = (t.date?.startsWith(filterMonth) || clearanceDate?.startsWith(filterMonth) || billingMonth === filterMonth);
                     
                     const matchSearch = (t.description || "").toLowerCase().includes(searchQuery.toLowerCase());
                     const matchType = typeFilter === 'todos' || t.type === typeFilter;
                     const matchStatus = statusFilter === 'todos' || t.status === statusFilter;
                     const matchAcc = accFilter === 'todas' || t.account === accFilter;
                     
+                    // LÓGICA DE FILTRO MULTI-CATEGORIAS
                     const matchCat = catFilter.length === 0 || catFilter.includes(t.category);
 
                     return isMonth && matchSearch && matchType && matchStatus && matchAcc && matchCat;
                 }).sort((a,b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
             }, [transactions, filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
-
-            // NOVO: Cálculo dos totais de tudo o que foi filtrado no histórico
-            // Ignora o pagamento da fatura (Baixa Fatura) para não duplicar o gasto final
-            const totaisFiltrados = useMemo(() => {
-                let entradas = 0; let saidas = 0;
-                filteredDashboard.forEach(t => {
-                    if (isInvoicePayment(t)) return; // IGNORA BAIXAS DE FATURA NO TOTALIZADOR PARA NÃO DUPLICAR SAÍDA
-                    
-                    if (t.type === 'entrada') entradas += p(t.amount);
-                    if (t.type === 'saida') saidas += p(t.amount);
-                });
-                return { entradas, saidas, saldo: entradas - saidas };
-            }, [filteredDashboard]);
 
             const accountBalances = useMemo(() => {
                 const bal = {}; 
@@ -416,18 +410,24 @@
                 }
 
                 transactions.forEach(t => {
-                    // SUBSTITUIÇÃO: Impede meses sobrepostos de duplicarem e exclui as Faturas das estatísticas DRE
                     const isMonth = getTxMonth(t) === filterMonth;
                     
-                    if (t.status === 'pago' && isMonth) {
-                        if (isInvoicePayment(t)) return; // IGNORA TRANSFERÊNCIAS DE CARTÃO DE CRÉDITO DO DRE OPERACIONAL
+                    if (isMonth) {
+                        if (isInvoicePayment(t)) return; // IGNORA BAIXAS DE FATURA
                         
                         if (t.type === 'saida') { 
+                            // NOVO: Conta PAGOS e PENDENTES no DRE para bater com o OUT de "Todos" (Regime de Competência real)
                             catCosts[t.category] = (catCosts[t.category] || 0) + p(t.amount); 
-                            contasPagas += p(t.amount); 
+                            
+                            // Fluxo de caixa de pagamentos apenas o que foi efetivado
+                            if (t.status === 'pago') {
+                                contasPagas += p(t.amount); 
+                            }
                         }
                         else if (t.type === 'entrada') { 
-                            entradas += p(t.amount); 
+                            if (t.status === 'pago') {
+                                entradas += p(t.amount); 
+                            }
                         }
                     }
                 });
@@ -494,6 +494,17 @@
                     autoCardFees 
                 };
             }, [dailyRecords, transactions, filterMonth, metaVendas, cmvSettings]);
+
+            // Cálculo dos totais do filtro do histórico
+            const totaisFiltrados = useMemo(() => {
+                let entradas = 0; let saidas = 0;
+                filteredDashboard.forEach(t => {
+                    if (isInvoicePayment(t)) return; // IGNORA O PAGAMENTO EFETIVO DA FATURA (Para não duplicar a saída)
+                    if (t.type === 'entrada') entradas += p(t.amount);
+                    if (t.type === 'saida') saidas += p(t.amount);
+                });
+                return { entradas, saidas, saldo: entradas - saidas };
+            }, [filteredDashboard]);
 
             const salesDays = useMemo(() => {
                 return Object.keys(dailyRecords)
@@ -1154,14 +1165,13 @@
                                 // Faturamento TOTAL APENAS das vendas do caixa diário
                                 const faturamentoTotal = mPix + mPixOn + mDinheiro + mIfood + mDebito + mCredito + mFiado + mVR + mTicket + mAlelo;
                                 
-                                // O usuário quer que CMV seja os Insumos/Embalagens do Financeiro
                                 let custoRealInsumosFinanceiro = 0;
                                 let taxasFinanceiroManuais = 0;
                                 let motoboyFinanceiroExtra = 0;
                                 let totalCustosFixosDRE = 0;
                                 let listaCustosFixos = [];
 
-                                const cmvKeywords = ['insumo', 'embalagem', 'mercadoria', 'compra', 'hortifruti', 'açougue', 'acougue', 'padaria', 'bebida', 'cmv', 'ingrediente', 'fornecedor', 'estoque', 'alimento', 'carne', 'pão', 'pao', 'queijo', 'gás', 'gas', 'refrigerante', 'suco'];
+                                const cmvKeywords = ['insumo', 'embalagem', 'embalagens', 'mercadoria', 'compra', 'hortifruti', 'açougue', 'acougue', 'padaria', 'bebida', 'cmv', 'ingrediente', 'fornecedor', 'estoque', 'alimento', 'carne', 'pão', 'pao', 'queijo', 'gás', 'gas', 'refrigerante', 'suco'];
                                 const entregaKeywords = ['motoboy', 'motoqueiro', 'entrega', 'frete', 'logistica', 'logística', 'entregador', 'combustível', 'gasolina'];
 
                                 Object.entries(stats.catCosts).forEach(([cat, val]) => {
@@ -1170,7 +1180,7 @@
                                     // Ignora as taxas automáticas lançadas pela aba vendas
                                     if (c === 'taxas de cartão (auto vendas)') return;
 
-                                    if (['taxa maquina cartão', 'taxa maquina cartao', 'taxas bancárias', 'taxas bancarias'].includes(c)) {
+                                    if (['taxa maquina cartão', 'taxa maquina cartao', 'taxas bancárias', 'taxas bancarias', 'taxas da máquina', 'taxa'].includes(c) || c.includes('taxa maquina')) {
                                         taxasFinanceiroManuais += val;
                                     } 
                                     else if (cmvKeywords.some(k => c.includes(k))) {
@@ -1186,6 +1196,7 @@
                                     }
                                 });
 
+                                // Se não houver nada lançado com essas palavras no financeiro, usa a teórica como fallback de segurança
                                 const custoInsumos = custoRealInsumosFinanceiro > 0 ? custoRealInsumosFinanceiro : (faturamentoTotal * (p(cmvGeral) / 100));
                                 const cmvRealFinanceiroPercent = faturamentoTotal > 0 ? (custoInsumos / faturamentoTotal) * 100 : 0;
 
