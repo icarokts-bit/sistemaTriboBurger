@@ -107,7 +107,7 @@
             );
         });
 
-        // ================= FUNÇÕES DE DATA SEGURAS =================
+        // ================= FUNÇÕES DE DATA E FILTRAGEM SEGURAS =================
         const parseDateUTC = (dateStr) => {
             if (!dateStr || dateStr.includes('NaN')) return new Date();
             if (dateStr.includes('-')) {
@@ -117,16 +117,19 @@
             return new Date(dateStr);
         };
 
+        // BLINDAGEM CONTRA DUPLICAÇÃO DE FATURAS
         const isInvoicePayment = (t) => {
             if (!t) return false;
             const desc = (t.description || "").toLowerCase();
             const cat = (t.category || "").toLowerCase();
-            return (desc.includes("baixa fatura") || desc.includes("pagamento fatura") || desc.includes("pagamento de fatura") || desc.includes("baixa de fatura") || cat.includes("baixa fatura"));
+            // Qualquer coisa que tenha a palavra fatura não soma nos totais para não duplicar com as compras individuais
+            return desc.includes("fatura") || cat.includes("fatura");
         };
 
+        // BLINDAGEM DE MESES: Pertence estritamente ao mês do Vencimento (Regime de Caixa Operacional)
         const getTxMonth = (t) => {
             if (!t) return '';
-            return t.billingMonth || (t.clearanceDate || t.date || '').slice(0, 7);
+            return (t.clearanceDate || t.date || '').slice(0, 7);
         };
 
         const getTransactionDates = (t) => {
@@ -168,7 +171,7 @@
             const [catFilter, setCatFilter] = useState([]);
             const [isCatMenuOpen, setIsCatMenuOpen] = useState(false);
 
-            const [visibleTxCount, setVisibleTxCount] = useState(10);
+            const [visibleTxCount, setVisibleTxCount] = useState(15);
             
             // Formulários Financeiros
             const [txForm, setTxForm] = useState({ 
@@ -292,27 +295,41 @@
             }, [user]);
 
             useEffect(() => { 
-                setVisibleTxCount(10); 
+                setVisibleTxCount(15); 
             }, [filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
 
             // Cálculos Memoizados
             const filteredDashboard = useMemo(() => {
                 return transactions.filter(t => {
-                    if (!t || (t.type === 'entrada' && isInvoicePayment(t))) return false;
-                    const { clearanceDate, billingMonth } = getTransactionDates(t);
-                    const isMonth = (t.date?.startsWith(filterMonth) || clearanceDate?.startsWith(filterMonth) || billingMonth === filterMonth);
+                    if (!t) return false;
+                    
+                    // O filtro principal de MÊS é regido unicamente pelo Vencimento (ClearanceDate)
+                    const isMonth = getTxMonth(t) === filterMonth;
                     
                     const matchSearch = (t.description || "").toLowerCase().includes(searchQuery.toLowerCase());
                     const matchType = typeFilter === 'todos' || t.type === typeFilter;
                     const matchStatus = statusFilter === 'todos' || t.status === statusFilter;
                     const matchAcc = accFilter === 'todas' || t.account === accFilter;
                     
-                    // LÓGICA DE FILTRO MULTI-CATEGORIAS
+                    // Filtro Multi-categorias
                     const matchCat = catFilter.length === 0 || catFilter.includes(t.category);
 
                     return isMonth && matchSearch && matchType && matchStatus && matchAcc && matchCat;
                 }).sort((a,b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
             }, [transactions, filterMonth, searchQuery, typeFilter, statusFilter, accFilter, catFilter]);
+
+            // Cálculo dos totais do filtro do histórico
+            const totaisFiltrados = useMemo(() => {
+                let entradas = 0; let saidas = 0;
+                filteredDashboard.forEach(t => {
+                    // BLINDAGEM: Faturas pagas de cartão são ignoradas na soma (para não contar 2x os mesmos produtos)
+                    if (isInvoicePayment(t)) return; 
+                    
+                    if (t.type === 'entrada') entradas += p(t.amount);
+                    if (t.type === 'saida') saidas += p(t.amount);
+                });
+                return { entradas, saidas, saldo: entradas - saidas };
+            }, [filteredDashboard]);
 
             const accountBalances = useMemo(() => {
                 const bal = {}; 
@@ -416,10 +433,10 @@
                         if (isInvoicePayment(t)) return; // IGNORA BAIXAS DE FATURA
                         
                         if (t.type === 'saida') { 
-                            // NOVO: Conta PAGOS e PENDENTES no DRE para bater com o OUT de "Todos" (Regime de Competência real)
+                            // Soma para o DRE Operacional (Pendente e Pago)
                             catCosts[t.category] = (catCosts[t.category] || 0) + p(t.amount); 
                             
-                            // Fluxo de caixa de pagamentos apenas o que foi efetivado
+                            // Fluxo de Caixa Limpo (Apenas Pagos)
                             if (t.status === 'pago') {
                                 contasPagas += p(t.amount); 
                             }
@@ -495,17 +512,6 @@
                 };
             }, [dailyRecords, transactions, filterMonth, metaVendas, cmvSettings]);
 
-            // Cálculo dos totais do filtro do histórico
-            const totaisFiltrados = useMemo(() => {
-                let entradas = 0; let saidas = 0;
-                filteredDashboard.forEach(t => {
-                    if (isInvoicePayment(t)) return; // IGNORA O PAGAMENTO EFETIVO DA FATURA (Para não duplicar a saída)
-                    if (t.type === 'entrada') entradas += p(t.amount);
-                    if (t.type === 'saida') saidas += p(t.amount);
-                });
-                return { entradas, saidas, saldo: entradas - saidas };
-            }, [filteredDashboard]);
-
             const salesDays = useMemo(() => {
                 return Object.keys(dailyRecords)
                     .filter(d=>d.startsWith(filterMonth))
@@ -529,7 +535,6 @@
             const consolidatedAPagar = useMemo(() => {
                 const pendings = transactions.filter(t => {
                     const accInfo = accounts.find(a => a.name === t.account);
-                    // Blindagem
                     return t.type === 'saida' && t.status === 'pendente' && getTxMonth(t) === filterMonth && accInfo?.type !== 'cartao' && !isInvoicePayment(t);
                 });
                 
@@ -568,10 +573,8 @@
                 return { ...card, currentBalance, limit, available };
             }), [transactions, accounts]);
 
-            // VARIÁVEIS GLOBAIS DE RELATÓRIOS E PAGAMENTOS
             const totalAPagar = useMemo(() => consolidatedAPagar.reduce((sum, t) => sum + p(t.amount), 0), [consolidatedAPagar]);
             const totalReceitasPendentes = useMemo(() => consolidatedAReceber.reduce((sum, t) => sum + p(t.amount), 0), [consolidatedAReceber]);
-            const somaDespesasCategoria = useMemo(() => Object.values(stats.catCosts).reduce((a, b) => a + b, 0), [stats.catCosts]);
 
             const getIngCost = (id, q) => { 
                 const i = ingredients.find(x => x.id === id); 
@@ -1165,6 +1168,7 @@
                                 // Faturamento TOTAL APENAS das vendas do caixa diário
                                 const faturamentoTotal = mPix + mPixOn + mDinheiro + mIfood + mDebito + mCredito + mFiado + mVR + mTicket + mAlelo;
                                 
+                                // O usuário quer que CMV seja os Insumos/Embalagens do Financeiro
                                 let custoRealInsumosFinanceiro = 0;
                                 let taxasFinanceiroManuais = 0;
                                 let motoboyFinanceiroExtra = 0;
@@ -1687,7 +1691,7 @@
                                 </div>
                             )}
 
-                            {/* ABA: INSUMOS */}
+                            {/* ABA: INSUMOS (RESTAURADA E COMPLETA POR CATEGORIA) */}
                             {activeTab === 'insumos' && (
                                 <div className="space-y-4 fade-in">
                                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
